@@ -62,7 +62,6 @@ local-*
 # local AI-tooling config
 .claude
 .codex
-.z-ai-config
 
 # Skills directory
 /skills/
