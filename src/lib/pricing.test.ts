@@ -59,7 +59,12 @@ describe("the kill switch", () => {
     )
 
     // 54, not 47.52 — landing this must change no price at all.
-    expect(resolved).toEqual({ unitPrice: 54, source: "wholesale", priceListItemId: null })
+    expect(resolved).toEqual({
+      unitPrice: 54,
+      source: "wholesale",
+      priceListItemId: null,
+      reason: "lists_disabled",
+    })
   })
 
   it("applies the contract price once enabled", () => {
@@ -132,7 +137,12 @@ describe("resolution order", () => {
       on
     )
 
-    expect(resolved).toEqual({ unitPrice: 54, source: "wholesale", priceListItemId: null })
+    expect(resolved).toEqual({
+      unitPrice: 54,
+      source: "wholesale",
+      priceListItemId: null,
+      reason: "product_not_in_list",
+    })
   })
 
   it("can fall back to retail instead when configured", () => {
@@ -142,7 +152,56 @@ describe("resolution order", () => {
       unitPrice: 79,
       source: "retail",
       priceListItemId: null,
+      reason: "no_list_assigned",
     })
+  })
+})
+
+describe("why a line fell back", () => {
+  it("distinguishes a missing product from a quantity no band covers", () => {
+    // This is the difference between "the list is incomplete" and "the list
+    // only kicks in above 50 units" — different fixes, so the report must not
+    // conflate them.
+    const bulkOnly = [item({ id: "bulk", price: 47.52, minQty: 50, maxQty: null })]
+
+    expect(
+      resolveLinePrice(
+        { quantity: 10, product, customer: { priceListId: "list-1" }, items: bulkOnly, lists: [list()], asOf },
+        on
+      ).reason
+    ).toBe("no_band_for_quantity")
+
+    expect(
+      resolveLinePrice(
+        { quantity: 10, product, customer: { priceListId: "list-1" }, items: [], lists: [list()], asOf },
+        on
+      ).reason
+    ).toBe("product_not_in_list")
+  })
+
+  it("reports an inactive list separately from a missing product", () => {
+    expect(
+      resolveLinePrice(
+        {
+          quantity: 10,
+          product,
+          customer: { priceListId: "list-1" },
+          items: [item()],
+          lists: [list({ status: "archived" })],
+          asOf,
+        },
+        on
+      ).reason
+    ).toBe("list_inactive")
+  })
+
+  it("sets no reason when a list actually priced the line", () => {
+    expect(
+      resolveLinePrice(
+        { quantity: 10, product, customer: { priceListId: "list-1" }, items: [item()], lists: [list()], asOf },
+        on
+      ).reason
+    ).toBeUndefined()
   })
 })
 

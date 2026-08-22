@@ -58,9 +58,9 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    if (!driver || driver.role !== "driver" || driver.status !== "active") {
+    if (!driver || !["driver", "warehouse", "admin", "sales"].includes(driver.role) || driver.status !== "active") {
       return NextResponse.json(
-        { success: false, error: "Invalid driver credentials." },
+        { success: false, error: "Invalid operations credentials." },
         { status: 401 }
       )
     }

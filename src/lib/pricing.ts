@@ -59,11 +59,21 @@ export interface ResolvePriceInput {
   asOf?: Date
 }
 
+/** Why a line fell back to product pricing instead of a list. */
+export type FallbackReason =
+  | "lists_disabled"
+  | "no_list_assigned"
+  | "product_not_in_list"
+  | "no_band_for_quantity"
+  | "list_inactive"
+
 export interface ResolvedPrice {
   unitPrice: number
   source: PriceSource
   /** Persist this — without it "why was this line $4.20?" is unanswerable. */
   priceListItemId: string | null
+  /** Set only when a list was expected but not used. */
+  reason?: FallbackReason
 }
 
 function isUsable(value: number | null | undefined): value is number {
@@ -151,15 +161,16 @@ export function resolveLinePrice(
 ): ResolvedPrice {
   const asOf = input.asOf ?? new Date()
 
-  const fallbackPrice = () => {
+  const fallbackPrice = (reason: FallbackReason): ResolvedPrice => {
     const retail = input.product.retailPrice
     if (settings.fallback === "retailPrice" && isUsable(retail)) {
-      return { unitPrice: retail, source: "retail" as const, priceListItemId: null }
+      return { unitPrice: retail, source: "retail", priceListItemId: null, reason }
     }
     return {
       unitPrice: input.product.wholesalePrice,
-      source: "wholesale" as const,
+      source: "wholesale",
       priceListItemId: null,
+      reason,
     }
   }
 
@@ -179,7 +190,7 @@ export function resolveLinePrice(
   // The kill switch. Off by default, so landing this changes no price at all
   // until someone deliberately turns it on after reading the dry-run report.
   if (!settings.enablePriceLists) {
-    return finish(fallbackPrice())
+    return finish(fallbackPrice("lists_disabled"))
   }
 
   const lists = input.lists ?? []
@@ -194,8 +205,14 @@ export function resolveLinePrice(
 
   const assignedListId = input.customer?.priceListId
 
+  // Tracked so the dry-run report can say *why* a line fell back, which is the
+  // difference between "nothing changes" and "nothing changes because half the
+  // catalogue is missing from the list".
+  let reason: FallbackReason = assignedListId ? "product_not_in_list" : "no_list_assigned"
+
   if (assignedListId) {
-    const item = bandFor(usableItems(assignedListId), input.quantity, settings.volumeBreaks)
+    const forList = usableItems(assignedListId)
+    const item = bandFor(forList, input.quantity, settings.volumeBreaks)
 
     if (item) {
       return finish({
@@ -203,6 +220,13 @@ export function resolveLinePrice(
         source: "priceList",
         priceListItemId: item.id,
       })
+    }
+
+    if (forList.length > 0) {
+      // The product is on the list; no band covers this quantity.
+      reason = "no_band_for_quantity"
+    } else if (items.some((entry) => entry.priceListId === assignedListId)) {
+      reason = "list_inactive"
     }
   }
 
@@ -222,7 +246,7 @@ export function resolveLinePrice(
     }
   }
 
-  return finish(fallbackPrice())
+  return finish(fallbackPrice(reason))
 }
 
 /* ------------------------------------------------------------------------ */

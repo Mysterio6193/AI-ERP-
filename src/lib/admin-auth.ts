@@ -11,6 +11,7 @@ import {
   verifySessionToken,
 } from "@/lib/session-token"
 import { type UserRole } from "@/lib/types"
+import { verifyDriverSessionToken } from "@/lib/driver-auth"
 
 export { ADMIN_SESSION_COOKIE, isAuthBypassEnabled }
 
@@ -83,10 +84,26 @@ export function clearAdminSessionCookie(response: NextResponse) {
 }
 
 export async function getAdminUserFromRequest(request: NextRequest) {
-  const token = request.cookies.get(ADMIN_SESSION_COOKIE)?.value
+  const token =
+    request.cookies.get(ADMIN_SESSION_COOKIE)?.value ||
+    request.headers.get("x-admin-session")
   const session = token ? await verifyAdminSessionToken(token) : null
 
-  if (!session) {
+  let userId = session?.id
+
+  if (!userId) {
+    const driverToken =
+      request.headers.get("x-driver-session") ||
+      request.cookies.get("driver_session")?.value
+    if (driverToken) {
+      const driverPayload = verifyDriverSessionToken(driverToken)
+      if (driverPayload?.sub) {
+        userId = driverPayload.sub
+      }
+    }
+  }
+
+  if (!userId) {
     if (isAuthBypassEnabled()) {
       return getAuthBypassUser()
     }
@@ -95,7 +112,7 @@ export async function getAdminUserFromRequest(request: NextRequest) {
   }
 
   const user = await db.user.findUnique({
-    where: { id: session.id },
+    where: { id: userId },
     select: {
       id: true,
       name: true,

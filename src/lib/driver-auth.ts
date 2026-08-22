@@ -84,7 +84,7 @@ export async function getDriverFromSessionToken(token?: string | null) {
     },
   })
 
-  if (!driver || driver.role !== "driver" || driver.status !== "active") {
+  if (!driver || !["driver", "warehouse", "admin", "sales"].includes(driver.role) || driver.status !== "active") {
     return null
   }
 
