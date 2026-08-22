@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
+import { requireAdminUser } from "@/lib/admin-auth"
 import { db } from "@/lib/db"
+import { ROLE_SETS } from "@/lib/permissions"
 
 // GET /api/suppliers - List all suppliers
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAdminUser(request, ROLE_SETS.operations)
+    if (!auth.user) return auth.response
+
     const { searchParams } = new URL(request.url)
     const search = searchParams.get("search") || ""
     const status = searchParams.get("status") || ""
@@ -48,6 +53,9 @@ export async function GET(request: NextRequest) {
 // POST /api/suppliers - Create a new supplier
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireAdminUser(request, ROLE_SETS.operations)
+    if (!auth.user) return auth.response
+
     const body = await request.json()
     const {
       name,

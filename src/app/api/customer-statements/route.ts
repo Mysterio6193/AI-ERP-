@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server"
 
+import { requireAdminUser } from "@/lib/admin-auth"
 import { db } from "@/lib/db"
 import { buildCustomerStatement, formatStatementNumber } from "@/lib/customer-statements"
+import { ROLE_SETS } from "@/lib/permissions"
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAdminUser(request, ROLE_SETS.finance)
+    if (!auth.user) return auth.response
+
     const { searchParams } = new URL(request.url)
     const customerId = searchParams.get("customerId") || ""
     const search = searchParams.get("search") || ""

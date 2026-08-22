@@ -1,9 +1,14 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
+import { requireAdminUser } from "@/lib/admin-auth"
 import { db } from "@/lib/db"
 import { ensureDefaultDriver } from "@/lib/delivery-routes"
+import { ROLE_SETS } from "@/lib/permissions"
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAdminUser(request, ROLE_SETS.operations)
+    if (!auth.user) return auth.response
+
     await ensureDefaultDriver(db)
 
     const drivers = await db.user.findMany({

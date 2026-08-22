@@ -1,10 +1,15 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 
+import { requireAdminUser } from "@/lib/admin-auth"
 import { db } from "@/lib/db"
 import { normalizeCommerceSettings } from "@/lib/commerce"
+import { ROLE_SETS } from "@/lib/permissions"
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAdminUser(request, ROLE_SETS.staff)
+    if (!auth.user) return auth.response
+
     const existing = await db.commerceSettings.findFirst({
       orderBy: { createdAt: "asc" },
     })
@@ -22,8 +27,11 @@ export async function GET() {
   }
 }
 
-export async function PUT(request: Request) {
+export async function PUT(request: NextRequest) {
   try {
+    const auth = await requireAdminUser(request, ROLE_SETS.adminOnly)
+    if (!auth.user) return auth.response
+
     const body = await request.json()
     const data = normalizeCommerceSettings(body)
     const company = await db.company.findFirst({

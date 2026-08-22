@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 
+import { requireAdminUser } from "@/lib/admin-auth"
 import { getActiveCompanyId } from "@/lib/active-company"
 import { db } from "@/lib/db"
+import { ROLE_SETS } from "@/lib/permissions"
 
 /** The entity the request is acting as, not merely the first row. */
 async function getDefaultCompanyId(request: NextRequest) {
@@ -30,6 +32,9 @@ async function generateQuoteNumber() {
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAdminUser(request, ROLE_SETS.staff)
+    if (!auth.user) return auth.response
+
     const { searchParams } = new URL(request.url)
     const search = searchParams.get("search") || ""
     const status = searchParams.get("status") || ""
@@ -75,6 +80,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireAdminUser(request, ROLE_SETS.commercial)
+    if (!auth.user) return auth.response
+
     const body = await request.json()
     const { customerId, validUntil, customerNotes, internalNotes, items } = body
 

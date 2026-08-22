@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
+import { requireAdminUser } from "@/lib/admin-auth"
 import { db } from "@/lib/db"
+import { ROLE_SETS } from "@/lib/permissions"
 
 // GET /api/pricing - List all price lists
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAdminUser(request, ROLE_SETS.commercial)
+    if (!auth.user) return auth.response
+
     const { searchParams } = new URL(request.url)
     const search = searchParams.get("search") || ""
     const type = searchParams.get("type") || ""
@@ -55,6 +60,9 @@ export async function GET(request: NextRequest) {
 // POST /api/pricing - Create a new price list
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireAdminUser(request, ROLE_SETS.commercial)
+    if (!auth.user) return auth.response
+
     const body = await request.json()
     const {
       name,

@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from "next/server"
 
 import { getDefaultCompanyId, recalculateBankAccountBalance } from "@/lib/accounting"
+import { requireAdminUser } from "@/lib/admin-auth"
 import { db } from "@/lib/db"
+import { ROLE_SETS } from "@/lib/permissions"
 
 const prisma = db as any
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAdminUser(request, ROLE_SETS.accounting)
+    if (!auth.user) return auth.response
+
     const companyId = await getDefaultCompanyId()
     const { searchParams } = new URL(request.url)
     const bankAccountId = searchParams.get("bankAccountId")
@@ -43,6 +48,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireAdminUser(request, ROLE_SETS.accounting)
+    if (!auth.user) return auth.response
+
     const companyId = await getDefaultCompanyId()
     const body = await request.json()
 

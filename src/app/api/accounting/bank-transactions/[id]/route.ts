@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 
 import { recalculateBankAccountBalance, refreshReconciliationSession } from "@/lib/accounting"
+import { requireAdminUser } from "@/lib/admin-auth"
 import { db } from "@/lib/db"
+import { ROLE_SETS } from "@/lib/permissions"
 
 const prisma = db as any
 
@@ -10,6 +12,9 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireAdminUser(request, ROLE_SETS.accounting)
+    if (!auth.user) return auth.response
+
     const { id } = await params
     const body = await request.json()
 

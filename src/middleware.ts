@@ -89,6 +89,13 @@ export async function middleware(request: NextRequest) {
       return NextResponse.next()
     }
 
+    // Public branding read. The driver app fetches company identity before
+    // sign-in so its lock screen matches the business; without this it only
+    // worked under AUTH_BYPASS. Read-only — writes are guarded in the route.
+    if (pathname === "/api/settings/company" && request.method === "GET") {
+      return NextResponse.next()
+    }
+
     if (isSelfAuthenticatingApi(pathname)) {
       return hasCredential(request)
         ? NextResponse.next()

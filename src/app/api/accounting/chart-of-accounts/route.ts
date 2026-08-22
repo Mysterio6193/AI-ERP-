@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from "next/server"
 
 import { ensureDefaultChartOfAccounts, getDefaultCompanyId } from "@/lib/accounting"
+import { requireAdminUser } from "@/lib/admin-auth"
 import { db } from "@/lib/db"
+import { ROLE_SETS } from "@/lib/permissions"
 
 const prisma = db as any
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAdminUser(request, ROLE_SETS.accounting)
+    if (!auth.user) return auth.response
+
     const companyId = await getDefaultCompanyId()
     const accounts = await ensureDefaultChartOfAccounts(companyId)
     return NextResponse.json({ success: true, data: accounts })
@@ -18,6 +23,9 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireAdminUser(request, ROLE_SETS.accounting)
+    if (!auth.user) return auth.response
+
     const body = await request.json()
     const companyId = await getDefaultCompanyId()
 

@@ -1,12 +1,17 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
+import { requireAdminUser } from "@/lib/admin-auth"
 import { sendCommunicationMessage } from "@/lib/communications"
 import {
     buildDocumentEmailMessage,
     buildDocumentEmailSubject,
 } from "@/lib/company-branding"
+import { ROLE_SETS } from "@/lib/permissions"
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
     try {
+        const auth = await requireAdminUser(request, ROLE_SETS.staff)
+        if (!auth.user) return auth.response
+
         const body = await request.json()
         const { to, subject, message, documentType, documentId, method } = body
 

@@ -1,9 +1,11 @@
 import type { Prisma, PrismaClient } from "@prisma/client"
 import { NextRequest, NextResponse } from "next/server"
 
+import { requireAdminUser } from "@/lib/admin-auth"
 import { receiveBatch } from "@/lib/batches"
 import { db } from "@/lib/db"
 import { resolveDefaultWarehouseId } from "@/lib/pick-lists"
+import { ROLE_SETS } from "@/lib/permissions"
 
 type DbClient = PrismaClient | Prisma.TransactionClient
 
@@ -102,6 +104,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireAdminUser(request, ROLE_SETS.operations)
+    if (!auth.user) return auth.response
+
     const { id } = await params
     const body = await request.json()
     const nextStatus = body.status
@@ -302,6 +307,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireAdminUser(request, ROLE_SETS.operations)
+    if (!auth.user) return auth.response
+
     const { id } = await params
 
     const order = await db.purchaseOrder.findUnique({

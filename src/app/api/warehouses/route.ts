@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
+import { requireAdminUser } from "@/lib/admin-auth"
 import { getActiveCompanyId } from "@/lib/active-company"
 import { db } from "@/lib/db"
+import { ROLE_SETS } from "@/lib/permissions"
 
 /** The entity the request is acting as, not merely the first row. */
 async function getDefaultCompanyId(request: NextRequest) {
@@ -8,8 +10,11 @@ async function getDefaultCompanyId(request: NextRequest) {
 }
 
 // GET /api/warehouses - List all warehouses
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAdminUser(request, ROLE_SETS.operations)
+    if (!auth.user) return auth.response
+
     const warehouses = await db.warehouse.findMany({
       include: {
         _count: {
@@ -50,6 +55,9 @@ export async function GET() {
 // POST /api/warehouses - Create a new warehouse
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireAdminUser(request, ROLE_SETS.operations)
+    if (!auth.user) return auth.response
+
     const body = await request.json()
     const {
       name,

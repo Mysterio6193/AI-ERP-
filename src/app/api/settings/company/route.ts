@@ -1,7 +1,11 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
+import { requireAdminUser } from "@/lib/admin-auth"
 import { sanitizeCompanyBranding } from "@/lib/company-branding"
+import { ROLE_SETS } from "@/lib/permissions"
 
+// GET is intentionally public (see middleware): the driver app reads branding
+// before sign-in. Every mutating method below requires an admin.
 export async function GET() {
     try {
         const company = await db.company.findFirst()
@@ -23,8 +27,11 @@ export async function GET() {
     }
 }
 
-export async function PUT(request: Request) {
+export async function PUT(request: NextRequest) {
     try {
+        const auth = await requireAdminUser(request, ROLE_SETS.adminOnly)
+        if (!auth.user) return auth.response
+
         const body = await request.json()
         const existingCompany = await db.company.findFirst()
 

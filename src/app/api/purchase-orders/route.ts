@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 
+import { requireAdminUser } from "@/lib/admin-auth"
 import { getActiveCompanyId } from "@/lib/active-company"
 import { db } from "@/lib/db"
 import { resolveDefaultWarehouseId } from "@/lib/pick-lists"
+import { ROLE_SETS } from "@/lib/permissions"
 
 /** The entity the request is acting as, not merely the first row. */
 async function getDefaultCompanyId(request: NextRequest) {
@@ -31,6 +33,9 @@ async function generatePurchaseOrderNumber() {
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAdminUser(request, ROLE_SETS.staff)
+    if (!auth.user) return auth.response
+
     const { searchParams } = new URL(request.url)
     const search = searchParams.get("search") || ""
     const status = searchParams.get("status") || ""
@@ -76,6 +81,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireAdminUser(request, ROLE_SETS.operations)
+    if (!auth.user) return auth.response
+
     const body = await request.json()
     const { supplierId, expectedDate, notes, items } = body
 

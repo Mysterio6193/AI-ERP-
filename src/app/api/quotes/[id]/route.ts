@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 
+import { requireAdminUser } from "@/lib/admin-auth"
 import { db } from "@/lib/db"
 import { resolveDefaultWarehouseId } from "@/lib/pick-lists"
+import { ROLE_SETS } from "@/lib/permissions"
 
 async function generateOrderNumber() {
   const currentYear = new Date().getFullYear()
@@ -28,6 +30,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireAdminUser(request, ROLE_SETS.commercial)
+    if (!auth.user) return auth.response
+
     const { id } = await params
     const body = await request.json()
     const { status, action } = body
@@ -140,6 +145,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireAdminUser(request, ROLE_SETS.commercial)
+    if (!auth.user) return auth.response
+
     const { id } = await params
 
     const quote = await db.quote.findUnique({
