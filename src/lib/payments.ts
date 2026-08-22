@@ -1,6 +1,7 @@
 import type { Prisma, PrismaClient } from "@prisma/client"
 
 import { db } from "@/lib/db"
+import { postPaymentReceived } from "@/lib/ledger"
 
 type DbClient = PrismaClient | Prisma.TransactionClient
 
@@ -104,6 +105,10 @@ export async function recordPayment(
       notes: input.notes || null,
     },
   })
+
+  // Cash in, receivable down. Idempotent on the payment id, so the Stripe
+  // webhook retrying cannot post the same money twice.
+  await postPaymentReceived(client, payment.id)
 
   await client.invoice.update({
     where: { id: invoice.id },

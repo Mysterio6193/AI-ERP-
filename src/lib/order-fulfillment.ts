@@ -2,6 +2,7 @@ import type { Prisma, PrismaClient } from "@prisma/client"
 
 import { allocateFefo, consumeBatches } from "@/lib/batches"
 import { computeDueDate } from "@/lib/invoicing"
+import { postInvoiceRaised } from "@/lib/ledger"
 import { fulfilReservationsForOrder } from "@/lib/reservations"
 import { getSettings } from "@/lib/settings/service"
 import { nextDocumentNumber } from "@/lib/numbering"
@@ -234,6 +235,10 @@ export async function ensureInvoiceForOrder(db: DbClient, orderId: string) {
       dueDate,
     },
   })
+
+  // The customer now owes us and the GST is owed onward. Until this existed
+  // the ledger stayed empty while receivables moved.
+  await postInvoiceRaised(db, invoice.id)
 
   await db.customer.update({
     where: { id: order.customerId },

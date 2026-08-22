@@ -6,6 +6,7 @@ import { receiveBatch } from "@/lib/batches"
 import { db } from "@/lib/db"
 import { resolveDefaultWarehouseId } from "@/lib/pick-lists"
 import { ROLE_SETS } from "@/lib/permissions"
+import { postPurchaseReceipt } from "@/lib/ledger"
 
 type DbClient = PrismaClient | Prisma.TransactionClient
 
@@ -251,6 +252,13 @@ export async function PUT(
               unitCost: item.unitCost,
               totalCost: item.unitCost * receiptDelta,
             },
+          })
+
+          // Receiving goods creates an asset; without the matching liability
+          // the books could never balance. Keyed on the line's new cumulative
+          // quantity so a staged delivery posts each delta exactly once.
+          await postPurchaseReceipt(tx, existingOrder.id, item.unitCost * receiptDelta, {
+            referenceKey: `${item.id}:${targetReceivedQty}`,
           })
         }
       })
