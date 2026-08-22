@@ -47,6 +47,128 @@ export const DEFAULT_THRESHOLDS: AgentThresholds = {
   readOnly: false,
 }
 
+/**
+ * Upper bounds on what a human can grant.
+ *
+ * Not a security boundary against the agent — the agent cannot reach this
+ * setting at all, and the tool that will eventually let it propose settings
+ * changes hard-rejects the `agent.` namespace. These bounds exist so a
+ * mistyped limit cannot quietly hand over unlimited autonomy: typing an extra
+ * zero should not be the difference between a $50,000 ceiling and none.
+ */
+export const THRESHOLD_LIMITS = {
+  maxOrderValue: 1_000_000,
+  maxPurchaseOrderValue: 1_000_000,
+  maxPaymentValue: 1_000_000,
+  maxDiscountPercent: 100,
+  maxInventoryAdjustment: 100_000,
+} as const
+
+function clampNumber(value: unknown, max: number, fallback: number) {
+  const parsed = Number(value)
+
+  // A non-numeric or negative input keeps the current value rather than
+  // silently becoming 0, which would read as "never act alone" and look like
+  // the agent had broken.
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return fallback
+  }
+
+  return Math.min(parsed, max)
+}
+
+/** Validate and bound a patch against the current thresholds. Pure. */
+export function clampThresholds(
+  patch: Record<string, unknown>,
+  current: AgentThresholds
+): AgentThresholds {
+  return {
+    maxOrderValue:
+      patch.maxOrderValue === undefined
+        ? current.maxOrderValue
+        : clampNumber(patch.maxOrderValue, THRESHOLD_LIMITS.maxOrderValue, current.maxOrderValue),
+    maxPurchaseOrderValue:
+      patch.maxPurchaseOrderValue === undefined
+        ? current.maxPurchaseOrderValue
+        : clampNumber(
+            patch.maxPurchaseOrderValue,
+            THRESHOLD_LIMITS.maxPurchaseOrderValue,
+            current.maxPurchaseOrderValue
+          ),
+    maxPaymentValue:
+      patch.maxPaymentValue === undefined
+        ? current.maxPaymentValue
+        : clampNumber(
+            patch.maxPaymentValue,
+            THRESHOLD_LIMITS.maxPaymentValue,
+            current.maxPaymentValue
+          ),
+    maxDiscountPercent:
+      patch.maxDiscountPercent === undefined
+        ? current.maxDiscountPercent
+        : clampNumber(
+            patch.maxDiscountPercent,
+            THRESHOLD_LIMITS.maxDiscountPercent,
+            current.maxDiscountPercent
+          ),
+    maxInventoryAdjustment:
+      patch.maxInventoryAdjustment === undefined
+        ? current.maxInventoryAdjustment
+        : clampNumber(
+            patch.maxInventoryAdjustment,
+            THRESHOLD_LIMITS.maxInventoryAdjustment,
+            current.maxInventoryAdjustment
+          ),
+    allowOutboundMessages:
+      patch.allowOutboundMessages === undefined
+        ? current.allowOutboundMessages
+        : Boolean(patch.allowOutboundMessages),
+    readOnly: patch.readOnly === undefined ? current.readOnly : Boolean(patch.readOnly),
+  }
+}
+
+function money(value: number) {
+  return `$${value.toLocaleString("en-AU", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
+}
+
+/**
+ * What these limits mean, in the words someone would use to explain them.
+ *
+ * A number in a box does not tell an owner what they have agreed to. "Orders
+ * under $500 go through without asking; anything above waits for you" does.
+ */
+export function describeThresholds(thresholds: AgentThresholds): string[] {
+  if (thresholds.readOnly) {
+    return [
+      "The agent can look at anything but change nothing.",
+      "Every write is refused, whatever the value.",
+    ]
+  }
+
+  const lines = [
+    thresholds.maxOrderValue > 0
+      ? `Sales orders under ${money(thresholds.maxOrderValue)} go through without asking. Anything above waits for you.`
+      : "Every sales order waits for your approval.",
+    thresholds.maxPurchaseOrderValue > 0
+      ? `Purchase orders under ${money(thresholds.maxPurchaseOrderValue)} are placed on their own.`
+      : "Every purchase order waits for your approval.",
+    thresholds.maxPaymentValue > 0
+      ? `Payments up to ${money(thresholds.maxPaymentValue)} are recorded without asking.`
+      : "Every payment waits for your approval.",
+    thresholds.maxDiscountPercent > 0
+      ? `Discounts up to ${thresholds.maxDiscountPercent}% can be given without asking.`
+      : "Any discount waits for your approval.",
+    thresholds.maxInventoryAdjustment > 0
+      ? `Stock corrections up to ${thresholds.maxInventoryAdjustment} units are made directly.`
+      : "Every stock correction waits for your approval.",
+    thresholds.allowOutboundMessages
+      ? "The agent may message customers directly."
+      : "The agent drafts customer messages but never sends them itself.",
+  ]
+
+  return lines
+}
+
 const SETTING_KEY = "agent.thresholds"
 
 export async function getThresholds(): Promise<AgentThresholds> {
@@ -62,8 +184,16 @@ export async function getThresholds(): Promise<AgentThresholds> {
   }
 }
 
+function omitUndefined<T extends object>(input: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(input).filter(([, value]) => value !== undefined)
+  ) as Partial<T>
+}
+
 export async function saveThresholds(patch: Partial<AgentThresholds>) {
-  const next = { ...(await getThresholds()), ...patch }
+  // See heartbeat.ts: an explicit `undefined` in the patch would overwrite a
+  // saved value and then vanish through JSON.stringify, resetting it silently.
+  const next = { ...(await getThresholds()), ...omitUndefined(patch) }
 
   await db.setting.upsert({
     where: { key: SETTING_KEY },

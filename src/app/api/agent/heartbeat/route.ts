@@ -98,6 +98,19 @@ export async function POST(request: NextRequest) {
         body.freightCutoffWarningHours !== undefined
           ? Number(body.freightCutoffWarningHours)
           : undefined,
+      // These three are in HeartbeatConfig and were silently dropped here, so
+      // expiry alerting could not be tuned and alerts always went to admins.
+      expiryWarningDays:
+        body.expiryWarningDays !== undefined
+          ? Math.min(Math.max(Number(body.expiryWarningDays), 0), 365)
+          : undefined,
+      expiryMinValue:
+        body.expiryMinValue !== undefined
+          ? Math.max(Number(body.expiryMinValue), 0)
+          : undefined,
+      roles: Array.isArray(body.roles)
+        ? body.roles.map((role: unknown) => String(role)).filter(Boolean)
+        : undefined,
     })
 
     return NextResponse.json({ success: true, data: next })

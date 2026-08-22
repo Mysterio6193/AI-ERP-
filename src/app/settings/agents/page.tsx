@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Bot, Clock, Loader2, Lock, Play, Plus, Radio, RefreshCw, Shield, Wrench } from "lucide-react"
+import { Bot, Clock, Loader2, Lock, Play, Plus, Radio, RefreshCw, Shield, ShieldCheck, Wrench } from "lucide-react"
 
 import { AppShell } from "@/components/layout/app-shell"
 import { Badge } from "@/components/ui/badge"
@@ -31,6 +31,20 @@ interface AgentDefinition {
   nextRunAt: string | null
   lastRunStatus: string | null
   lastRunError: string | null
+}
+
+interface AutonomyState {
+  thresholds: {
+    maxOrderValue: number
+    maxPurchaseOrderValue: number
+    maxPaymentValue: number
+    maxDiscountPercent: number
+    maxInventoryAdjustment: number
+    allowOutboundMessages: boolean
+    readOnly: boolean
+  }
+  limits: Record<string, number>
+  summary: string[]
 }
 
 interface WatchState {
@@ -84,6 +98,7 @@ export default function AgentStudioPage() {
   const [selected, setSelected] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [watch, setWatch] = useState<WatchState | null>(null)
+  const [autonomy, setAutonomy] = useState<AutonomyState | null>(null)
 
   const [draft, setDraft] = useState({
     name: "",
@@ -97,9 +112,10 @@ export default function AgentStudioPage() {
     setLoading(true)
 
     try {
-      const [result, watchResult] = await Promise.all([
+      const [result, watchResult, policyResult] = await Promise.all([
         fetch("/api/agent/definitions").then((response) => response.json()),
         fetch("/api/agent/heartbeat").then((response) => response.json()),
+        fetch("/api/agent/policy").then((response) => response.json()),
       ])
 
       if (result.success) {
@@ -109,6 +125,10 @@ export default function AgentStudioPage() {
 
       if (watchResult.success) {
         setWatch(watchResult.data)
+      }
+
+      if (policyResult.success) {
+        setAutonomy(policyResult.data)
       }
     } finally {
       setLoading(false)
@@ -200,6 +220,170 @@ export default function AgentStudioPage() {
             </Button>
           </div>
         </div>
+
+        {/* ---- Autonomy ---- */}
+        {autonomy ? (
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <ShieldCheck className="h-4 w-4" />
+                    Autonomy
+                    {autonomy.thresholds.readOnly ? (
+                      <Badge variant="secondary" className="text-[10px]">
+                        read-only
+                      </Badge>
+                    ) : null}
+                  </CardTitle>
+                  <CardDescription>
+                    How much the agent may do on its own. Anything over a limit stops and waits for
+                    a person.
+                  </CardDescription>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={saving === "policy"}
+                    onClick={async () => {
+                      setSaving("policy")
+                      try {
+                        const response = await fetch("/api/agent/policy", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ reset: true }),
+                        }).then((r) => r.json())
+                        if (response.success) await load()
+                      } finally {
+                        setSaving(null)
+                      }
+                    }}
+                  >
+                    Reset
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={autonomy.thresholds.readOnly ? "default" : "outline"}
+                    disabled={saving === "policy"}
+                    onClick={async () => {
+                      setSaving("policy")
+                      try {
+                        const response = await fetch("/api/agent/policy", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ readOnly: !autonomy.thresholds.readOnly }),
+                        }).then((r) => r.json())
+                        if (response.success) await load()
+                      } finally {
+                        setSaving(null)
+                      }
+                    }}
+                  >
+                    {autonomy.thresholds.readOnly ? "Allow changes" : "Read-only mode"}
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Plain English first. A number in a box does not tell you what
+                  you have agreed to. */}
+              <div className="rounded-lg border bg-muted/40 p-3">
+                <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                  What this means
+                </p>
+                <ul className="space-y-1">
+                  {autonomy.summary.map((line) => (
+                    <li key={line} className="text-xs text-muted-foreground">
+                      {line}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {!autonomy.thresholds.readOnly ? (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {(
+                    [
+                      ["maxOrderValue", "Sales order limit", "$"],
+                      ["maxPurchaseOrderValue", "Purchase order limit", "$"],
+                      ["maxPaymentValue", "Payment limit", "$"],
+                      ["maxDiscountPercent", "Discount limit", "%"],
+                      ["maxInventoryAdjustment", "Stock correction limit", "units"],
+                    ] as const
+                  ).map(([field, label, unit]) => (
+                    <label
+                      key={field}
+                      className="flex items-center justify-between gap-3 rounded-md border p-2.5"
+                    >
+                      <span className="text-xs">
+                        {label}
+                        <span className="ml-1 text-[10px] text-muted-foreground">
+                          {unit === "$" ? "dollars" : unit}
+                        </span>
+                      </span>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={autonomy.limits[field]}
+                        defaultValue={autonomy.thresholds[field]}
+                        disabled={saving === "policy"}
+                        className="h-7 w-28 text-xs"
+                        onBlur={async (event) => {
+                          const next = Number(event.target.value)
+                          if (next === autonomy.thresholds[field]) return
+
+                          setSaving("policy")
+                          try {
+                            const response = await fetch("/api/agent/policy", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ [field]: next }),
+                            }).then((r) => r.json())
+                            if (response.success) await load()
+                          } finally {
+                            setSaving(null)
+                          }
+                        }}
+                      />
+                    </label>
+                  ))}
+
+                  <label className="flex items-center justify-between gap-3 rounded-md border p-2.5">
+                    <span className="text-xs">Send customer messages directly</span>
+                    <input
+                      type="checkbox"
+                      checked={autonomy.thresholds.allowOutboundMessages}
+                      disabled={saving === "policy"}
+                      onChange={async (event) => {
+                        setSaving("policy")
+                        try {
+                          const response = await fetch("/api/agent/policy", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ allowOutboundMessages: event.target.checked }),
+                          }).then((r) => r.json())
+                          if (response.success) await load()
+                        } finally {
+                          setSaving(null)
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Limits are hidden while the agent is read-only, because none of them apply.
+                </p>
+              )}
+
+              <p className="text-[11px] text-muted-foreground">
+                Set a limit to 0 to make the agent always ask. These limits can only be changed
+                here — the agent cannot raise its own.
+              </p>
+            </CardContent>
+          </Card>
+        ) : null}
 
         {/* ---- The watch loop ---- */}
         {watch ? (

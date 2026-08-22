@@ -45,8 +45,19 @@ export async function getHeartbeatConfig(): Promise<HeartbeatConfig> {
   }
 }
 
+function omitUndefined<T extends object>(input: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(input).filter(([, value]) => value !== undefined)
+  ) as Partial<T>
+}
+
 export async function saveHeartbeatConfig(patch: Partial<HeartbeatConfig>) {
-  const next = { ...(await getHeartbeatConfig()), ...patch }
+  // Spreading a patch whose unset fields are `undefined` overwrites the saved
+  // value with undefined; JSON.stringify then drops the key entirely, so the
+  // field silently reverts to its default on the next read. The UI posts only
+  // `{ enabled }`, so toggling the watch off and on used to reset every tuned
+  // threshold.
+  const next = { ...(await getHeartbeatConfig()), ...omitUndefined(patch) }
 
   await db.setting.upsert({
     where: { key: SETTING_KEY },
