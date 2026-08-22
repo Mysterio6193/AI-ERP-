@@ -6,6 +6,7 @@ import { db } from "@/lib/db"
 import { ROLE_SETS } from "@/lib/permissions"
 import { getSettings } from "@/lib/settings/service"
 import { computeLineTax } from "@/lib/tax"
+import { nextDocumentNumber } from "@/lib/numbering"
 
 /** The entity the request is acting as, not merely the first row. */
 async function getDefaultCompanyId(request: NextRequest) {
@@ -192,7 +193,11 @@ export async function POST(request: NextRequest) {
 
     const quote = await db.quote.create({
       data: {
-        quoteNumber: await generateQuoteNumber(),
+        quoteNumber: await nextDocumentNumber("quote", {
+          db,
+          companyId: quoteCompanyId,
+          legacy: generateQuoteNumber,
+        }),
         customerId,
         companyId: quoteCompanyId,
         validUntil: validUntil ? new Date(validUntil) : null,

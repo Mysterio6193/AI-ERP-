@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient } from "@prisma/client"
+import { nextDocumentNumber } from "@/lib/numbering"
 
 type DbClient = PrismaClient | Prisma.TransactionClient
 
@@ -148,7 +149,11 @@ export async function ensurePickListForOrder(db: DbClient, orderId: string) {
 
   return db.pickList.create({
     data: {
-      pickNumber: `PK-${new Date().getFullYear()}-${String(pickCount + 1).padStart(5, "0")}`,
+      pickNumber: await nextDocumentNumber("pickList", {
+        db,
+        legacy: async () =>
+          `PK-${new Date().getFullYear()}-${String(pickCount + 1).padStart(5, "0")}`,
+      }),
       orderId: order.id,
       warehouseId,
       status: nextStatus,

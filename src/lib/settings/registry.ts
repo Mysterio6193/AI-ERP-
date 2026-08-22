@@ -93,9 +93,9 @@ export const numberingSchema = z.object({
   delivery: docNumberFormat.default({ prefix: "DL", dateToken: "YYYYMMDD", separator: "-", pad: 5, start: 1, reset: "daily", suffix: "", useCounter: false }),
   route: docNumberFormat.default({ prefix: "RT", dateToken: "YYYYMMDD", separator: "-", pad: 3, start: 1, reset: "daily", suffix: "", useCounter: false }),
   productionOrder: docNumberFormat.default({ prefix: "PRD", dateToken: "YYYY", separator: "-", pad: 4, start: 1, reset: "yearly", suffix: "", useCounter: false }),
-  freightBooking: docNumberFormat.default({ prefix: "FB", dateToken: "YYYY", separator: "-", pad: 4, start: 1, reset: "yearly", suffix: "", useCounter: false }),
+  freightBooking: docNumberFormat.default({ prefix: "FB", dateToken: "YYYY", separator: "-", pad: 4, start: 1, reset: "never", suffix: "", useCounter: false }),
   creditNote: docNumberFormat.default({ prefix: "CN", dateToken: "YYYY", separator: "-", pad: 4, start: 1, reset: "yearly", suffix: "", useCounter: false }),
-  return: docNumberFormat.default({ prefix: "RET", dateToken: "YYYY", separator: "-", pad: 4, start: 1, reset: "yearly", suffix: "", useCounter: false }),
+  return: docNumberFormat.default({ prefix: "RET", dateToken: "none", separator: "-", pad: 4, start: 1001, reset: "never", suffix: "", useCounter: false }),
   case: docNumberFormat.default({ prefix: "CS", dateToken: "YYYY", separator: "-", pad: 5, start: 1, reset: "yearly", suffix: "", useCounter: false }),
 })
 

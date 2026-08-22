@@ -2,6 +2,7 @@ import type { Prisma, PrismaClient } from "@prisma/client"
 
 import { receiveBatch } from "@/lib/batches"
 import { db } from "@/lib/db"
+import { nextDocumentNumber } from "@/lib/numbering"
 
 type DbClient = PrismaClient | Prisma.TransactionClient
 
@@ -227,7 +228,10 @@ export async function completeReturn(returnId: string, options?: { userId?: stri
 
     const creditNote = await tx.creditNote.create({
       data: {
-        cnNumber: await nextCreditNoteNumber(tx),
+        cnNumber: await nextDocumentNumber("creditNote", {
+          db: tx,
+          legacy: () => nextCreditNoteNumber(tx),
+        }),
         invoiceId: invoice?.id || null,
         customerId: record.customerId,
         amount: net,

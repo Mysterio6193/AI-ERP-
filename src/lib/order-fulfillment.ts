@@ -3,6 +3,7 @@ import type { Prisma, PrismaClient } from "@prisma/client"
 import { allocateFefo, consumeBatches } from "@/lib/batches"
 import { computeDueDate } from "@/lib/invoicing"
 import { getSettings } from "@/lib/settings/service"
+import { nextDocumentNumber } from "@/lib/numbering"
 
 type DbClient = PrismaClient | Prisma.TransactionClient
 
@@ -197,7 +198,11 @@ export async function ensureInvoiceForOrder(db: DbClient, orderId: string) {
     return null
   }
 
-  const invoiceNumber = await getNextInvoiceNumber(db)
+  const invoiceNumber = await nextDocumentNumber("invoice", {
+    db,
+    companyId: order.companyId,
+    legacy: () => getNextInvoiceNumber(db),
+  })
 
   const issuedAt = new Date()
   const invoicingSettings = await getSettings("invoicing", { companyId: order.companyId })

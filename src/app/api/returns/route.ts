@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAdminUser } from "@/lib/admin-auth"
 import { db } from "@/lib/db"
 import { ROLE_SETS } from "@/lib/permissions"
+import { nextDocumentNumber } from "@/lib/numbering"
 
 export async function GET(request: NextRequest) {
     try {
@@ -49,7 +50,10 @@ export async function POST(request: NextRequest) {
 
         // Generate return number
         const count = await db.return.count()
-        const returnNumber = `RET-${1000 + count + 1}`
+        const returnNumber = await nextDocumentNumber("return", {
+            db,
+            legacy: async () => `RET-${1000 + count + 1}`,
+        })
 
         // Calculate totals
         const totalAmount = items.reduce((acc: number, item: any) => acc + (item.refundAmount || 0), 0)

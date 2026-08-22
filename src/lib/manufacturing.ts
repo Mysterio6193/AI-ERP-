@@ -1,5 +1,6 @@
 import { allocateFefo, consumeBatches, receiveBatch } from "@/lib/batches"
 import { db } from "@/lib/db"
+import { nextDocumentNumber } from "@/lib/numbering"
 
 /**
  * Production.
@@ -215,7 +216,10 @@ export async function createProductionOrder(input: {
 
   const order = await db.productionOrder.create({
     data: {
-      orderNumber: await nextOrderNumber(),
+      orderNumber: await nextDocumentNumber("productionOrder", {
+        db,
+        legacy: nextOrderNumber,
+      }),
       productId: exploded.bom.productId,
       bomId: input.bomId,
       warehouseId: input.warehouseId || null,

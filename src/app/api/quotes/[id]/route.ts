@@ -4,6 +4,7 @@ import { requireAdminUser } from "@/lib/admin-auth"
 import { db } from "@/lib/db"
 import { resolveDefaultWarehouseId } from "@/lib/pick-lists"
 import { ROLE_SETS } from "@/lib/permissions"
+import { nextDocumentNumber } from "@/lib/numbering"
 
 async function generateOrderNumber() {
   const currentYear = new Date().getFullYear()
@@ -62,7 +63,10 @@ export async function PUT(
       const order = await db.$transaction(async (tx) => {
         const salesOrder = await tx.salesOrder.create({
           data: {
-            orderNumber: await generateOrderNumber(),
+            orderNumber: await nextDocumentNumber("salesOrder", {
+              db,
+              legacy: generateOrderNumber,
+            }),
             customerId: quote.customerId,
             locationId: quote.locationId,
             quoteId: quote.id,

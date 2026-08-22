@@ -185,13 +185,34 @@ export default function ReturnsPage() {
         }
     }
 
+    const handleStatusUpdate = async (returnId: string, newStatus: string) => {
+        try {
+            const resp = await fetch(`/api/returns/${returnId}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ status: newStatus })
+            })
+            const data = await resp.json()
+            if (data.success) {
+                fetchReturns()
+                if (selectedReturn?.id === returnId) {
+                    setSelectedReturn(prev => prev ? { ...prev, status: newStatus as any } : null)
+                }
+            } else {
+                alert(data.error || "Failed to update return status")
+            }
+        } catch (e) {
+            console.error(e)
+        }
+    }
+
     return (
         <AppShell title="Returns (RMA)" breadcrumbs={[{ label: "Returns" }]}>
             <div className="space-y-6">
                 <div className="flex items-center justify-between">
                     <div>
                         <h1 className="text-2xl font-bold">Returns & RMAs</h1>
-                        <p className="text-muted-foreground">Manage customer returns and inventory restocking</p>
+                        <p className="text-muted-foreground">Manage customer returns, inventory restocking, and credit note issuance</p>
                     </div>
                     <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
                         <DialogTrigger asChild>
@@ -226,54 +247,65 @@ export default function ReturnsPage() {
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Reason for Return</Label>
-                                    <Input placeholder="e.g. Damaged during shipping" value={formData.reason} onChange={e => setFormData({ ...formData, reason: e.target.value })} />
+                                    <Input placeholder="e.g., Damaged in transit, incorrect size, customer cancelled" value={formData.reason} onChange={e => setFormData({ ...formData, reason: e.target.value })} />
                                 </div>
 
                                 <Separator />
-                                <div>
-                                    <h4 className="font-medium mb-3">Items to Return</h4>
-                                    <div className="grid grid-cols-3 gap-2 mb-4">
-                                        {products.slice(0, 6).map(p => (
-                                            <Button key={p.id} variant="outline" size="sm" onClick={() => addReturnItem(p)}>
-                                                <Plus className="h-3 w-3 mr-1" /> {p.name}
-                                            </Button>
-                                        ))}
+
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <Label className="text-base font-semibold">Select Products to Return</Label>
                                     </div>
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead>Product</TableHead>
-                                                <TableHead className="w-20 text-center">Qty</TableHead>
-                                                <TableHead className="w-32">Condition</TableHead>
-                                                <TableHead className="w-32 text-right">Refund</TableHead>
-                                                <TableHead className="w-10"></TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {returnItems.map((item, idx) => (
-                                                <TableRow key={idx}>
-                                                    <TableCell className="text-sm">{item.name}</TableCell>
-                                                    <TableCell><Input type="number" className="h-8 text-center" value={item.quantity} onChange={e => updateItem(idx, 'quantity', parseInt(e.target.value))} /></TableCell>
-                                                    <TableCell>
-                                                        <Select value={item.condition} onValueChange={v => updateItem(idx, 'condition', v)}>
-                                                            <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
-                                                            <SelectContent>
-                                                                <SelectItem value="saleable">Saleable</SelectItem>
-                                                                <SelectItem value="damaged">Damaged</SelectItem>
-                                                                <SelectItem value="scrap">Scrap</SelectItem>
-                                                            </SelectContent>
-                                                        </Select>
-                                                    </TableCell>
-                                                    <TableCell><Input type="number" className="h-8 text-right" value={item.refundAmount} onChange={e => updateItem(idx, 'refundAmount', parseFloat(e.target.value))} /></TableCell>
-                                                    <TableCell><Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => removeItem(idx)}><XCircle className="h-4 w-4 text-red-500" /></Button></TableCell>
+                                    <div className="flex gap-2">
+                                        <Select onValueChange={(pId) => {
+                                            const prod = products.find(p => p.id === pId)
+                                            if (prod) addReturnItem(prod)
+                                        }}>
+                                            <SelectTrigger><SelectValue placeholder="Add product to return..." /></SelectTrigger>
+                                            <SelectContent>
+                                                {products.map(p => <SelectItem key={p.id} value={p.id}>{p.name} ({p.sku})</SelectItem>)}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    {returnItems.length > 0 && (
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead>Product</TableHead>
+                                                    <TableHead className="w-24">Qty</TableHead>
+                                                    <TableHead className="w-36">Condition</TableHead>
+                                                    <TableHead className="w-32">Refund Amount</TableHead>
+                                                    <TableHead className="w-12"></TableHead>
                                                 </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {returnItems.map((item, idx) => (
+                                                    <TableRow key={idx}>
+                                                        <TableCell><p className="font-medium">{item.name}</p><p className="text-xs text-muted-foreground">{item.sku}</p></TableCell>
+                                                        <TableCell><Input type="number" min="1" value={item.quantity} onChange={e => updateItem(idx, "quantity", parseInt(e.target.value) || 1)} /></TableCell>
+                                                        <TableCell>
+                                                            <Select value={item.condition} onValueChange={v => updateItem(idx, "condition", v)}>
+                                                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                                                <SelectContent>
+                                                                    <SelectItem value="saleable">Saleable (Restock)</SelectItem>
+                                                                    <SelectItem value="damaged">Damaged (Write-off)</SelectItem>
+                                                                    <SelectItem value="expired">Expired</SelectItem>
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </TableCell>
+                                                        <TableCell><Input type="number" step="0.01" value={item.refundAmount} onChange={e => updateItem(idx, "refundAmount", parseFloat(e.target.value) || 0)} /></TableCell>
+                                                        <TableCell><Button variant="ghost" size="icon" className="text-red-500" onClick={() => removeItem(idx)}><XCircle className="h-4 w-4" /></Button></TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    )}
                                 </div>
                             </div>
                             <DialogFooter>
-                                <Button onClick={handleCreateReturn} disabled={!formData.customerId || !returnItems.length} className="bg-emerald-600 hover:bg-emerald-700">Submit Return</Button>
+                                <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>Cancel</Button>
+                                <Button onClick={handleCreateReturn} disabled={!formData.customerId || !formData.reason || returnItems.length === 0} className="bg-emerald-600 hover:bg-emerald-700">Submit Return Request</Button>
                             </DialogFooter>
                         </DialogContent>
                     </Dialog>
@@ -308,7 +340,7 @@ export default function ReturnsPage() {
                                     <TableHead>Date</TableHead>
                                     <TableHead className="text-right">Refund</TableHead>
                                     <TableHead className="text-center">Status</TableHead>
-                                    <TableHead className="w-12"></TableHead>
+                                    <TableHead className="w-20 text-right">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -321,7 +353,11 @@ export default function ReturnsPage() {
                                             <TableCell className="text-sm">{formatDate(r.createdAt)}</TableCell>
                                             <TableCell className="text-right font-medium">{formatCurrency(r.totalAmount)}</TableCell>
                                             <TableCell className="text-center"><Badge className={getStatusColor(r.status)}>{r.status}</Badge></TableCell>
-                                            <TableCell><Button variant="ghost" size="icon" onClick={() => { setSelectedReturn(r); setIsViewDialogOpen(true) }}><Eye className="h-4 w-4" /></Button></TableCell>
+                                            <TableCell className="text-right">
+                                                <Button variant="ghost" size="sm" onClick={() => { setSelectedReturn(r); setIsViewDialogOpen(true) }} className="gap-1">
+                                                    <Eye className="h-3.5 w-3.5" /> View
+                                                </Button>
+                                            </TableCell>
                                         </TableRow>
                                     ))
                                 }
@@ -330,37 +366,78 @@ export default function ReturnsPage() {
                     </CardContent>
                 </Card>
 
-                {/* View Modal */}
+                {/* View & Action Modal */}
                 <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
                     <DialogContent className="max-w-2xl">
                         {selectedReturn && (
                             <>
                                 <DialogHeader>
-                                    <DialogTitle className="flex justify-between w-full">
-                                        <span>Return {selectedReturn.returnNumber}</span>
-                                        <Badge className={getStatusColor(selectedReturn.status)}>{selectedReturn.status}</Badge>
+                                    <DialogTitle className="flex justify-between w-full items-center">
+                                        <span>RMA {selectedReturn.returnNumber}</span>
+                                        <Badge className={getStatusColor(selectedReturn.status)}>{selectedReturn.status.toUpperCase()}</Badge>
                                     </DialogTitle>
+                                    <DialogDescription>
+                                        Created on {formatDate(selectedReturn.createdAt)} for {selectedReturn.customer.name}
+                                    </DialogDescription>
                                 </DialogHeader>
                                 <div className="space-y-4">
-                                    <div className="grid grid-cols-2 gap-4 text-sm">
-                                        <div><p className="text-muted-foreground">Customer</p><p className="font-medium">{selectedReturn.customer.name}</p></div>
-                                        <div><p className="text-muted-foreground">Original Order</p><p className="font-medium">{selectedReturn.order?.orderNumber || "N/A"}</p></div>
-                                        <div className="col-span-2"><p className="text-muted-foreground">Reason</p><p className="bg-gray-50 p-2 rounded">{selectedReturn.reason}</p></div>
+                                    <div className="grid grid-cols-2 gap-4 text-sm bg-slate-50 p-3 rounded-lg">
+                                        <div><p className="text-muted-foreground text-xs">Customer</p><p className="font-medium">{selectedReturn.customer.name}</p></div>
+                                        <div><p className="text-muted-foreground text-xs">Original Order</p><p className="font-medium">{selectedReturn.order?.orderNumber || "Direct Return"}</p></div>
+                                        <div className="col-span-2"><p className="text-muted-foreground text-xs">Return Reason</p><p className="font-medium">{selectedReturn.reason}</p></div>
                                     </div>
                                     <Separator />
-                                    <Table>
-                                        <TableHeader><TableRow><TableHead>Item</TableHead><TableHead className="text-center">Qty</TableHead><TableHead>Condition</TableHead><TableHead className="text-right">Refund</TableHead></TableRow></TableHeader>
-                                        <TableBody>
-                                            {selectedReturn.items.map((i, idx) => (
-                                                <TableRow key={idx}>
-                                                    <TableCell>{i.product.name}</TableCell>
-                                                    <TableCell className="text-center">{i.quantity}</TableCell>
-                                                    <TableCell>{i.condition}</TableCell>
-                                                    <TableCell className="text-right">{formatCurrency(i.refundAmount)}</TableCell>
-                                                </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
+                                    <div>
+                                        <p className="text-sm font-semibold mb-2">Returned Items</p>
+                                        <Table>
+                                            <TableHeader><TableRow><TableHead>Item</TableHead><TableHead className="text-center">Qty</TableHead><TableHead>Condition</TableHead><TableHead className="text-right">Refund</TableHead></TableRow></TableHeader>
+                                            <TableBody>
+                                                {selectedReturn.items.map((i, idx) => (
+                                                    <TableRow key={idx}>
+                                                        <TableCell>{i.product.name}</TableCell>
+                                                        <TableCell className="text-center">{i.quantity}</TableCell>
+                                                        <TableCell><Badge variant="outline">{i.condition}</Badge></TableCell>
+                                                        <TableCell className="text-right">{formatCurrency(i.refundAmount)}</TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
+
+                                    {/* Action Workflow Section */}
+                                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+                                        <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide">RMA Actions</p>
+                                        <div className="flex flex-wrap gap-2">
+                                            {selectedReturn.status === "pending" && (
+                                                <>
+                                                    <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => handleStatusUpdate(selectedReturn.id, "approved")}>
+                                                        <CheckCircle className="h-4 w-4 mr-1.5" /> Approve RMA
+                                                    </Button>
+                                                    <Button size="sm" variant="destructive" onClick={() => handleStatusUpdate(selectedReturn.id, "rejected")}>
+                                                        <XCircle className="h-4 w-4 mr-1.5" /> Reject RMA
+                                                    </Button>
+                                                </>
+                                            )}
+
+                                            {selectedReturn.status === "approved" && (
+                                                <Button size="sm" className="bg-blue-600 hover:bg-blue-700" onClick={() => handleStatusUpdate(selectedReturn.id, "received")}>
+                                                    <Package className="h-4 w-4 mr-1.5" /> Mark Goods Received
+                                                </Button>
+                                            )}
+
+                                            {selectedReturn.status === "received" && (
+                                                <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => handleStatusUpdate(selectedReturn.id, "completed")}>
+                                                    <CheckCircle className="h-4 w-4 mr-1.5" /> Restock & Issue Credit Note
+                                                </Button>
+                                            )}
+
+                                            {selectedReturn.status === "completed" && (
+                                                <div className="flex items-center gap-2 text-xs text-emerald-700 font-medium">
+                                                    <CheckCircle className="h-4 w-4" /> This RMA has been completed, restocked, and credit note created.
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
                                 </div>
                             </>
                         )}

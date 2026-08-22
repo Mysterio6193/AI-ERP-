@@ -2906,3 +2906,35 @@ model ConsentRecord {
   @@unique([address, channel])
   @@index([customerId])
 }
+
+/// Monotonic sequences for document numbers.
+///
+/// The legacy generators either parse the previous number or use `count + 1`.
+/// Both lose updates under concurrency, and `count + 1` is already broken:
+/// delete one row and the next document collides with an existing number.
+/// A counter row is the only place a sequence can live safely.
+model DocumentCounter {
+  id String @id @default(cuid())
+
+  /// Document kind, matching a key in the `numbering` settings namespace.
+  kind String
+
+  /// Reset-period key: "2026" for yearly, "20260822" for daily, "" for never.
+  period String
+
+  /// "" means group-wide, not scoped to a company.
+  ///
+  /// Empty string rather than null on purpose: Postgres treats NULLs as
+  /// distinct in a unique index, so a nullable column would permit duplicate
+  /// counter rows for the same kind and period — exactly the lost-update bug
+  /// this model exists to prevent.
+  companyKey String @default("")
+
+  /// The most recently issued number.
+  value Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([kind, period, companyKey])
+}

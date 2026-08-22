@@ -4,6 +4,7 @@ import { db } from "@/lib/db"
 import { ensurePickListForOrder, resolveDefaultWarehouseId } from "@/lib/pick-lists"
 import { getSettings } from "@/lib/settings/service"
 import { computeLineTax } from "@/lib/tax"
+import { nextDocumentNumber } from "@/lib/numbering"
 
 /**
  * Shared sales order creation.
@@ -191,7 +192,11 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
     }
   }
 
-  const orderNumber = await generateSalesOrderNumber()
+  const orderNumber = await nextDocumentNumber("salesOrder", {
+    db,
+    companyId: customer.companyId,
+    legacy: generateSalesOrderNumber,
+  })
   const resolvedWarehouseId =
     input.warehouseId || (await resolveDefaultWarehouseId(db, customer.companyId))
   const status = input.status || "draft"

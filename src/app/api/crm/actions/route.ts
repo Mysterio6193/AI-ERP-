@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { requireAdminUser } from "@/lib/admin-auth"
 import { db } from "@/lib/db"
+import { nextDocumentNumber } from "@/lib/numbering"
 
 /**
  * CRM write actions.
@@ -227,7 +228,10 @@ const handlers: Record<string, ActionHandler> = {
 
     const record = await db.case.create({
       data: {
-        caseNumber: `CS-${year}-${next.toString().padStart(5, "0")}`,
+        caseNumber: await nextDocumentNumber("case", {
+          db,
+          legacy: async () => `CS-${year}-${next.toString().padStart(5, "0")}`,
+        }),
         customerId,
         contactId: payload.contactId ? String(payload.contactId) : null,
         subject,

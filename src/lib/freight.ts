@@ -1,4 +1,5 @@
 import { db } from "@/lib/db"
+import { nextDocumentNumber } from "@/lib/numbering"
 
 /**
  * Third-party freight booking.
@@ -426,7 +427,10 @@ export async function createBooking(input: {
 
   const booking = await db.freightBooking.create({
     data: {
-      bookingNumber: await nextBookingNumber(),
+      bookingNumber: await nextDocumentNumber("freightBooking", {
+        db,
+        legacy: nextBookingNumber,
+      }),
       orderId: input.orderId || null,
       carrierId: input.carrierId,
       zoneId: input.zoneId || null,

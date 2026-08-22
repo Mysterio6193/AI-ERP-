@@ -5,6 +5,7 @@ import { db } from "@/lib/db"
 import type { AgentPrincipal } from "../context"
 import { defineTool } from "./define"
 import { isStaff } from "./shared"
+import { nextDocumentNumber } from "@/lib/numbering"
 
 /**
  * Contacts, the account timeline, and service cases.
@@ -240,7 +241,10 @@ export function buildContactTools(principal: AgentPrincipal) {
         const record = await db.case.create({
           data: {
             ...fields,
-            caseNumber: await generateCaseNumber(),
+            caseNumber: await nextDocumentNumber("case", {
+              db,
+              legacy: generateCaseNumber,
+            }),
             assignedToId: assignedToId || principal.userId,
             createdByAgent: true,
           },

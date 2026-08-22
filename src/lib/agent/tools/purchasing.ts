@@ -5,6 +5,7 @@ import { db } from "@/lib/db"
 import type { AgentPrincipal } from "../context"
 import { defineTool } from "./define"
 import { isStaff, money } from "./shared"
+import { nextDocumentNumber } from "@/lib/numbering"
 
 /** Suppliers, purchase orders and reordering. Staff only. */
 
@@ -289,7 +290,10 @@ export function buildPurchasingTools(principal: AgentPrincipal) {
 
         const order = await db.purchaseOrder.create({
           data: {
-            poNumber: await generatePoNumber(),
+            poNumber: await nextDocumentNumber("purchaseOrder", {
+              db,
+              legacy: generatePoNumber,
+            }),
             supplierId,
             warehouseId,
             companyId: supplier.companyId,

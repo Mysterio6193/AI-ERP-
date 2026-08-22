@@ -123,6 +123,38 @@ export interface SaveResult<K extends Namespace> {
  * Validates the **merged** result, not the patch, so a partial update cannot
  * leave the namespace in a state the schema would reject.
  */
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+/**
+ * Merge a patch over the current settings, descending into nested objects.
+ *
+ * A shallow spread was wrong for `numbering`, the one namespace whose values
+ * are themselves objects: patching `{ salesOrder: { useCounter: true } }`
+ * replaced the whole kind, dropping its prefix, pad, start and reset, and the
+ * schema then rejected the result. Callers legitimately send one field —
+ * the agent's settings tools will do exactly this.
+ *
+ * Arrays are replaced wholesale, never merged. Editing `aging.buckets` means
+ * supplying the list you want, not layering onto the old one by index.
+ */
+function mergePatch(
+  current: Record<string, unknown>,
+  patch: Record<string, unknown>
+): Record<string, unknown> {
+  const result: Record<string, unknown> = { ...current }
+
+  for (const [key, value] of Object.entries(patch)) {
+    const existing = result[key]
+
+    result[key] =
+      isPlainObject(existing) && isPlainObject(value) ? mergePatch(existing, value) : value
+  }
+
+  return result
+}
+
 export async function saveSettings<K extends Namespace>(
   namespace: K,
   patch: Record<string, unknown>,
@@ -133,7 +165,7 @@ export async function saveSettings<K extends Namespace>(
   const schema = REGISTRY[namespace].schema
 
   const current = await getSettings(namespace, { companyId, skipCache: true })
-  const merged = { ...(current as Record<string, unknown>), ...patch }
+  const merged = mergePatch(current as Record<string, unknown>, patch)
 
   const parsed = schema.safeParse(merged)
 

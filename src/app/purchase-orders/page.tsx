@@ -406,7 +406,7 @@ export default function PurchaseOrdersPage() {
                                         </TableCell>
                                     </TableRow>
                                 ) : filteredOrders.map(po => (
-                                    <TableRow key={po.id} className="cursor-pointer hover:bg-gray-50">
+                                    <TableRow key={po.id} className="cursor-pointer hover:bg-gray-50" onClick={() => { setSelectedPO(po); setViewMode(true); }}>
                                         <TableCell className="font-medium">{po.poNumber}</TableCell>
                                         <TableCell>{po.supplier.name}</TableCell>
                                         <TableCell className="text-muted-foreground">
@@ -422,12 +422,15 @@ export default function PurchaseOrdersPage() {
                                                 {PURCHASE_ORDER_STATUS.find(s => s.value === po.status)?.label || po.status}
                                             </Badge>
                                         </TableCell>
-                                        <TableCell>
+                                        <TableCell onClick={e => e.stopPropagation()}>
                                             <DropdownMenu>
                                                 <DropdownMenuTrigger asChild>
                                                     <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
                                                 </DropdownMenuTrigger>
                                                 <DropdownMenuContent align="end">
+                                                    <DropdownMenuItem onClick={() => { setSelectedPO(po); setViewMode(true); }}>
+                                                        <Eye className="h-4 w-4 mr-2" /> View Details
+                                                    </DropdownMenuItem>
                                                     {po.status === "draft" && (
                                                         <DropdownMenuItem onClick={() => updateStatus(po.id, "submitted")}>
                                                             <Truck className="h-4 w-4 mr-2" /> Submit to Supplier
@@ -470,6 +473,117 @@ export default function PurchaseOrdersPage() {
                     </CardContent>
                 </Card>
             </div>
+
+            {/* View & Action Dialog */}
+            <Dialog open={viewMode} onOpenChange={setViewMode}>
+                <DialogContent className="max-w-3xl">
+                    {selectedPO && (
+                        <>
+                            <DialogHeader>
+                                <DialogTitle className="flex items-center justify-between">
+                                    <span>Purchase Order {selectedPO.poNumber}</span>
+                                    <Badge className={statusColors[selectedPO.status] || "bg-gray-100"}>
+                                        {PURCHASE_ORDER_STATUS.find(s => s.value === selectedPO.status)?.label || selectedPO.status}
+                                    </Badge>
+                                </DialogTitle>
+                                <DialogDescription>
+                                    Ordered from {selectedPO.supplier.name} on {new Date(selectedPO.orderDate).toLocaleDateString()}
+                                </DialogDescription>
+                            </DialogHeader>
+
+                            <div className="space-y-4">
+                                <div className="grid grid-cols-2 gap-4 rounded-lg bg-slate-50 p-3 text-xs">
+                                    <div>
+                                        <p className="text-muted-foreground">Supplier</p>
+                                        <p className="font-medium text-slate-800">{selectedPO.supplier.name}</p>
+                                        <p className="text-slate-500">{selectedPO.supplier.email || "No email"} · {selectedPO.supplier.phone || "No phone"}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-muted-foreground">Expected Arrival</p>
+                                        <p className="font-medium text-slate-800">{selectedPO.expectedDate ? new Date(selectedPO.expectedDate).toLocaleDateString() : "Immediate"}</p>
+                                    </div>
+                                    {selectedPO.notes && (
+                                        <div className="col-span-2">
+                                            <p className="text-muted-foreground">Notes</p>
+                                            <p className="text-slate-700">{selectedPO.notes}</p>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div>
+                                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Order Items</p>
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Item</TableHead>
+                                                <TableHead className="text-center">Ordered</TableHead>
+                                                <TableHead className="text-center">Received</TableHead>
+                                                <TableHead className="text-right">Unit Cost</TableHead>
+                                                <TableHead className="text-right">Total</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {selectedPO.items.map((item, idx) => (
+                                                <TableRow key={idx}>
+                                                    <TableCell>
+                                                        <p className="font-medium text-sm">{item.productName}</p>
+                                                        <p className="text-xs text-muted-foreground">{item.sku}</p>
+                                                    </TableCell>
+                                                    <TableCell className="text-center">{item.quantity}</TableCell>
+                                                    <TableCell className="text-center">{item.receivedQty}</TableCell>
+                                                    <TableCell className="text-right">{formatCurrency(item.unitCost)}</TableCell>
+                                                    <TableCell className="text-right font-medium">{formatCurrency(item.total)}</TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+
+                                <div className="flex justify-end border-t pt-3">
+                                    <div className="w-60 space-y-1 text-xs">
+                                        <div className="flex justify-between">
+                                            <span className="text-muted-foreground">Subtotal:</span>
+                                            <span>{formatCurrency(selectedPO.subtotal)}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-muted-foreground">GST:</span>
+                                            <span>{formatCurrency(selectedPO.taxAmount)}</span>
+                                        </div>
+                                        <div className="flex justify-between font-bold text-sm text-slate-900 pt-1 border-t">
+                                            <span>Total Amount:</span>
+                                            <span>{formatCurrency(selectedPO.totalAmount)}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <DialogFooter className="flex flex-wrap items-center justify-between gap-2">
+                                <Button variant="outline" size="sm" onClick={() => setViewMode(false)}>Close</Button>
+                                <div className="flex gap-2">
+                                    <Button variant="outline" size="sm" onClick={() => setSendModalOpen(true)}>
+                                        <Send className="h-4 w-4 mr-1.5" /> Send PO
+                                    </Button>
+                                    {selectedPO.status === "draft" && (
+                                        <Button size="sm" className="bg-blue-600 hover:bg-blue-700" onClick={() => { updateStatus(selectedPO.id, "submitted"); setViewMode(false); }}>
+                                            <Truck className="h-4 w-4 mr-1.5" /> Submit PO
+                                        </Button>
+                                    )}
+                                    {selectedPO.status === "submitted" && (
+                                        <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700" onClick={() => { updateStatus(selectedPO.id, "confirmed"); setViewMode(false); }}>
+                                            <CheckCircle className="h-4 w-4 mr-1.5" /> Confirm Order
+                                        </Button>
+                                    )}
+                                    {["confirmed", "partial"].includes(selectedPO.status) && (
+                                        <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => { updateStatus(selectedPO.id, "received"); setViewMode(false); }}>
+                                            <Package className="h-4 w-4 mr-1.5" /> Receive & Restock Stock
+                                        </Button>
+                                    )}
+                                </div>
+                            </DialogFooter>
+                        </>
+                    )}
+                </DialogContent>
+            </Dialog>
 
             {selectedPO && (
                 <SendDocumentModal

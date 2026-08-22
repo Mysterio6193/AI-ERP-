@@ -486,18 +486,34 @@ export default function BusinessSettingsPage() {
                       // Nested groups (numbering's per-document formats) get
                       // their own block rather than being flattened.
                       if (value && typeof value === "object" && !Array.isArray(value)) {
+                        const group = value as Record<string, any>
+
+                        // The legacy generator continues a sequence by parsing
+                        // the previous number, so changing prefix, padding or
+                        // reset before the counter is live breaks continuation
+                        // and starts issuing duplicates. Format fields stay
+                        // locked until `useCounter` is on for this kind.
+                        const onLegacy = "useCounter" in group && !group.useCounter
+
                         return (
                           <div key={key} className="rounded-lg border p-3">
-                            <p className="mb-2 text-xs font-medium capitalize">
-                              {key.replace(/([A-Z])/g, " $1")}
-                            </p>
+                            <div className="mb-2 flex items-center justify-between gap-2">
+                              <p className="text-xs font-medium capitalize">
+                                {key.replace(/([A-Z])/g, " $1")}
+                              </p>
+                              {onLegacy && (
+                                <span className="rounded-full border px-2 py-0.5 text-[10px] text-muted-foreground">
+                                  legacy generator — turn on Use Counter to edit the format
+                                </span>
+                              )}
+                            </div>
                             <div className="grid gap-1.5 sm:grid-cols-2">
-                              {Object.entries(value as Record<string, any>).map(([field, inner]) => (
+                              {Object.entries(group).map(([field, inner]) => (
                                 <Field
                                   key={field}
                                   path={`${key}.${field}`}
                                   value={inner}
-                                  disabled={disabled}
+                                  disabled={disabled || (onLegacy && field !== "useCounter")}
                                   onChange={(next) => setPath([key, field], next)}
                                 />
                               ))}

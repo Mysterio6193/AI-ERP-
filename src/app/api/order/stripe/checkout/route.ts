@@ -8,6 +8,7 @@ import { ensurePickListForOrder, resolveDefaultWarehouseId } from "@/lib/pick-li
 import { customerError, customerJson, customerOptions } from "@/lib/customer-api"
 import { requireCustomer } from "@/lib/customer-auth"
 import { getStripeClient, isStripeConfigured, resolveStripeReturnOrigin } from "@/lib/stripe"
+import { nextDocumentNumber } from "@/lib/numbering"
 
 const prisma = db as any
 
@@ -113,7 +114,10 @@ export async function POST(request: NextRequest) {
 
     const order = await prisma.salesOrder.create({
       data: {
-        orderNumber: await nextOrderNumber(),
+        orderNumber: await nextDocumentNumber("salesOrder", {
+          db,
+          legacy: nextOrderNumber,
+        }),
         customerId: customer.id,
         locationId: address.id,
         companyId: customer.companyId || null,

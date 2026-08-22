@@ -5,6 +5,7 @@ import { getActiveCompanyId } from "@/lib/active-company"
 import { db } from "@/lib/db"
 import { resolveDefaultWarehouseId } from "@/lib/pick-lists"
 import { ROLE_SETS } from "@/lib/permissions"
+import { nextDocumentNumber } from "@/lib/numbering"
 
 /** The entity the request is acting as, not merely the first row. */
 async function getDefaultCompanyId(request: NextRequest) {
@@ -147,7 +148,10 @@ export async function POST(request: NextRequest) {
 
     const purchaseOrder = await db.purchaseOrder.create({
       data: {
-        poNumber: await generatePurchaseOrderNumber(),
+        poNumber: await nextDocumentNumber("purchaseOrder", {
+          db,
+          legacy: generatePurchaseOrderNumber,
+        }),
         supplierId,
         companyId: supplier.companyId || (await getDefaultCompanyId(request)),
         warehouseId: await resolveDefaultWarehouseId(db as any, supplier.companyId || null),

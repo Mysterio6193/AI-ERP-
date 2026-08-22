@@ -1327,6 +1327,10 @@ export default function OrdersPage() {
                       Cancel Order
                     </Button>
                   )}
+                  <Button variant="outline" onClick={() => setIsSendModalOpen(true)}>
+                    <Send className="mr-2 h-4 w-4" />
+                    Send
+                  </Button>
                   {isMounted && company && (
                     <Button variant="outline" onClick={() => void handlePrintOrder(selectedOrder)}>
                       <Printer className="mr-2 h-4 w-4" />

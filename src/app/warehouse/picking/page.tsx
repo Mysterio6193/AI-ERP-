@@ -3,11 +3,12 @@
 import { useEffect, useMemo, useState } from "react"
 import {
     Package, CheckCircle, Clock, AlertTriangle, User, Search,
-    ClipboardCheck, ArrowRight, MapPin
+    ClipboardCheck, ArrowRight, MapPin, Loader2, Truck
 } from "lucide-react"
 import { AppShell } from "@/components/layout/app-shell"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -16,7 +17,11 @@ import {
 import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
+import {
+    Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog"
 import { Progress } from "@/components/ui/progress"
+import { useToast } from "@/hooks/use-toast"
 
 interface PickItem {
     id: string; productName: string; sku: string; location: string
@@ -46,6 +51,7 @@ const priorityConfig: Record<string, { label: string; color: string }> = {
 }
 
 export default function WarehousePickingPage() {
+    const { toast } = useToast()
     const [pickLists, setPickLists] = useState<PickList[]>([])
     const [loading, setLoading] = useState(true)
     const [savingItemId, setSavingItemId] = useState<string | null>(null)
@@ -53,6 +59,65 @@ export default function WarehousePickingPage() {
     const [search, setSearch] = useState("")
     const [statusFilter, setStatusFilter] = useState("all")
     const [selectedPickId, setSelectedPickId] = useState<string | null>(null)
+
+    // Dispatch & 3PL Logistics modal state
+    const [dispatchModalOpen, setDispatchModalOpen] = useState(false)
+    const [dispatchPick, setDispatchPick] = useState<PickList | null>(null)
+    const [logisticsMode, setLogisticsMode] = useState<"3pl" | "fleet">("3pl")
+    const [selectedCarrier, setSelectedCarrier] = useState("Australia Post eParcel")
+    const [consignmentNumber, setConsignmentNumber] = useState("")
+    const [cartonCount, setCartonCount] = useState(1)
+    const [carrierInstructions, setCarrierInstructions] = useState("")
+    const [fleetRoute, setFleetRoute] = useState("RT-2026-001")
+    const [dispatchingBusy, setDispatchingBusy] = useState(false)
+
+    useEffect(() => {
+        if (dispatchPick) {
+            setConsignmentNumber(`AP-${Math.floor(10000000 + Math.random() * 90000000)}AU`)
+        }
+    }, [dispatchPick])
+
+    async function handleCompleteDispatch() {
+        if (!dispatchPick) return
+        try {
+            setDispatchingBusy(true)
+            const response = await fetch(`/api/orders/${dispatchPick.orderId}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    status: "dispatched",
+                    internalNotes: logisticsMode === "3pl"
+                        ? `Dispatched via ${selectedCarrier} (Consignment: ${consignmentNumber}, ${cartonCount} cartons). Instructions: ${carrierInstructions || "None"}`
+                        : `Assigned to internal fleet route ${fleetRoute}`,
+                }),
+            })
+            const data = await response.json()
+            if (!data.success) {
+                toast({
+                    title: "Dispatch Failed",
+                    description: data.error || "Could not dispatch order.",
+                    variant: "destructive",
+                })
+                return
+            }
+
+            toast({
+                title: "Order Dispatched",
+                description: `Order ${dispatchPick.orderNumber} dispatched via ${logisticsMode === "3pl" ? selectedCarrier : fleetRoute}.`,
+            })
+            setDispatchModalOpen(false)
+            await fetchPickLists()
+        } catch (err) {
+            console.error(err)
+            toast({
+                title: "Error",
+                description: "An unexpected error occurred during dispatch.",
+                variant: "destructive",
+            })
+        } finally {
+            setDispatchingBusy(false)
+        }
+    }
 
     useEffect(() => {
         void fetchPickLists()
@@ -308,6 +373,32 @@ export default function WarehousePickingPage() {
                                             ))}
                                         </TableBody>
                                     </Table>
+
+                                    {/* Action & Logistics Dispatch Bar */}
+                                    <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <p className="text-xs font-semibold uppercase tracking-wider text-slate-700">Logistics & Order Dispatch</p>
+                                                <p className="text-xs text-muted-foreground">Assign to internal driver fleet or hand off to a 3PL freight carrier.</p>
+                                            </div>
+                                            <Badge variant="outline" className="bg-white text-xs">
+                                                {selectedPick.items.every(i => i.pickedQty >= i.requiredQty) ? "100% Picked" : "In Progress"}
+                                            </Badge>
+                                        </div>
+
+                                        <div className="flex flex-wrap gap-2 pt-1">
+                                            <Button
+                                                size="sm"
+                                                className="bg-emerald-600 hover:bg-emerald-700"
+                                                onClick={() => {
+                                                    setDispatchPick(selectedPick)
+                                                    setDispatchModalOpen(true)
+                                                }}
+                                            >
+                                                <Package className="h-4 w-4 mr-1.5" /> Dispatch & 3PL Logistics
+                                            </Button>
+                                        </div>
+                                    </div>
                                 </CardContent>
                             </Card>
                         ) : (
@@ -321,6 +412,129 @@ export default function WarehousePickingPage() {
                     </div>
                 </div>
             </div>
+
+            {/* Dispatch & 3PL Logistics Assignment Modal */}
+            <Dialog open={dispatchModalOpen} onOpenChange={setDispatchModalOpen}>
+                <DialogContent className="max-w-xl">
+                    {dispatchPick && (
+                        <>
+                            <DialogHeader>
+                                <DialogTitle className="flex items-center gap-2">
+                                    <Package className="h-5 w-5 text-emerald-600" />
+                                    Dispatch Order {dispatchPick.orderNumber}
+                                </DialogTitle>
+                                <DialogDescription>
+                                    Fulfill {dispatchPick.customerName} via internal driver fleet or 3PL freight carrier.
+                                </DialogDescription>
+                            </DialogHeader>
+
+                            <div className="space-y-4 py-2">
+                                <div className="space-y-2">
+                                    <Label className="text-xs font-semibold">Logistics Fulfillment Method</Label>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <button
+                                            type="button"
+                                            className={`rounded-xl border p-3.5 text-left transition-all ${logisticsMode === "3pl" ? "border-emerald-600 bg-emerald-50/50 ring-2 ring-emerald-500/20" : "border-slate-200 bg-white hover:bg-slate-50"}`}
+                                            onClick={() => setLogisticsMode("3pl")}
+                                        >
+                                            <p className="font-semibold text-sm text-slate-900">📦 3PL Carrier Freight</p>
+                                            <p className="text-xs text-slate-500 mt-1">AusPost, StarTrack, Toll, Direct Freight</p>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className={`rounded-xl border p-3.5 text-left transition-all ${logisticsMode === "fleet" ? "border-emerald-600 bg-emerald-50/50 ring-2 ring-emerald-500/20" : "border-slate-200 bg-white hover:bg-slate-50"}`}
+                                            onClick={() => setLogisticsMode("fleet")}
+                                        >
+                                            <p className="font-semibold text-sm text-slate-900">🚚 Internal Driver Route</p>
+                                            <p className="text-xs text-slate-500 mt-1">Driver PWA, run sheet & stop navigation</p>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {logisticsMode === "3pl" ? (
+                                    <div className="space-y-3 rounded-xl border bg-slate-50/60 p-3.5">
+                                        <div className="space-y-1.5">
+                                            <Label className="text-xs">Select 3PL Carrier</Label>
+                                            <Select value={selectedCarrier} onValueChange={setSelectedCarrier}>
+                                                <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="Australia Post eParcel">Australia Post eParcel (Standard/Express)</SelectItem>
+                                                    <SelectItem value="StarTrack Express">StarTrack Express (Road/Next Flight)</SelectItem>
+                                                    <SelectItem value="Toll Group Logistics">Toll Group Logistics (Pallet/Courier)</SelectItem>
+                                                    <SelectItem value="Direct Freight Express">Direct Freight Express (Metro/Interstate)</SelectItem>
+                                                    <SelectItem value="TNT / FedEx Express">TNT / FedEx Express (Air Priority)</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="space-y-1.5">
+                                                <Label className="text-xs">Consignment / Tracking #</Label>
+                                                <Input
+                                                    className="bg-white font-mono text-xs"
+                                                    value={consignmentNumber}
+                                                    onChange={e => setConsignmentNumber(e.target.value)}
+                                                    placeholder="e.g. AP-94829104AU"
+                                                />
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <Label className="text-xs">Cartons / Pallets</Label>
+                                                <Input
+                                                    type="number"
+                                                    min="1"
+                                                    className="bg-white text-xs"
+                                                    value={cartonCount}
+                                                    onChange={e => setCartonCount(parseInt(e.target.value) || 1)}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-1.5">
+                                            <Label className="text-xs">Special Carrier Instructions</Label>
+                                            <Input
+                                                className="bg-white text-xs"
+                                                value={carrierInstructions}
+                                                onChange={e => setCarrierInstructions(e.target.value)}
+                                                placeholder="Authority to leave, tailgate delivery, dock 4"
+                                            />
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3 rounded-xl border bg-slate-50/60 p-3.5">
+                                        <div className="space-y-1.5">
+                                            <Label className="text-xs">Assign to Driver Route</Label>
+                                            <Select value={fleetRoute} onValueChange={setFleetRoute}>
+                                                <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="RT-2026-001">Route 1 — Dave Miller (Sydney Metro North)</SelectItem>
+                                                    <SelectItem value="RT-2026-002">Route 2 — Sarah Jenkins (Sydney Metro West)</SelectItem>
+                                                    <SelectItem value="RT-2026-003">Route 3 — Alex Taylor (CBD & Airport Express)</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <p className="text-[11px] text-muted-foreground">
+                                            Order will be scheduled into the driver's active run sequence in the Driver Mobile PWA.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+
+                            <DialogFooter className="flex items-center justify-between gap-2">
+                                <Button variant="outline" size="sm" onClick={() => setDispatchModalOpen(false)}>Cancel</Button>
+                                <Button
+                                    size="sm"
+                                    className="bg-emerald-600 hover:bg-emerald-700"
+                                    disabled={dispatchingBusy}
+                                    onClick={handleCompleteDispatch}
+                                >
+                                    {dispatchingBusy ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Package className="h-4 w-4 mr-1.5" />}
+                                    Complete Dispatch & Confirm
+                                </Button>
+                            </DialogFooter>
+                        </>
+                    )}
+                </DialogContent>
+            </Dialog>
         </AppShell>
     )
 }

@@ -1,5 +1,6 @@
 import { hash } from "bcryptjs"
 import type { CustomerLocation, Prisma, PrismaClient } from "@prisma/client"
+import { nextDocumentNumber } from "@/lib/numbering"
 import {
   isFinishedDeliveryStatus,
   isStartedDeliveryStatus,
@@ -214,7 +215,11 @@ async function ensureRouteForOrder(
 
   return db.deliveryRoute.create({
     data: {
-      routeNumber: await getNextRouteNumber(db, input.routeDate),
+      routeNumber: await nextDocumentNumber("route", {
+        db,
+        date: input.routeDate,
+        legacy: () => getNextRouteNumber(db, input.routeDate),
+      }),
       name: buildRouteName(input.routeDate, input.warehouseName),
       routeDate: input.routeDate,
       warehouseId: input.warehouseId || null,
@@ -313,7 +318,11 @@ export async function ensureDeliveryForOrder(db: DbClient, orderId: string) {
 
   const delivery = await db.delivery.create({
     data: {
-      deliveryNumber: await getNextDeliveryNumber(db, scheduledDate),
+      deliveryNumber: await nextDocumentNumber("delivery", {
+        db,
+        date: scheduledDate,
+        legacy: () => getNextDeliveryNumber(db, scheduledDate),
+      }),
       routeId: route.id,
       orderId: order.id,
       customerId: order.customerId,

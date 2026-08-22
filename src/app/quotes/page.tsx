@@ -25,6 +25,8 @@ import {
 import {
     DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
+import { useRouter } from "next/navigation"
+import { useToast } from "@/hooks/use-toast"
 import { formatCurrency, QUOTE_STATUS } from "@/lib/types"
 
 interface Customer { id: string; name: string; email?: string; phone?: string; creditLimit: number }
@@ -168,6 +170,9 @@ export default function QuotesPage() {
         }
     }
 
+    const { toast } = useToast()
+    const router = useRouter()
+
     async function convertToOrder(quoteId: string) {
         try {
             const response = await fetch(`/api/quotes/${quoteId}`, {
@@ -176,10 +181,27 @@ export default function QuotesPage() {
                 body: JSON.stringify({ action: "convert" }),
             })
             const data = await response.json()
-            if (!data.success) return
+            if (!data.success) {
+                toast({
+                    title: "Conversion Failed",
+                    description: data.error || "Could not convert quote to sales order.",
+                    variant: "destructive",
+                })
+                return
+            }
+            toast({
+                title: "Sales Order Created",
+                description: `Successfully converted quote to Sales Order ${data.data?.orderNumber || ""}.`,
+            })
             await fetchQuotes()
+            router.push("/orders")
         } catch (error) {
             console.error(error)
+            toast({
+                title: "Error",
+                description: "An unexpected error occurred during conversion.",
+                variant: "destructive",
+            })
         }
     }
 
