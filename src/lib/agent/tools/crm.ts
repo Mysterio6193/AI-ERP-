@@ -122,15 +122,27 @@ export function buildCrmTools(principal: AgentPrincipal) {
           .min(3)
           .optional()
           .describe("Minimum past orders before a rhythm is trusted. Defaults to 3."),
-        mineOnly: z.boolean().optional().describe("Only accounts where you are the sales rep"),
+        mineOnly: z
+          .boolean()
+          .optional()
+          .describe(
+            "Only accounts where you are the sales rep. Defaults to true for a sales rep, false for everyone else - set it to false explicitly to see the whole book."
+          ),
         limit: z.number().int().min(1).max(50).optional(),
       }),
-      execute: async ({ minOrderHistory, mineOnly, limit }) =>
-        findLapsedAccounts({
+      execute: async ({ minOrderHistory, mineOnly, limit }) => {
+        // A rep asking "who has gone quiet" means their own accounts. Answering
+        // for the whole business buries the three they can actually act on.
+        // Everyone else keeps the full view unless they ask to narrow it.
+        const scoped =
+          mineOnly ?? (principal.kind === "staff" && principal.role === "sales")
+
+        return findLapsedAccounts({
           minOrderHistory,
           limit,
-          ...(mineOnly ? { salesRepId: principal.userId } : {}),
-        }),
+          ...(scoped ? { salesRepId: principal.userId } : {}),
+        })
+      },
     }),
 
     listTasks: defineTool({
