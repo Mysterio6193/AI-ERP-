@@ -122,6 +122,44 @@ export const opsSchema = z.object({
   lowStockReorderQty: z.number().int().min(0).default(50),
 })
 
+export const brandingSchema = z.object({
+  primaryColor: z.enum(["slate", "sky", "emerald", "indigo", "violet", "rose", "amber"]).default("sky"),
+  invoiceTheme: z.enum(["modern", "classic", "compact", "minimalist"]).default("modern"),
+  showLogoOnDocuments: z.boolean().default(true),
+  showPaymentQrOnInvoice: z.boolean().default(true),
+  showBankDetailsOnInvoice: z.boolean().default(true),
+  documentFooter: z.string().default("Thank you for your business. Please quote invoice number on remittance."),
+  defaultTermsAndConditions: z.string().default("Goods remain the property of the seller until paid in full. Claims must be made within 7 days of delivery."),
+  dateFormat: z.enum(["DD/MM/YYYY", "MM/DD/YYYY", "YYYY-MM-DD"]).default("DD/MM/YYYY"),
+})
+
+export const dashboardSchema = z.object({
+  kpiCardsVisible: z.array(z.string()).default(["revenue", "orders", "receivables", "low_stock", "routes", "picks"]),
+  showSalesTrend: z.boolean().default(true),
+  showChannelBreakdown: z.boolean().default(true),
+  showLowStockAlerts: z.boolean().default(true),
+  showRecentOrders: z.boolean().default(true),
+  defaultTimeframe: z.enum(["today", "week", "month", "year"]).default("month"),
+  compactMode: z.boolean().default(false),
+})
+
+export const automationSchema = z.object({
+  autoApproveOrdersUnder: z.number().min(0).default(0),
+  blockOrdersOnCreditHold: z.boolean().default(true),
+  autoGeneratePickList: z.boolean().default(true),
+  autoSendInvoiceOnDispatch: z.boolean().default(false),
+  lowStockThresholdMode: z.enum(["product", "category", "global"]).default("global"),
+  notifyOverdueInvoices: z.boolean().default(true),
+  telegramAlertsEnabled: z.boolean().default(true),
+})
+
+export const agentPersonaSchema = z.object({
+  personaName: z.string().default("SupplySure Autonomous Assistant"),
+  tone: z.enum(["professional", "concise", "friendly", "technical"]).default("professional"),
+  autoConfirmLowRiskActions: z.boolean().default(false),
+  customSystemInstructions: z.string().default("Prioritize customer satisfaction and verify stock levels before confirming delivery commitments."),
+})
+
 export interface NamespaceDefinition {
   schema: z.ZodTypeAny
   label: string
@@ -131,6 +169,30 @@ export interface NamespaceDefinition {
 }
 
 export const REGISTRY = {
+  branding: {
+    schema: brandingSchema,
+    label: "Brand & Document Style",
+    description: "Themes, document templates, invoice notes, and color palettes.",
+    writeRoles: ["admin"],
+  },
+  dashboard: {
+    schema: dashboardSchema,
+    label: "Dashboard & Views",
+    description: "Visible metric cards, chart modules, and default time horizons.",
+    writeRoles: ["admin", "sales", "accounts", "warehouse"],
+  },
+  automation: {
+    schema: automationSchema,
+    label: "Workflow & Approvals",
+    description: "Automatic order approvals, credit hold blocks, and alert triggers.",
+    writeRoles: ["admin", "accounts"],
+  },
+  agentPersona: {
+    schema: agentPersonaSchema,
+    label: "Agent Persona & Directives",
+    description: "AI assistant tone, custom guidelines, and autonomous execution rules.",
+    writeRoles: ["admin"],
+  },
   tax: {
     schema: taxSchema,
     label: "Tax",

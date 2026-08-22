@@ -9,7 +9,7 @@ const db = new PrismaClient()
 
 async function main() {
   console.log("======================================================")
-  console.log("🚀 COMPREHENSIVE SYSTEM VERIFICATION: ALL MODULES")
+  console.log("🚀 COMPREHENSIVE SYSTEM VERIFICATION: 10 CONFIG NAMESPACES")
   console.log("======================================================\n")
 
   let passed = 0
@@ -28,7 +28,19 @@ async function main() {
   // --- 1. SETTINGS SUBSYSTEM ---
   console.log("--- 1. Testing Settings Registry & Configuration ---")
   const namespaces = listNamespaces()
-  assert("Settings registry registered namespaces", namespaces.length === 6, `${namespaces.length} namespaces: ${namespaces.map(n => n.namespace).join(", ")}`)
+  assert("Settings registry registered namespaces", namespaces.length === 10, `${namespaces.length} namespaces: ${namespaces.map(n => n.namespace).join(", ")}`)
+
+  const brandingSettings = defaultsFor("branding")
+  assert("Default branding schema valid", brandingSettings.invoiceTheme === "modern", `theme: ${brandingSettings.invoiceTheme}, color: ${brandingSettings.primaryColor}`)
+
+  const dashboardSettings = defaultsFor("dashboard")
+  assert("Default dashboard schema valid", dashboardSettings.showSalesTrend === true, `kpis: ${dashboardSettings.kpiCardsVisible.length}`)
+
+  const automationSettings = defaultsFor("automation")
+  assert("Default automation schema valid", automationSettings.blockOrdersOnCreditHold === true, `credit hold blocking: ON`)
+
+  const agentPersonaSettings = defaultsFor("agentPersona")
+  assert("Default agent persona schema valid", agentPersonaSettings.tone === "professional", `persona: "${agentPersonaSettings.personaName}"`)
 
   const taxSettings = defaultsFor("tax")
   assert("Default tax settings schema valid", taxSettings.roundingMode === "line", `rounding: ${taxSettings.roundingMode}`)
@@ -47,7 +59,7 @@ async function main() {
 
   const commerceSettingsRaw = await db.commerceSettings.findFirst()
   const commerceSettings = normalizeCommerceSettings(commerceSettingsRaw)
-  assert("Commerce settings normalization active", Boolean(commerceSettings), `Brand: ${commerceSettings.brandName || "SupplySure"}, Auto-Invoice: ${commerceSettings.autoGenerateInvoices ? "ON" : "OFF"}`)
+  assert("Commerce settings normalization active", Boolean(commerceSettings), `Website: ${commerceSettings.websiteEnabled ? "ON" : "OFF"}, Mobile: ${commerceSettings.mobileAppEnabled ? "ON" : "OFF"}`)
 
   // --- 2. COMMERCE & CHANNELS ---
   console.log("\n--- 2. Testing Commerce Engine & Multi-Channel Orders ---")

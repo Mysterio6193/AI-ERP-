@@ -77,6 +77,22 @@ describe("defaults reproduce existing behaviour", () => {
     expect(aging.buckets.at(-1)?.maxDays).toBeNull()
     expect(aging.basis).toBe("dueDate")
   })
+
+  it("provides complete defaults for branding, dashboard, automation, and agent persona", () => {
+    const branding = defaultsFor("branding")
+    expect(branding.primaryColor).toBe("sky")
+    expect(branding.showPaymentQrOnInvoice).toBe(true)
+
+    const dashboard = defaultsFor("dashboard")
+    expect(dashboard.showSalesTrend).toBe(true)
+    expect(dashboard.kpiCardsVisible.length).toBeGreaterThan(0)
+
+    const automation = defaultsFor("automation")
+    expect(automation.blockOrdersOnCreditHold).toBe(true)
+
+    const agent = defaultsFor("agentPersona")
+    expect(agent.tone).toBe("professional")
+  })
 })
 
 describe("schema validation", () => {

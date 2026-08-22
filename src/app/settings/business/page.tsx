@@ -119,6 +119,48 @@ function Preview({ namespace, settings }: { namespace: string; settings: Record<
             ]
       }
 
+      if (namespace === "branding") {
+        return [
+          `Theme: "${settings.invoiceTheme}" template with ${settings.primaryColor} accent palette.`,
+          `Document logos: ${settings.showLogoOnDocuments ? "Enabled" : "Hidden"}.`,
+          `Payment QR code: ${settings.showPaymentQrOnInvoice ? "Printed on invoice PDF for instant mobile payments" : "Disabled"}.`,
+          `Bank Remittance: ${settings.showBankDetailsOnInvoice ? "Included in footer" : "Omitted"}.`,
+          `Date display format: ${settings.dateFormat}.`,
+        ]
+      }
+
+      if (namespace === "dashboard") {
+        return [
+          `Active KPI cards: ${(settings.kpiCardsVisible || []).join(", ")}.`,
+          `Default reporting horizon: ${settings.defaultTimeframe}.`,
+          `Trend charts: ${settings.showSalesTrend ? "Enabled" : "Hidden"}.`,
+          `Display density: ${settings.compactMode ? "Compact table layout" : "Standard comfortable layout"}.`,
+        ]
+      }
+
+      if (namespace === "automation") {
+        return [
+          settings.autoApproveOrdersUnder > 0
+            ? `Orders under $${settings.autoApproveOrdersUnder} auto-approved if stock is allocated.`
+            : "All orders require manual supervisor approval.",
+          settings.blockOrdersOnCreditHold
+            ? "Customer orders immediately blocked if account is on credit hold or overdue."
+            : "Orders allowed on credit hold with warning banner.",
+          `Pick lists: ${settings.autoGeneratePickList ? "Auto-generated upon order confirmation" : "Manual warehouse trigger"}.`,
+          `Telegram notifications: ${settings.telegramAlertsEnabled ? "Active for high-priority events" : "Disabled"}.`,
+        ]
+      }
+
+      if (namespace === "agentPersona") {
+        return [
+          `Agent persona: "${settings.personaName}" with ${settings.tone} tone of voice.`,
+          settings.autoConfirmLowRiskActions
+            ? "Auto-executes low-risk operational queries without prompting."
+            : "Requires explicit operator confirmation for every mutating tool action.",
+          `Custom system directives: "${settings.customSystemInstructions}".`,
+        ]
+      }
+
       if (namespace === "ops") {
         return [
           `New inventory starts at reorder level ${settings.lowStockReorderLevel}, reorder qty ${settings.lowStockReorderQty}.`,
