@@ -562,6 +562,8 @@ model Inventory {
   updatedAt DateTime @updatedAt
 
   @@unique([productId, warehouseId])
+  @@index([warehouseId])
+  @@index([variantId])
 }
 
 /// How a product is bought, held and sold.
@@ -710,6 +712,12 @@ model StockMovement {
   user   User?   @relation(fields: [userId], references: [id])
 
   createdAt DateTime @default(now())
+
+  @@index([productId, warehouseId])
+  @@index([warehouseId])
+  @@index([inventoryId])
+  @@index([reference])
+  @@index([createdAt])
 }
 
 model StockReservation {
@@ -1254,6 +1262,10 @@ model SalesOrderItem {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([productId])
+  @@index([warehouseId])
 }
 
 model SalesOrderStatusLog {
@@ -1264,6 +1276,8 @@ model SalesOrderStatusLog {
   userId    String?
   notes     String?
   timestamp DateTime   @default(now())
+
+  @@index([orderId])
 }
 
 // ============================================
@@ -1334,6 +1348,9 @@ model PurchaseOrderItem {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([poId])
+  @@index([productId])
 }
 
 // ============================================
@@ -1365,6 +1382,9 @@ model PickList {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([warehouseId])
+  @@index([assignedTo])
 }
 
 model PickListItem {
@@ -1385,6 +1405,9 @@ model PickListItem {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([pickListId])
+  @@index([productId])
 }
 
 // ============================================
@@ -1474,6 +1497,12 @@ model Delivery {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([routeId])
+  @@index([orderId])
+  @@index([customerId])
+  @@index([driverId])
+  @@index([status])
 }
 
 // ---------------------------------------------------------------------------
@@ -1646,6 +1675,10 @@ model Invoice {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([status])
+  @@index([dueDate])
 }
 
 model Payment {
@@ -1674,6 +1707,9 @@ model Payment {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([invoiceId])
+  @@index([customerId])
 }
 
 model CreditNote {
@@ -1694,6 +1730,9 @@ model CreditNote {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([invoiceId])
 }
 
 // ============================================
@@ -1883,6 +1922,11 @@ model JournalEntry {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([referenceId, referenceType])
+  @@index([date])
+  @@index([status])
 }
 
 model JournalLine {
@@ -1898,6 +1942,9 @@ model JournalLine {
   credit      Decimal  @default(0) @db.Decimal(12, 2)
 
   createdAt DateTime @default(now())
+
+  @@index([journalEntryId])
+  @@index([accountId])
 }
 
 // ============================================

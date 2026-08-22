@@ -26,6 +26,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
+import { useToast } from "@/hooks/use-toast"
 
 interface Account {
   customer: {
@@ -126,6 +127,7 @@ const HEALTH_TONE: Record<string, string> = {
 }
 
 export default function AccountPage({ params }: { params: Promise<{ id: string }> }) {
+  const { toast } = useToast()
   const { id } = use(params)
 
   const [account, setAccount] = useState<Account | null>(null)
@@ -174,11 +176,19 @@ export default function AccountPage({ params }: { params: Promise<{ id: string }
         const result = await response.json()
 
         if (!result.success) {
-          window.alert(result.error)
+          toast({
+            variant: "destructive",
+            title: "Action failed",
+            description: result.error || "Request failed",
+          })
           return false
         }
 
         await load()
+        toast({
+          title: "Success",
+          description: "Account updated successfully.",
+        })
         return true
       } finally {
         setBusy(false)

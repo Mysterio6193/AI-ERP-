@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { useToast } from "@/hooks/use-toast"
 
 interface Skill {
   id: string
@@ -38,6 +39,7 @@ interface Revision {
 }
 
 export default function SkillsPage() {
+  const { toast } = useToast()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
 
@@ -141,13 +143,21 @@ export default function SkillsPage() {
                       }).then((response) => response.json())
 
                       if (!result.success) {
-                        window.alert(result.error)
+                        toast({
+                          variant: "destructive",
+                          title: "Failed to save skill",
+                          description: result.error || "Could not save skill",
+                        })
                         return
                       }
 
                       setCreating(false)
                       setDraft({ name: "", description: "", content: "" })
                       await load()
+                      toast({
+                        title: "Skill saved",
+                        description: "Skill definition saved successfully.",
+                      })
                     } finally {
                       setSaving(null)
                     }

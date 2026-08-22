@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useToast } from "@/hooks/use-toast"
 
 interface RecipeLine {
   id: string
@@ -89,6 +90,7 @@ function money(value: number) {
 }
 
 export default function ProductionPage() {
+  const { toast } = useToast()
   const [tab, setTab] = useState("runs")
   const [loading, setLoading] = useState(true)
   const [acting, setActing] = useState<string | null>(null)
@@ -132,11 +134,19 @@ export default function ProductionPage() {
         }).then((response) => response.json())
 
         if (!result.success) {
-          window.alert(result.error)
+          toast({
+            variant: "destructive",
+            title: "Production action failed",
+            description: result.error || "Operation failed",
+          })
           return null
         }
 
         await load()
+        toast({
+          title: "Production updated",
+          description: "Operation completed successfully.",
+        })
         return result.data
       } finally {
         setActing(null)

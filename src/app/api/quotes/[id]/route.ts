@@ -111,11 +111,100 @@ export async function PUT(
       return NextResponse.json({ success: true, data: order })
     }
 
-    const updatedQuote = await db.quote.update({
+    const { validUntil, customerNotes, internalNotes, items } = body
+
+    if (quote.salesOrderId && items !== undefined) {
+      return NextResponse.json(
+        { success: false, error: "Cannot edit line items of a quote that has been converted to an order" },
+        { status: 400 }
+      )
+    }
+
+    const updateData: Record<string, unknown> = {}
+    if (status) updateData.status = status
+    if (validUntil !== undefined) updateData.validUntil = validUntil ? new Date(validUntil) : null
+    if (customerNotes !== undefined) updateData.customerNotes = customerNotes || null
+    if (internalNotes !== undefined) updateData.internalNotes = internalNotes || null
+
+    if (Array.isArray(items)) {
+      let subtotal = 0
+      let discountAmount = 0
+      let taxAmount = 0
+
+      const quoteItems: Array<{
+        productId: string
+        quantity: number
+        unitPrice: number
+        discount: number
+        taxRate: number
+        taxAmount: number
+        total: number
+      }> = []
+
+      for (const item of items) {
+        const product = await db.product.findUnique({
+          where: { id: item.productId },
+          select: { id: true, wholesalePrice: true, gstRate: true },
+        })
+
+        if (!product) {
+          return NextResponse.json(
+            { success: false, error: `Product ${item.productId} not found` },
+            { status: 400 }
+          )
+        }
+
+        const quantity = Number(item.quantity) || 0
+        const unitPrice = Number(item.unitPrice) || product.wholesalePrice
+        const discount = Number(item.discount) || 0
+        const lineSubtotal = quantity * unitPrice
+        const lineDiscount = lineSubtotal * (discount / 100)
+        const netAmount = lineSubtotal - lineDiscount
+        const lineTaxRate = Number(item.taxRate) || product.gstRate || 0
+        const lineTaxAmount = netAmount * (lineTaxRate / 100)
+        const total = netAmount + lineTaxAmount
+
+        subtotal += lineSubtotal
+        discountAmount += lineDiscount
+        taxAmount += lineTaxAmount
+
+        quoteItems.push({
+          productId: product.id,
+          quantity,
+          unitPrice,
+          discount,
+          taxRate: lineTaxRate,
+          taxAmount: lineTaxAmount,
+          total,
+        })
+      }
+
+      updateData.subtotal = subtotal
+      updateData.discountAmount = discountAmount
+      updateData.taxAmount = taxAmount
+      updateData.totalAmount = subtotal - discountAmount + taxAmount
+
+      await db.$transaction(async (tx) => {
+        await tx.quoteItem.deleteMany({ where: { quoteId: id } })
+        await tx.quote.update({
+          where: { id },
+          data: {
+            ...updateData,
+            items: {
+              create: quoteItems,
+            },
+          },
+        })
+      })
+    } else {
+      await db.quote.update({
+        where: { id },
+        data: updateData,
+      })
+    }
+
+    const updatedQuote = await db.quote.findUnique({
       where: { id },
-      data: {
-        status: status || quote.status,
-      },
       include: {
         customer: true,
         items: {

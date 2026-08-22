@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useToast } from "@/hooks/use-toast"
 
 interface NamespaceMeta {
   namespace: string
@@ -242,6 +243,7 @@ function Field({
 }
 
 export default function BusinessSettingsPage() {
+  const { toast } = useToast()
   const [namespaces, setNamespaces] = useState<NamespaceMeta[]>([])
   const [active, setActive] = useState("tax")
   const [payload, setPayload] = useState<NamespacePayload | null>(null)
@@ -396,11 +398,19 @@ export default function BusinessSettingsPage() {
                           }).then((response) => response.json())
 
                           if (!result.success) {
-                            window.alert(result.error)
+                            toast({
+                              variant: "destructive",
+                              title: "Failed to save settings",
+                              description: result.error || "Save failed",
+                            })
                             return
                           }
 
                           await load(active)
+                          toast({
+                            title: "Settings saved",
+                            description: "Business settings updated successfully.",
+                          })
                         } finally {
                           setSaving(false)
                         }

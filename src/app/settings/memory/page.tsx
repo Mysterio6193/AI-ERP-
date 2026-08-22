@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useToast } from "@/hooks/use-toast"
 
 interface Memory {
   id: string
@@ -44,6 +45,7 @@ const SCOPE_META: Record<string, { label: string; icon: typeof Brain; blurb: str
 }
 
 export default function MemoryPage() {
+  const { toast } = useToast()
   const [scope, setScope] = useState("company")
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
@@ -140,12 +142,20 @@ export default function MemoryPage() {
                           }).then((response) => response.json())
 
                           if (!result.success) {
-                            window.alert(result.error)
+                            toast({
+                              variant: "destructive",
+                              title: "Failed to save memory",
+                              description: result.error || "Could not save memory",
+                            })
                             return
                           }
 
                           setDraft("")
                           await load()
+                          toast({
+                            title: "Memory learned",
+                            description: "Agent knowledge updated successfully.",
+                          })
                         } finally {
                           setSaving(null)
                         }

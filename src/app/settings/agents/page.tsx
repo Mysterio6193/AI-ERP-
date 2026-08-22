@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { useToast } from "@/hooks/use-toast"
 
 interface AgentDefinition {
   id: string
@@ -74,6 +75,7 @@ const RISK_TONE: Record<string, string> = {
 const RISK_ORDER = ["read", "low", "medium", "high"]
 
 export default function AgentStudioPage() {
+  const { toast } = useToast()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
 
@@ -143,11 +145,19 @@ export default function AgentStudioPage() {
 
         const result = await response.json()
         if (!result.success) {
-          window.alert(result.error)
+          toast({
+            variant: "destructive",
+            title: "Failed to update agent",
+            description: result.error || "Request failed",
+          })
           return
         }
 
         await load()
+        toast({
+          title: "Agent updated",
+          description: "Agent configuration saved successfully.",
+        })
       } finally {
         setSaving(null)
       }
@@ -228,14 +238,18 @@ export default function AgentStudioPage() {
                         }).then((response) => response.json())
 
                         const data = result.data
-                        window.alert(
-                          result.success
-                            ? `Found ${data.signalsFound} signal(s).\n` +
-                                `Would send ${data.sent.length} to ${data.recipients} recipient(s).\n\n` +
-                                (data.sent.map((s: { title: string }) => `• ${s.title}`).join("\n") ||
-                                  "Nothing worth interrupting anyone about.")
-                            : result.error
-                        )
+                        if (result.success) {
+                          toast({
+                            title: `Heartbeat check: ${data.signalsFound} signal(s)`,
+                            description: `Would send ${data.sent.length} notification(s) to ${data.recipients} recipient(s).`,
+                          })
+                        } else {
+                          toast({
+                            variant: "destructive",
+                            title: "Heartbeat dry run failed",
+                            description: result.error || "Execution failed",
+                          })
+                        }
                       } finally {
                         setSaving(null)
                       }
@@ -427,13 +441,21 @@ export default function AgentStudioPage() {
 
                       const result = await response.json()
                       if (!result.success) {
-                        window.alert(result.error)
+                        toast({
+                          variant: "destructive",
+                          title: "Failed to create agent",
+                          description: result.error || "Creation failed",
+                        })
                         return
                       }
 
                       setCreating(false)
                       setDraft({ name: "", description: "", avatar: "🤖", instructions: "", tools: [] })
                       await load()
+                      toast({
+                        title: "Agent created",
+                        description: "New agent created successfully.",
+                      })
                     } finally {
                       setSaving(null)
                     }
@@ -525,15 +547,18 @@ export default function AgentStudioPage() {
 
                         const result = await response.json()
 
-                        window.alert(
-                          result.success
-                            ? `${active.name} ran.\n\n${result.data.text || "(no reply)"}${
-                                result.data.pending
-                                  ? `\n\n${result.data.pending} action(s) awaiting approval.`
-                                  : ""
-                              }`
-                            : result.error
-                        )
+                        if (result.success) {
+                          toast({
+                            title: `${active.name} executed`,
+                            description: result.data.text || "(no reply)",
+                          })
+                        } else {
+                          toast({
+                            variant: "destructive",
+                            title: "Agent run failed",
+                            description: result.error || "Execution failed",
+                          })
+                        }
 
                         await load()
                       } finally {

@@ -203,6 +203,128 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, data: { id } })
     }
 
+    if (action === "create_recipe") {
+      const productId = String(body.productId || "")
+      const name = String(body.name || "")
+      const yieldQty = Number(body.yieldQty) || 1
+      const yieldUnit = String(body.yieldUnit || "carton")
+      const instructions = body.instructions ? String(body.instructions) : null
+      const standardTimeMinutes = body.standardTimeMinutes ? Number(body.standardTimeMinutes) : null
+      const lines = Array.isArray(body.lines) ? body.lines : []
+
+      if (!productId || !name || lines.length === 0) {
+        return NextResponse.json(
+          { success: false, error: "productId, name, and at least one component line are required" },
+          { status: 400 }
+        )
+      }
+
+      const companyId = await getActiveCompanyId(request)
+      const recipe = await db.billOfMaterial.create({
+        data: {
+          productId,
+          name,
+          yieldQty,
+          yieldUnit,
+          instructions,
+          standardTimeMinutes,
+          status: body.status || "active",
+          companyId,
+          lines: {
+            create: lines.map((line: any, index: number) => ({
+              componentId: String(line.componentId),
+              quantity: Number(line.quantity) || 1,
+              unit: String(line.unit || "each"),
+              wastePercent: Number(line.wastePercent) || 0,
+              sortOrder: line.sortOrder !== undefined ? Number(line.sortOrder) : index,
+              instructions: line.instructions ? String(line.instructions) : null,
+            })),
+          },
+        },
+        include: {
+          product: { select: { name: true, sku: true } },
+          lines: {
+            include: { component: { select: { name: true, sku: true, baseUnit: true, costPrice: true } } },
+          },
+        },
+      })
+
+      return NextResponse.json({ success: true, data: recipe })
+    }
+
+    if (action === "update_recipe") {
+      const id = String(body.id || "")
+      if (!id) {
+        return NextResponse.json({ success: false, error: "id is required" }, { status: 400 })
+      }
+
+      const updateData: Record<string, unknown> = {}
+      if (body.name) updateData.name = String(body.name)
+      if (body.yieldQty !== undefined) updateData.yieldQty = Number(body.yieldQty) || 1
+      if (body.yieldUnit) updateData.yieldUnit = String(body.yieldUnit)
+      if (body.instructions !== undefined) updateData.instructions = body.instructions ? String(body.instructions) : null
+      if (body.standardTimeMinutes !== undefined) updateData.standardTimeMinutes = body.standardTimeMinutes ? Number(body.standardTimeMinutes) : null
+      if (body.status) updateData.status = String(body.status)
+
+      if (Array.isArray(body.lines)) {
+        await db.$transaction(async (tx) => {
+          await tx.bomLine.deleteMany({ where: { bomId: id } })
+          await tx.billOfMaterial.update({
+            where: { id },
+            data: {
+              ...updateData,
+              lines: {
+                create: body.lines.map((line: any, index: number) => ({
+                  componentId: String(line.componentId),
+                  quantity: Number(line.quantity) || 1,
+                  unit: String(line.unit || "each"),
+                  wastePercent: Number(line.wastePercent) || 0,
+                  sortOrder: line.sortOrder !== undefined ? Number(line.sortOrder) : index,
+                  instructions: line.instructions ? String(line.instructions) : null,
+                })),
+              },
+            },
+          })
+        })
+      } else {
+        await db.billOfMaterial.update({
+          where: { id },
+          data: updateData,
+        })
+      }
+
+      const recipe = await db.billOfMaterial.findUnique({
+        where: { id },
+        include: {
+          product: { select: { name: true, sku: true } },
+          lines: {
+            include: { component: { select: { name: true, sku: true, baseUnit: true, costPrice: true } } },
+          },
+        },
+      })
+
+      return NextResponse.json({ success: true, data: recipe })
+    }
+
+    if (action === "delete_recipe") {
+      const id = String(body.id || "")
+      if (!id) {
+        return NextResponse.json({ success: false, error: "id is required" }, { status: 400 })
+      }
+
+      const runsCount = await db.productionOrder.count({ where: { bomId: id } })
+      if (runsCount > 0) {
+        await db.billOfMaterial.update({
+          where: { id },
+          data: { status: "archived" },
+        })
+        return NextResponse.json({ success: true, message: "Recipe archived because production runs reference it" })
+      }
+
+      await db.billOfMaterial.delete({ where: { id } })
+      return NextResponse.json({ success: true, message: "Recipe deleted" })
+    }
+
     return NextResponse.json({ success: false, error: `Unknown action "${action}"` }, { status: 400 })
   } catch (error) {
     console.error(`Production action ${action} failed:`, error)

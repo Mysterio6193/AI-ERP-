@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useToast } from "@/hooks/use-toast"
 
 interface Zone {
   id: string
@@ -112,6 +113,7 @@ function money(value: number | null) {
 }
 
 export default function CarriersPage() {
+  const { toast } = useToast()
   const [tab, setTab] = useState("carriers")
   const [loading, setLoading] = useState(true)
   const [acting, setActing] = useState<string | null>(null)
@@ -172,11 +174,19 @@ export default function CarriersPage() {
 
         const result = await response.json()
         if (!result.success) {
-          window.alert(result.error)
+          toast({
+            variant: "destructive",
+            title: "Carrier action failed",
+            description: result.error || "Request failed",
+          })
           return null
         }
 
         await load()
+        toast({
+          title: "Carrier updated",
+          description: "Operation completed successfully.",
+        })
         return result.data
       } finally {
         setActing(null)

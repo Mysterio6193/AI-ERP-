@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useToast } from "@/hooks/use-toast"
 
 interface CampaignRow {
   id: string
@@ -159,6 +160,7 @@ const STATUS_TONE: Record<string, string> = {
 }
 
 export default function MarketingPage() {
+  const { toast } = useToast()
   const [tab, setTab] = useState("campaigns")
   const [loading, setLoading] = useState(true)
   const [acting, setActing] = useState<string | null>(null)
@@ -209,10 +211,18 @@ export default function MarketingPage() {
         const result = await response.json()
 
         if (!result.success) {
-          window.alert(result.error)
+          toast({
+            variant: "destructive",
+            title: "Marketing action failed",
+            description: result.error || "Request failed",
+          })
           return null
         }
 
+        toast({
+          title: "Marketing updated",
+          description: "Action executed successfully.",
+        })
         return result.data
       } finally {
         setActing(null)

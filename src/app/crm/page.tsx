@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useToast } from "@/hooks/use-toast"
 
 interface FocusItem {
   reason: "task_overdue" | "case_open" | "account_lapsing" | "invoice_overdue"
@@ -121,6 +122,7 @@ function money(value: number) {
 }
 
 export default function CrmPage() {
+  const { toast } = useToast()
   const [tab, setTab] = useState("focus")
   const [loading, setLoading] = useState(true)
   const [focus, setFocus] = useState<{ items: FocusItem[]; counters: Record<string, number> } | null>(null)
@@ -201,11 +203,19 @@ export default function CrmPage() {
         const result = await response.json()
 
         if (!result.success) {
-          window.alert(result.error)
+          toast({
+            variant: "destructive",
+            title: "CRM action failed",
+            description: result.error || "Action failed",
+          })
           return
         }
 
         await load()
+        toast({
+          title: "CRM updated",
+          description: "Action completed successfully.",
+        })
       } finally {
         setActing(null)
       }

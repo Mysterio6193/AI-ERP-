@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { useToast } from "@/hooks/use-toast"
 
 interface Hit {
   threadId: string
@@ -27,6 +28,7 @@ interface Transcript {
 }
 
 export default function HistoryPage() {
+  const { toast } = useToast()
   const [query, setQuery] = useState("")
   const [loading, setLoading] = useState(true)
   const [working, setWorking] = useState<string | null>(null)
@@ -133,7 +135,18 @@ export default function HistoryPage() {
                                 body: JSON.stringify({ threadId: hit.threadId }),
                               }).then((response) => response.json())
 
-                              if (!result.success) window.alert(result.error)
+                              if (!result.success) {
+                                toast({
+                                  variant: "destructive",
+                                  title: "Summarisation failed",
+                                  description: result.error || "Failed to summarise thread",
+                                })
+                              } else {
+                                toast({
+                                  title: "Thread summarised",
+                                  description: "Summary generated successfully.",
+                                })
+                              }
                               await run(query)
                             } finally {
                               setWorking(null)

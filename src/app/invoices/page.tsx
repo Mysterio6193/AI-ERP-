@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { useToast } from "@/hooks/use-toast"
 import {
   Table,
   TableBody,
@@ -110,6 +111,7 @@ const AGING_BUCKETS = [
 ]
 
 export default function InvoicesPage() {
+  const { toast } = useToast()
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
@@ -251,12 +253,24 @@ export default function InvoicesPage() {
         setIsPaymentDialogOpen(false)
         setSelectedInvoice(null)
         setPaymentAmount("")
+        toast({
+          title: "Payment recorded",
+          description: `Successfully recorded payment of $${parseFloat(paymentAmount).toFixed(2)}.`,
+        })
       } else {
-        alert("Error recording payment: " + data.error)
+        toast({
+          variant: "destructive",
+          title: "Payment failed",
+          description: data.error || "Failed to record payment",
+        })
       }
     } catch (error) {
       console.error("Error recording payment:", error)
-      alert("An unexpected error occurred while recording the payment.")
+      toast({
+        variant: "destructive",
+        title: "Payment failed",
+        description: error instanceof Error ? error.message : "An unexpected error occurred while recording the payment.",
+      })
     }
   }
 

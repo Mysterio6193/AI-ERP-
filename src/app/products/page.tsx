@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { useToast } from "@/hooks/use-toast"
 import {
   Table,
   TableBody,
@@ -102,6 +103,7 @@ interface Category {
 }
 
 export default function ProductsPage() {
+  const { toast } = useToast()
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
@@ -205,12 +207,24 @@ export default function ProductsPage() {
         fetchProducts()
         setIsDialogOpen(false)
         resetForm()
+        toast({
+          title: selectedProduct ? "Product updated" : "Product created",
+          description: `${data.data?.name || "Product"} saved successfully.`,
+        })
       } else {
-        alert("Error: " + (data.error || "Failed to save product"))
+        toast({
+          variant: "destructive",
+          title: "Could not save product",
+          description: data.error || "Failed to save product",
+        })
       }
     } catch (error) {
       console.error("Error saving product:", error)
-      alert("An unexpected error occurred. Please check the console.")
+      toast({
+        variant: "destructive",
+        title: "Could not save product",
+        description: error instanceof Error ? error.message : "An unexpected error occurred",
+      })
     }
   }
 
@@ -331,7 +345,11 @@ export default function ProductsPage() {
       const data = await response.json()
 
       if (!response.ok || !data.success) {
-        alert(data.error || "Failed to upload image")
+        toast({
+          variant: "destructive",
+          title: "Image upload failed",
+          description: data.error || "Failed to upload image",
+        })
         return
       }
 
@@ -339,9 +357,17 @@ export default function ProductsPage() {
         ...current,
         imageUrl: data.data?.path || data.data?.url || "",
       }))
+      toast({
+        title: "Image uploaded",
+        description: "Product image uploaded successfully.",
+      })
     } catch (error) {
       console.error("Error uploading image:", error)
-      alert("Failed to upload image")
+      toast({
+        variant: "destructive",
+        title: "Upload error",
+        description: error instanceof Error ? error.message : "Failed to upload image",
+      })
     } finally {
       setUploadingImage(false)
       if (event.target) {
