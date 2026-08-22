@@ -6,6 +6,7 @@ import { ensurePickListForOrder } from "@/lib/pick-lists"
 import { ensureDeliveryForOrder } from "@/lib/delivery-routes"
 import { commitStockForOrder, ensureInvoiceForOrder } from "@/lib/order-fulfillment"
 import { resolveLinePrice } from "@/lib/pricing"
+import { releaseReservationsForOrder, reserveStockForOrder } from "@/lib/reservations"
 import { getSettings } from "@/lib/settings/service"
 import { computeLineTax } from "@/lib/tax"
 
@@ -17,7 +18,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requireAdminUser(request, ["admin", "sales", "warehouse", "accounts"])
+    const auth = await requireAdminUser(request, ["admin", "sales", "warehouse", "accounts", "driver"])
     if (auth.response) {
       return auth.response
     }
@@ -71,7 +72,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requireAdminUser(request, ["admin", "sales"])
+    const auth = await requireAdminUser(request, ["admin", "sales", "warehouse", "driver"])
     if (auth.response) {
       return auth.response
     }
@@ -402,6 +403,11 @@ export async function PUT(
 
       if (["approved", "picking", "packed", "dispatched", "delivered", "invoiced"].includes(status)) {
         await ensurePickListForOrder(db, id)
+
+        // Approval is the promise. Holding the stock here is what stops two
+        // orders being taken for the same last pallet; idempotent, so a
+        // re-sent status does not double-reserve.
+        await reserveStockForOrder(db, id)
       }
 
       if (["packed", "dispatched", "delivered"].includes(status)) {
@@ -419,10 +425,9 @@ export async function PUT(
           data: { status: "failed" },
         })
 
-        await db.stockReservation.updateMany({
-          where: { referenceId: id, status: "active" },
-          data: { status: "released" },
-        })
+        // Was a bare status flip, which left Inventory.reserved holding stock
+        // for an order that will never ship.
+        await releaseReservationsForOrder(db, id)
       }
 
       try {

@@ -5,6 +5,7 @@ import { db } from "@/lib/db"
 import type { AgentPrincipal } from "../context"
 import { defineTool } from "./define"
 import { findProducts, isStaff, money } from "./shared"
+import { availableQuantity } from "@/lib/reservations"
 
 /** Products, stock and pricing. Available to staff and customers alike. */
 
@@ -39,7 +40,7 @@ export function buildCatalogTools(principal: AgentPrincipal) {
           warehouse: row.warehouse?.name,
           onHand: row.quantity,
           reserved: row.reserved,
-          available: row.quantity - row.reserved,
+          available: availableQuantity(row),
           onOrder: row.onOrder,
           reorderLevel: row.reorderLevel,
           belowReorder: row.quantity <= row.reorderLevel,
@@ -78,7 +79,7 @@ export function buildCatalogTools(principal: AgentPrincipal) {
             product: row.product?.name,
             sku: row.product?.sku,
             warehouse: row.warehouse?.name,
-            available: row.quantity - row.reserved,
+            available: availableQuantity(row),
             onOrder: row.onOrder,
             reorderLevel: row.reorderLevel,
             price: money(row.product?.wholesalePrice || 0),

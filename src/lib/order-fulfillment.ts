@@ -2,6 +2,7 @@ import type { Prisma, PrismaClient } from "@prisma/client"
 
 import { allocateFefo, consumeBatches } from "@/lib/batches"
 import { computeDueDate } from "@/lib/invoicing"
+import { fulfilReservationsForOrder } from "@/lib/reservations"
 import { getSettings } from "@/lib/settings/service"
 import { nextDocumentNumber } from "@/lib/numbering"
 
@@ -141,6 +142,11 @@ export async function commitStockForOrder(
       batches: allocation.allocations.map((line) => line.batchCode),
     })
   }
+
+  // The stock has physically left, so the hold must lift — `quantity` has just
+  // dropped, and leaving `reserved` in place would subtract the same units
+  // twice from every availability figure.
+  await fulfilReservationsForOrder(db, orderId)
 
   return { ok: true as const, skipped: false as const, committed, shortfalls }
 }
