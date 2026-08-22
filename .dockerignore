@@ -1,13 +1,56 @@
+# version control
+.git
+.gitignore
+
+# docker
 Dockerfile
 .dockerignore
+
+# dependencies
 node_modules
-npm-debug.log
-README.md
+
+# build output
 .next
-.git
+apps/driver-app/.next
+
+# package managers (lockfiles are copied in the image build, not the context)
 package-lock.json
+bun.lock
 yarn.lock
 pnpm-lock.yaml
-test
+
+# secrets and env files
+.env*
+!.env.example
+
+# databases — must never enter an image layer
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+db/
+prisma/db/
+
+# runtime uploads (driver proof-of-delivery etc.)
+public/uploads/
+
+# logs
 *.log
-local-*
+
+# docs / scratch / archives
+README.md
+docs.zip
+*.zip
+upload/
+download/
+
+# local AI-tooling config
+.claude
+.codex
+.z-ai-config
+.zscripts
+skills
+
+# tests
+test
+coverage

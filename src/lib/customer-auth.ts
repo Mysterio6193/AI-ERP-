@@ -20,8 +20,13 @@ export function otpExpiresAt() {
   return new Date(Date.now() + 1000 * 60 * 10)
 }
 
+/**
+ * Returns the OTP in API responses. Opt-in for local development where no SMS
+ * provider exists — never the default, since an exposed OTP turns signup into
+ * an open door in production.
+ */
 export function shouldExposeCustomerOtp() {
-  return process.env.CUSTOMER_OTP_EXPOSE !== "false"
+  return process.env.CUSTOMER_OTP_EXPOSE === "true"
 }
 
 export async function hashPassword(password: string) {

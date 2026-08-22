@@ -65,9 +65,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Bcrypt only. A previous fallback compared plaintext when the hash did
+    // not start with "$2", which meant any driver row without a hash could be
+    // signed in by sending the stored value as the password.
     const passwordMatches = driver.password.startsWith("$2")
       ? await compare(password, driver.password)
-      : password === driver.password
+      : false
 
     if (!passwordMatches) {
       return NextResponse.json(
