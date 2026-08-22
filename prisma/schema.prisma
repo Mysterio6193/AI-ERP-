@@ -1098,6 +1098,15 @@ model QuoteItem {
   taxAmount    Float   @default(0)
   total        Float   @default(0)
 
+  /// Why this line cost what it cost.
+  ///
+  /// Without these, "why was this line $47.52?" is unanswerable three months
+  /// later — the price list may have changed or been archived since.
+  /// `priceSource` is one of override | priceList | defaultPriceList |
+  /// wholesale | retail.
+  priceListItemId String?
+  priceSource     String?
+
   notes String?
 
   createdAt DateTime @default(now())
@@ -1257,6 +1266,15 @@ model SalesOrderItem {
   // Stock allocation
   warehouseId String?
   reserved    Boolean @default(false)
+
+  /// Why this line cost what it cost.
+  ///
+  /// Without these, "why was this line $47.52?" is unanswerable three months
+  /// later — the price list may have changed or been archived since.
+  /// `priceSource` is one of override | priceList | defaultPriceList |
+  /// wholesale | retail.
+  priceListItemId String?
+  priceSource     String?
 
   notes String?
 

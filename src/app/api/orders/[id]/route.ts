@@ -5,6 +5,7 @@ import { db } from "@/lib/db"
 import { ensurePickListForOrder } from "@/lib/pick-lists"
 import { ensureDeliveryForOrder } from "@/lib/delivery-routes"
 import { commitStockForOrder, ensureInvoiceForOrder } from "@/lib/order-fulfillment"
+import { resolveLinePrice } from "@/lib/pricing"
 import { getSettings } from "@/lib/settings/service"
 import { computeLineTax } from "@/lib/tax"
 
@@ -155,6 +156,7 @@ export async function PUT(
           gstRate: true,
           gstExempt: true,
           wholesalePrice: true,
+          retailPrice: true,
         },
       })
 
@@ -165,7 +167,9 @@ export async function PUT(
       const taxSettings = await getSettings("tax", { companyId: existingOrder.companyId })
       const taxCustomer = await db.customer.findUnique({
         where: { id: existingOrder.customerId },
-        select: { customerType: true },
+        // priceListId drives contract pricing; omitting it typechecks fine and
+        // silently prices every line from the product instead.
+        select: { customerType: true, priceListId: true },
       })
       const taxCompany = existingOrder.companyId
         ? await db.company.findUnique({
@@ -173,6 +177,40 @@ export async function PUT(
             select: { gstRate: true, country: true },
           })
         : null
+      const pricingSettings = await getSettings("pricing", {
+        companyId: existingOrder.companyId,
+      })
+
+      const priceLists = pricingSettings.enablePriceLists
+        ? await db.priceList.findMany({
+            select: {
+              id: true,
+              isDefault: true,
+              type: true,
+              status: true,
+              validFrom: true,
+              validTo: true,
+              createdAt: true,
+            },
+          })
+        : []
+
+      const priceListItems = pricingSettings.enablePriceLists
+        ? await db.priceListItem.findMany({
+            where: { productId: { in: productIds } },
+            select: {
+              id: true,
+              priceListId: true,
+              productId: true,
+              price: true,
+              minQty: true,
+              maxQty: true,
+              discountPercent: true,
+              discountFlat: true,
+            },
+          })
+        : []
+
       const existingItemsById = new Map(existingOrder.items.map((item) => [item.id, item]))
 
       let subtotal = 0
@@ -191,10 +229,25 @@ export async function PUT(
           throw new Error("Each line item must have a quantity greater than 0")
         }
 
-        const unitPrice =
-          item.unitPrice !== undefined && item.unitPrice !== null
-            ? Number(item.unitPrice) || 0
-            : product.wholesalePrice
+        const priced = resolveLinePrice(
+          {
+            quantity,
+            unitPriceOverride:
+              item.unitPrice !== undefined && item.unitPrice !== null
+                ? Number(item.unitPrice)
+                : null,
+            product: {
+              wholesalePrice: product.wholesalePrice,
+              retailPrice: product.retailPrice,
+            },
+            customer: taxCustomer,
+            items: priceListItems.filter((entry) => entry.productId === productId),
+            lists: priceLists,
+          },
+          pricingSettings
+        )
+
+        const unitPrice = priced.unitPrice
         const discount = item.discount !== undefined ? Number(item.discount) || 0 : 0
         const lineSubtotal = unitPrice * quantity
         const discountAmount = lineSubtotal * (discount / 100)
@@ -226,6 +279,8 @@ export async function PUT(
           unitPrice,
           discount,
           taxRate: lineTax.rate,
+          priceListItemId: priced.priceListItemId,
+          priceSource: priced.source,
           taxAmount: totals.taxAmount,
           total: totals.total,
           pickedQty: existingItem?.pickedQty || 0,

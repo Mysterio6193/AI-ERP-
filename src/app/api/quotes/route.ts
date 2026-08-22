@@ -7,6 +7,7 @@ import { ROLE_SETS } from "@/lib/permissions"
 import { getSettings } from "@/lib/settings/service"
 import { computeLineTax } from "@/lib/tax"
 import { nextDocumentNumber } from "@/lib/numbering"
+import { resolveLinePrice } from "@/lib/pricing"
 
 /** The entity the request is acting as, not merely the first row. */
 async function getDefaultCompanyId(request: NextRequest) {
@@ -95,7 +96,7 @@ export async function POST(request: NextRequest) {
 
     const customer = await db.customer.findUnique({
       where: { id: customerId },
-      select: { id: true, companyId: true, customerType: true },
+      select: { id: true, companyId: true, customerType: true, priceListId: true },
     })
 
     if (!customer) {
@@ -112,7 +113,7 @@ export async function POST(request: NextRequest) {
 
     const products = await db.product.findMany({
       where: { id: { in: productIds } },
-      select: { id: true, wholesalePrice: true, gstRate: true, gstExempt: true },
+      select: { id: true, wholesalePrice: true, retailPrice: true, gstRate: true, gstExempt: true },
     })
     const productMap = new Map(products.map((p) => [p.id, p]))
 
@@ -125,11 +126,45 @@ export async function POST(request: NextRequest) {
         })
       : null
 
+    const pricingSettings = await getSettings("pricing", { companyId: quoteCompanyId })
+
+    const priceLists = pricingSettings.enablePriceLists
+      ? await db.priceList.findMany({
+          select: {
+            id: true,
+            isDefault: true,
+            type: true,
+            status: true,
+            validFrom: true,
+            validTo: true,
+            createdAt: true,
+          },
+        })
+      : []
+
+    const priceListItems = pricingSettings.enablePriceLists
+      ? await db.priceListItem.findMany({
+          where: { productId: { in: productIds } },
+          select: {
+            id: true,
+            priceListId: true,
+            productId: true,
+            price: true,
+            minQty: true,
+            maxQty: true,
+            discountPercent: true,
+            discountFlat: true,
+          },
+        })
+      : []
+
     let subtotal = 0
     let discountAmount = 0
     let taxAmount = 0
 
     const quoteItems: Array<{
+      priceListItemId: string | null
+      priceSource: string
       productId: string
       quantity: number
       unitPrice: number
@@ -150,7 +185,25 @@ export async function POST(request: NextRequest) {
       }
 
       const quantity = Number(item.quantity) || 0
-      const unitPrice = Number(item.unitPrice) || product.wholesalePrice
+
+      // `Number(item.unitPrice) || product.wholesalePrice` both discarded a
+      // deliberate zero and skipped the customer's contract list.
+      const priced = resolveLinePrice(
+        {
+          quantity,
+          unitPriceOverride:
+            item.unitPrice === undefined || item.unitPrice === null
+              ? null
+              : Number(item.unitPrice),
+          product: { wholesalePrice: product.wholesalePrice, retailPrice: product.retailPrice },
+          customer,
+          items: priceListItems.filter((entry) => entry.productId === product.id),
+          lists: priceLists,
+        },
+        pricingSettings
+      )
+
+      const unitPrice = priced.unitPrice
       const discount = Number(item.discount) || 0
       const lineSubtotal = quantity * unitPrice
       const lineDiscount = lineSubtotal * (discount / 100)
@@ -188,6 +241,8 @@ export async function POST(request: NextRequest) {
         taxRate: lineTaxRate,
         taxAmount: lineTaxAmount,
         total,
+        priceListItemId: priced.priceListItemId,
+        priceSource: priced.source,
       })
     }
 

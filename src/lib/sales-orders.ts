@@ -2,6 +2,7 @@ import { sendSalesOrderEmail } from "@/lib/communications"
 import { checkCreditForOrder } from "@/lib/credit"
 import { db } from "@/lib/db"
 import { ensurePickListForOrder, resolveDefaultWarehouseId } from "@/lib/pick-lists"
+import { resolveLinePrice } from "@/lib/pricing"
 import { getSettings } from "@/lib/settings/service"
 import { computeLineTax } from "@/lib/tax"
 import { nextDocumentNumber } from "@/lib/numbering"
@@ -86,12 +87,46 @@ export async function priceSalesOrder(
   // still charged GST and `Company.gstRate` was never consulted.
   const taxSettings = await getSettings("tax", { companyId: context.companyId })
 
+  const pricingSettings = await getSettings("pricing", { companyId: context.companyId })
+
   const customer = context.customerId
     ? await db.customer.findUnique({
         where: { id: context.customerId },
-        select: { customerType: true },
+        select: { customerType: true, priceListId: true },
       })
     : null
+
+  // Fetched once per order rather than per line. `enablePriceLists` is false by
+  // default, in which case resolveLinePrice never looks at either.
+  const priceLists = pricingSettings.enablePriceLists
+    ? await db.priceList.findMany({
+        select: {
+          id: true,
+          isDefault: true,
+          type: true,
+          status: true,
+          validFrom: true,
+          validTo: true,
+          createdAt: true,
+        },
+      })
+    : []
+
+  const priceListItems = pricingSettings.enablePriceLists
+    ? await db.priceListItem.findMany({
+        where: { productId: { in: items.map((entry) => entry.productId) } },
+        select: {
+          id: true,
+          priceListId: true,
+          productId: true,
+          price: true,
+          minQty: true,
+          maxQty: true,
+          discountPercent: true,
+          discountFlat: true,
+        },
+      })
+    : []
 
   const company = context.companyId
     ? await db.company.findUnique({
@@ -110,6 +145,8 @@ export async function priceSalesOrder(
     taxRate: number
     taxAmount: number
     total: number
+    priceListItemId: string | null
+    priceSource: string
   }> = []
 
   for (const item of items) {
@@ -119,7 +156,21 @@ export async function priceSalesOrder(
       return { ok: false as const, error: `Product ${item.productId} not found` }
     }
 
-    const unitPrice = item.unitPrice ?? product.wholesalePrice
+    // Was `item.unitPrice ?? product.wholesalePrice`, which ignored the
+    // customer's contract list entirely.
+    const priced = resolveLinePrice(
+      {
+        quantity: item.quantity,
+        unitPriceOverride: item.unitPrice,
+        product: { wholesalePrice: product.wholesalePrice, retailPrice: product.retailPrice },
+        customer,
+        items: priceListItems.filter((entry) => entry.productId === item.productId),
+        lists: priceLists,
+      },
+      pricingSettings
+    )
+
+    const unitPrice = priced.unitPrice
     const discount = item.discount || 0
 
     let itemSubtotal = unitPrice * item.quantity
@@ -149,6 +200,8 @@ export async function priceSalesOrder(
       taxRate: lineTax.rate,
       taxAmount,
       total,
+      priceListItemId: priced.priceListItemId,
+      priceSource: priced.source,
     })
   }
 
@@ -223,6 +276,8 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
         taxRate: item.taxRate,
         taxAmount: item.taxAmount,
         total: item.total,
+        priceListItemId: item.priceListItemId,
+        priceSource: item.priceSource,
       })),
     },
     statusLogs: {
