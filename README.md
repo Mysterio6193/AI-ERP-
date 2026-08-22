@@ -1,141 +1,228 @@
-# 🚀 Welcome to Z.ai Code Scaffold
+# 📦 SupplySure OS — AI-Powered B2B ERP & Supply Chain Operating System
 
-A modern, production-ready web application scaffold powered by cutting-edge technologies, designed to accelerate your development with [Z.ai](https://chat.z.ai)'s AI-powered coding assistance.
+![SupplySure OS Banner](https://img.shields.io/badge/Next.js-16-black?style=for-the-badge&logo=next.js)
+![React](https://img.shields.io/badge/React-19-blue?style=for-the-badge&logo=react)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?style=for-the-badge&logo=typescript)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-38bdf8?style=for-the-badge&logo=tailwindcss)
+![Prisma](https://img.shields.io/badge/Prisma-ORM-2D3748?style=for-the-badge&logo=prisma)
+![AI SDK](https://img.shields.io/badge/Vercel-AI_SDK-black?style=for-the-badge)
 
-## ✨ Technology Stack
+SupplySure OS is a modern, enterprise-grade, **AI-native ERP and supply chain management platform** engineered for wholesale distributors, B2B commerce, multi-warehouse logistics, and manufacturing. 
 
-This scaffold provides a robust foundation built with:
-
-### 🎯 Core Framework
-- **⚡ Next.js 16** - The React framework for production with App Router
-- **📘 TypeScript 5** - Type-safe JavaScript for better developer experience
-- **🎨 Tailwind CSS 4** - Utility-first CSS framework for rapid UI development
-
-### 🧩 UI Components & Styling
-- **🧩 shadcn/ui** - High-quality, accessible components built on Radix UI
-- **🎯 Lucide React** - Beautiful & consistent icon library
-- **🌈 Framer Motion** - Production-ready motion library for React
-- **🎨 Next Themes** - Perfect dark mode in 2 lines of code
-
-### 📋 Forms & Validation
-- **🎣 React Hook Form** - Performant forms with easy validation
-- **✅ Zod** - TypeScript-first schema validation
-
-### 🔄 State Management & Data Fetching
-- **🐻 Zustand** - Simple, scalable state management
-- **🔄 TanStack Query** - Powerful data synchronization for React
-- **🌐 Fetch** - Promise-based HTTP request
-
-### 🗄️ Database & Backend
-- **🗄️ Prisma** - Next-generation TypeScript ORM
-- **🔐 NextAuth.js** - Complete open-source authentication solution
-
-### 🎨 Advanced UI Features
-- **📊 TanStack Table** - Headless UI for building tables and datagrids
-- **🖱️ DND Kit** - Modern drag and drop toolkit for React
-- **📊 Recharts** - Redefined chart library built with React and D3
-- **🖼️ Sharp** - High performance image processing
-
-### 🌍 Internationalization & Utilities
-- **🌍 Next Intl** - Internationalization library for Next.js
-- **📅 Date-fns** - Modern JavaScript date utility library
-- **🪝 ReactUse** - Collection of essential React hooks for modern development
-
-## 🎯 Why This Scaffold?
-
-- **🏎️ Fast Development** - Pre-configured tooling and best practices
-- **🎨 Beautiful UI** - Complete shadcn/ui component library with advanced interactions
-- **🔒 Type Safety** - Full TypeScript configuration with Zod validation
-- **📱 Responsive** - Mobile-first design principles with smooth animations
-- **🗄️ Database Ready** - Prisma ORM configured for rapid backend development
-- **🔐 Auth Included** - NextAuth.js for secure authentication flows
-- **📊 Data Visualization** - Charts, tables, and drag-and-drop functionality
-- **🌍 i18n Ready** - Multi-language support with Next Intl
-- **🚀 Production Ready** - Optimized build and deployment settings
-- **🤖 AI-Friendly** - Structured codebase perfect for AI assistance
-
-## 🚀 Quick Start
-
-```bash
-# Install dependencies
-bun install
-
-# Start development server
-bun run dev
-
-# Build for production
-bun run build
-
-# Start production server
-bun start
-```
-
-Open [http://localhost:3000](http://localhost:3000) to see your application running.
-
-## 🤖 Powered by Z.ai
-
-This scaffold is optimized for use with [Z.ai](https://chat.z.ai) - your AI assistant for:
-
-- **💻 Code Generation** - Generate components, pages, and features instantly
-- **🎨 UI Development** - Create beautiful interfaces with AI assistance  
-- **🔧 Bug Fixing** - Identify and resolve issues with intelligent suggestions
-- **📝 Documentation** - Auto-generate comprehensive documentation
-- **🚀 Optimization** - Performance improvements and best practices
-
-Ready to build something amazing? Start chatting with Z.ai at [chat.z.ai](https://chat.z.ai) and experience the future of AI-powered development!
-
-## 📁 Project Structure
-
-```
-src/
-├── app/                 # Next.js App Router pages
-├── components/          # Reusable React components
-│   └── ui/             # shadcn/ui components
-├── hooks/              # Custom React hooks
-└── lib/                # Utility functions and configurations
-```
-
-## 🎨 Available Features & Components
-
-This scaffold includes a comprehensive set of modern web development tools:
-
-### 🧩 UI Components (shadcn/ui)
-- **Layout**: Card, Separator, Aspect Ratio, Resizable Panels
-- **Forms**: Input, Textarea, Select, Checkbox, Radio Group, Switch
-- **Feedback**: Alert, Toast (Sonner), Progress, Skeleton
-- **Navigation**: Breadcrumb, Menubar, Navigation Menu, Pagination
-- **Overlay**: Dialog, Sheet, Popover, Tooltip, Hover Card
-- **Data Display**: Badge, Avatar, Calendar
-
-### 📊 Advanced Data Features
-- **Tables**: Powerful data tables with sorting, filtering, pagination (TanStack Table)
-- **Charts**: Beautiful visualizations with Recharts
-- **Forms**: Type-safe forms with React Hook Form + Zod validation
-
-### 🎨 Interactive Features
-- **Animations**: Smooth micro-interactions with Framer Motion
-- **Drag & Drop**: Modern drag-and-drop functionality with DND Kit
-- **Theme Switching**: Built-in dark/light mode support
-
-### 🔐 Backend Integration
-- **Authentication**: Ready-to-use auth flows with NextAuth.js
-- **Database**: Type-safe database operations with Prisma
-- **API Client**: HTTP requests with Fetch + TanStack Query
-- **State Management**: Simple and scalable with Zustand
-
-### 🌍 Production Features
-- **Internationalization**: Multi-language support with Next Intl
-- **Image Optimization**: Automatic image processing with Sharp
-- **Type Safety**: End-to-end TypeScript with Zod validation
-- **Essential Hooks**: 100+ useful React hooks with ReactUse for common patterns
-
-## 🤝 Get Started with Z.ai
-
-1. **Clone this scaffold** to jumpstart your project
-2. **Visit [chat.z.ai](https://chat.z.ai)** to access your AI coding assistant
-3. **Start building** with intelligent code generation and assistance
-4. **Deploy with confidence** using the production-ready setup
+It unifies inventory, procurement, order fulfillment, driver dispatch, double-entry accounting, CRM, and autonomous AI agents into a single high-performance platform.
 
 ---
 
-Built with ❤️ for the developer community. Supercharged by [Z.ai](https://chat.z.ai) 🚀
+## 🌟 Key Features & Modules
+
+### 🤖 1. Autonomous AI Agents & Intelligence
+- **Supply Chain Co-Pilot**: Automated reorder recommendations, demand forecasting, and inventory optimization.
+- **Autonomous Agents**: Autonomous background agents capable of triaging customer emails, Telegram messages, invoice processing, and supplier negotiations.
+- **Flexible LLM Support**: Compatible with local models (via Ollama / Muse Glimmer) or cloud models (Anthropic Claude, OpenAI, Vercel AI Gateway).
+
+### 🏢 2. Multi-Tenancy & Multi-Country Compliance
+- **Australia**: Built-in support for ABN/ACN validation, 10% GST engine, BSB/Account banking formats.
+- **India**: Integrated GSTIN, PAN, TAN, CIN compliance, Indian state tax matrices, IFSC/UPI banking details.
+- **Customizable Fiscal Years**: Support for AU (July start) and IN (April start) accounting cycles.
+
+### 📦 3. Inventory & Multi-Warehouse Management
+- **Real-Time Stock Tracking**: Stock on hand, committed, incoming, and safety stock levels.
+- **Multi-Location & Bin Mapping**: Granular warehouse, aisle, shelf, and bin tracking.
+- **Batch & Expiry Control**: Lot numbers, serial numbers, and expiry date management.
+- **Automated Stock Movements**: Inter-warehouse transfers, stock adjustments, and cycle counting.
+
+### 📑 4. Order Management & Fulfillment
+- **Sales Orders & Quotes**: Quote-to-order conversion, tiered customer pricing, discount rules.
+- **Purchase Orders**: Automated supplier PO creation, receiving workflows, partial delivery tracking.
+- **Pick, Pack & Dispatch**: Barcode scanning support, automated packing slips, shipping labels.
+
+### 🚚 5. Logistics, Routing & Driver Mobile App
+- **Route Optimization**: Multi-stop delivery route planning and dynamic driver assignment.
+- **Dedicated Driver App (`apps/driver-app`)**: Mobile-first progressive web app for drivers with:
+  - Turn-by-turn route overview
+  - Digital Proof of Delivery (POD)
+  - Signature capture and photo upload
+  - Live delivery status sync
+
+### 💰 6. Finance & Double-Entry Accounting
+- **Invoicing & Payments**: PDF invoice generation (`@react-pdf/renderer`), Stripe payment integration.
+- **Double-Entry Bookkeeping**: Full Chart of Accounts, automated journal entries, and general ledger.
+- **Bank Reconciliation & Expenses**: Multi-account bank feeds, transaction matching, expense auditing.
+- **Credit Applications**: Built-in customer credit approval workflows and credit limit enforcement.
+
+### 🤝 7. B2B CRM & Customer Portal
+- **Customer Directory**: Tiered customer accounts, price lists, terms, and purchase history.
+- **Credit Management**: Enforced credit limits, payment terms, and aging AR reports.
+- **Omnichannel Inbox**: Unified customer messaging across email, SMS, and messaging bots.
+
+### 🏭 8. Production & Reverse Logistics
+- **Manufacturing / Assembly**: Bill of Materials (BOM) management and production order scheduling.
+- **RMA & Returns**: Structured return authorizations, quality inspection, restock, or write-off workflows.
+
+---
+
+## 🛠️ Technology Stack
+
+| Layer | Technology |
+|---|---|
+| **Frontend** | [Next.js 16](https://nextjs.org/) (App Router), [React 19](https://react.dev/), [TypeScript 5](https://www.typescriptlang.org/) |
+| **Styling & UI** | [Tailwind CSS 4](https://tailwindcss.com/), [shadcn/ui](https://ui.shadcn.com/), [Radix UI](https://www.radix-ui.com/), [Lucide React](https://lucide.dev/), [Framer Motion](https://www.framer.com/motion/) |
+| **State & Data Fetching** | [Zustand](https://zustand-demo.pmnd.rs/), [TanStack Query v5](https://tanstack.com/query/latest), [TanStack Table v8](https://tanstack.com/table/latest) |
+| **Forms & Validation** | [React Hook Form](https://react-hook-form.com/), [Zod 4](https://zod.dev/) |
+| **Backend & ORM** | Next.js API Routes, [Prisma ORM 6](https://www.prisma.io/) (SQLite for local dev / PostgreSQL for prod) |
+| **Authentication & RBAC** | Custom RBAC (`ADMIN`, `SALES`, `WAREHOUSE`, `DRIVER`, `ACCOUNTS`, `OPERATIONS`) & NextAuth.js |
+| **AI & LLM Integration** | [Vercel AI SDK](https://sdk.vercel.ai/), OpenAI-compatible endpoints, Ollama |
+| **Documents & Exports** | [@react-pdf/renderer](https://react-pdf.org/) for PDF Invoices & Purchase Orders |
+| **Testing** | [Vitest](https://vitest.dev/) |
+
+---
+
+## 📂 Project Structure
+
+```text
+├── apps/
+│   └── driver-app/            # Standalone mobile-first Next.js driver application
+├── prisma/
+│   ├── schema.prisma          # Comprehensive enterprise Prisma schema (2800+ lines)
+│   └── migrations/            # Database migration history
+├── public/                    # Static assets & runtime uploads
+├── scripts/                   # Production bootstrap & helper scripts
+├── src/
+│   ├── app/                   # Next.js App Router
+│   │   ├── (auth)/            # Authentication routes & signin
+│   │   ├── ai/                # AI Co-pilot & agent management UI
+│   │   ├── api/               # RESTful API endpoints (RBAC-protected)
+│   │   ├── carriers/          # Shipping carrier management
+│   │   ├── categories/        # Product taxonomy
+│   │   ├── commerce/          # B2B commerce settings
+│   │   ├── credit-applications/ # Credit limit approvals
+│   │   ├── crm/               # CRM & lead pipelines
+│   │   ├── customers/         # Customer directory & price tiers
+│   │   ├── driver/            # Core app driver dispatch views
+│   │   ├── finance/           # Invoicing, COA, journals, bank reconciliation
+│   │   ├── inventory/         # Stock levels, movements, batch tracking
+│   │   ├── orders/            # Sales orders & fulfillment
+│   │   ├── pricing/           # Tiered price lists & bulk discounts
+│   │   ├── production/        # Bill of Materials & assembly
+│   │   ├── products/          # Catalog & SKU management
+│   │   ├── purchase-orders/   # Supplier POs & receiving
+│   │   ├── quotes/            # Sales quote workflows
+│   │   ├── reports/           # Financial & inventory analytics
+│   │   ├── returns/           # RMA & reverse logistics
+│   │   ├── routes/            # Delivery route scheduling
+│   │   ├── settings/          # System & company settings
+│   │   ├── suppliers/         # Supplier directory & management
+│   │   ├── users/             # User & role management
+│   │   └── warehouses/        # Multi-warehouse & bin locations
+│   ├── components/            # Reusable UI components & shadcn widgets
+│   ├── hooks/                 # Custom React hooks
+│   └── lib/                   # Auth guards, database clients, permissions, utilities
+├── .env.example               # Environment variable templates
+├── package.json               # Monorepo/Core dependencies & scripts
+├── tsconfig.json              # TypeScript configuration
+└── vitest.config.ts           # Test configuration
+```
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+- **Node.js**: v18.18+ (or v20+ recommended)
+- **Package Manager**: `npm`, `pnpm`, or `bun`
+
+### 1. Clone the Repository
+```bash
+git clone https://github.com/Mysterio6193/AI-ERP-.git
+cd AI-ERP-
+```
+
+### 2. Install Dependencies
+```bash
+npm install
+```
+
+### 3. Configure Environment Variables
+Copy `.env.example` to `.env` and configure your credentials:
+```bash
+cp .env.example .env
+```
+
+Key environment configurations:
+- `DATABASE_URL`: Defaults to `"file:./db/dev.db"` for local SQLite development.
+- `ADMIN_SESSION_SECRET`: Random secure string (generate via `openssl rand -base64 48`).
+- `DRIVER_SESSION_SECRET`: Random secure string for the Driver App.
+- `AUTH_BYPASS`: Set to `"true"` in local development to bypass authentication gates.
+- `AGENT_PROVIDER`: `"local"` (Ollama / Muse) or `"gateway"` (OpenAI, Claude).
+
+### 4. Initialize the Database
+```bash
+# Push Prisma schema to local database
+npm run db:push
+
+# Generate Prisma client
+npm run db:generate
+```
+
+### 5. Start the Development Servers
+
+**Core ERP Application (Port 3000):**
+```bash
+npm run dev
+```
+
+**Driver Mobile App (Port 3001):**
+```bash
+npm run dev:driver
+```
+
+Access the core application at: [http://localhost:3000](http://localhost:3000)  
+Access the driver application at: [http://localhost:3001](http://localhost:3001)
+
+---
+
+## 🧪 Running Tests
+
+SupplySure OS includes an automated test suite powered by [Vitest](https://vitest.dev/):
+
+```bash
+# Run all unit and integration tests
+npm run test
+
+# Run tests in watch mode
+npm run test:watch
+```
+
+---
+
+## 📦 Building for Production
+
+To create an optimized production build:
+
+```bash
+# Build core ERP application
+npm run build
+
+# Build Driver App
+npm run build:driver
+
+# Start production server
+npm run start
+```
+
+---
+
+## 🔒 Security & Access Control
+
+SupplySure OS enforces strict Role-Based Access Control (RBAC) across all routes:
+- **`ADMIN` / `EXECUTIVE`**: Full administrative access across all modules.
+- **`OPERATIONS` / `WAREHOUSE`**: Stock adjustments, pick & pack, shipments, and inventory transfers.
+- **`SALES`**: Quotes, sales orders, customer directory, and pricing.
+- **`ACCOUNTS`**: Invoices, journal entries, bank reconciliations, and credit applications.
+- **`DRIVER`**: Limited to assigned delivery routes, proof-of-delivery uploads, and stop updates.
+
+---
+
+## 📄 License
+
+This project is private and proprietary. All rights reserved.

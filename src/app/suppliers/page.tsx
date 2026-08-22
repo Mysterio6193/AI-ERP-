@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { useToast } from "@/hooks/use-toast"
 import {
   Table,
   TableBody,
@@ -74,6 +75,7 @@ interface Supplier {
 export default function SuppliersPage() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [loading, setLoading] = useState(true)
+  const { toast } = useToast()
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -145,9 +147,25 @@ export default function SuppliersPage() {
         fetchSuppliers()
         setIsDialogOpen(false)
         resetForm()
+        toast({
+          title: selectedSupplier ? "Supplier updated" : "Supplier created",
+          description: `${data.data?.name || "Supplier"} saved.`,
+        })
+      } else {
+        // The route used to 404 silently; surface exactly what went wrong.
+        toast({
+          variant: "destructive",
+          title: "Could not save supplier",
+          description: data.error || `Request failed (${response.status})`,
+        })
       }
     } catch (error) {
       console.error("Error saving supplier:", error)
+      toast({
+        variant: "destructive",
+        title: "Could not save supplier",
+        description: error instanceof Error ? error.message : "Network error",
+      })
     }
   }
 
