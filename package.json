@@ -3,7 +3,7 @@
   "version": "0.2.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --webpack -p 3000 2>&1 | tee dev.log",
+    "dev": "next dev --webpack 2>&1 | tee dev.log",
     "dev:driver": "npm --prefix apps/driver-app run dev",
     "build": "next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/",
     "build:driver": "npm --prefix apps/driver-app run build",
@@ -15,6 +15,7 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:reset": "prisma migrate reset",
+    "db:seed": "npx tsx prisma/seed.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "probe:agent": "bun scripts/agent-probe.ts",
@@ -110,5 +111,8 @@
     "tw-animate-css": "^1.3.5",
     "typescript": "^5",
     "vitest": "^4.1.11"
+  },
+  "prisma": {
+    "seed": "npx tsx prisma/seed.ts"
   }
 }

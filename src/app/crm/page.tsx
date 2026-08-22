@@ -225,10 +225,7 @@ export default function CrmPage() {
 
   useEffect(() => {
     void load()
-    // `load` is recreated whenever the lead query changes, which would re-fetch
-    // every view on each keystroke; the lead-only effect below handles that.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [load])
 
   // Debounced so typing in the search box does not fire a query per character.
   useEffect(() => {

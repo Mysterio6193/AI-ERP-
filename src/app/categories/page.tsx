@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { FolderTree, Plus, Trash2 } from "lucide-react"
 
 import { AppShell } from "@/components/layout/app-shell"
@@ -37,12 +37,21 @@ export default function CategoriesPage() {
   const [form, setForm] = useState({ name: "", description: "", parentId: "root" })
 
   useEffect(() => {
-    void reload()
+    let ignore = false
+    fetchCategories().then((data) => {
+      if (!ignore) {
+        setCategories(data)
+      }
+    })
+    return () => {
+      ignore = true
+    }
   }, [])
 
-  async function reload() {
-    setCategories(await fetchCategories())
-  }
+  const reload = useCallback(async () => {
+    const data = await fetchCategories()
+    setCategories(data)
+  }, [])
 
   const rootCategories = useMemo(() => categories.filter((category) => !category.parentId), [categories])
   const grouped = useMemo(

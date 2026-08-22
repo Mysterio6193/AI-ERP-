@@ -25,8 +25,7 @@ import { summariseBacklog } from "./summarise"
  * literal garbage once the text reaches a browser.
  */
 function plainText(message: string) {
-  // eslint-disable-next-line no-control-regex
-  return message.replace(/\[[0-9;]*m/g, "").trim()
+  return message.replace(/ \[[0-9;]*m/g, "").trim()
 }
 
 export interface TickResult {

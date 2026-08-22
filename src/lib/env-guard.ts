@@ -112,6 +112,16 @@ export function checkEnvironment(env: NodeJS.ProcessEnv = process.env): EnvIssue
  * dies at boot with a clear message rather than serving forgeable sessions.
  */
 export function assertEnvironment(env: NodeJS.ProcessEnv = process.env) {
+  // During Next.js build / page analysis phase, secrets are not required to compile.
+  if (
+    env.NEXT_PHASE === "phase-production-build" ||
+    process.env.NEXT_PHASE === "phase-production-build" ||
+    process.env.npm_lifecycle_event === "build" ||
+    process.argv.some((arg) => arg.includes("build"))
+  ) {
+    return
+  }
+
   const issues = checkEnvironment(env)
 
   if (!issues.length) {

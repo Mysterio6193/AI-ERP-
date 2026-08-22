@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import { usePathname } from "next/navigation"
 import { Sparkles } from "lucide-react"
 
@@ -42,17 +42,16 @@ const SUGGESTIONS_BY_SECTION: Record<string, string[]> = {
   products: ["Which products aren't selling?", "What's out of stock?"],
 }
 
+const emptySubscribe = () => () => {}
+
 export function AgentDock() {
   const [open, setOpen] = useState(false)
-  const [mounted, setMounted] = useState(false)
+  const mounted = useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false
+  )
   const pathname = usePathname()
-
-  // Client-only affordance: keeping it out of the server render removes any
-  // chance of it taking part in a hydration mismatch, and it costs nothing
-  // visually because it appears as soon as React takes over.
-  useEffect(() => {
-    setMounted(true)
-  }, [])
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {

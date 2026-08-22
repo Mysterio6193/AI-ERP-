@@ -103,7 +103,9 @@ export function AgentChat({ threadKey, suggestions, pageContext, compact }: Agen
   const [runtime, setRuntime] = useState<RuntimeInfo | null>(null)
   const [files, setFiles] = useState<FileList | undefined>()
   const [listening, setListening] = useState(false)
-  const [voiceSupported, setVoiceSupported] = useState(false)
+  const [voiceSupported, setVoiceSupported] = useState(() =>
+    typeof window !== "undefined" ? Boolean(getSpeechRecognition()) : false
+  )
   const endRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
@@ -148,7 +150,6 @@ export function AgentChat({ threadKey, suggestions, pageContext, compact }: Agen
   }, [messages, status])
 
   useEffect(() => {
-    setVoiceSupported(Boolean(getSpeechRecognition()))
     return () => recognitionRef.current?.stop()
   }, [])
 
@@ -273,7 +274,6 @@ export function AgentChat({ threadKey, suggestions, pageContext, compact }: Agen
                 const filePart = part as { url?: string; mediaType?: string; filename?: string }
 
                 return filePart.mediaType?.startsWith("image/") ? (
-                  // eslint-disable-next-line @next/next/no-img-element
                   <img
                     key={key}
                     src={filePart.url}

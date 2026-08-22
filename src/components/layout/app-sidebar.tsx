@@ -41,6 +41,8 @@ import {
   GraduationCap,
   MessagesSquare,
   SlidersHorizontal,
+  RotateCcw,
+  Radio,
 } from "lucide-react"
 
 import {
@@ -270,6 +272,13 @@ const navItems: NavItem[] = [
     roles: ["admin", "warehouse", "sales"],
     group: "Fulfilment",
   },
+  {
+    label: "Returns",
+    href: "/returns",
+    icon: RotateCcw,
+    roles: ["admin", "warehouse", "sales", "accounts"],
+    group: "Fulfilment",
+  },
 
   // Finance Group
   {
@@ -360,6 +369,13 @@ const navItems: NavItem[] = [
     href: "/settings/business",
     icon: SlidersHorizontal,
     roles: ["admin", "accounts", "warehouse"],
+    group: "Setup",
+  },
+  {
+    label: "Telegram & Bot",
+    href: "/settings/agent",
+    icon: Radio,
+    roles: ["admin"],
     group: "Setup",
   },
   {

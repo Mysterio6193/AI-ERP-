@@ -476,7 +476,6 @@ export default function ProductsPage() {
                     <div className="grid grid-cols-[120px,1fr] gap-4 rounded-[1.5rem] bg-[#f5f5f7] p-4">
                       <div className="flex h-[120px] w-[120px] items-center justify-center overflow-hidden rounded-[1.25rem] bg-white">
                         {formData.imageUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
                           <img
                             src={formData.imageUrl}
                             alt={formData.name || "Product preview"}
@@ -973,7 +972,6 @@ export default function ProductsPage() {
                           <div className="flex items-center gap-2">
                             <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-gray-100">
                               {product.imageUrl ? (
-                                // eslint-disable-next-line @next/next/no-img-element
                                 <img
                                   src={product.imageUrl}
                                   alt={product.name}
