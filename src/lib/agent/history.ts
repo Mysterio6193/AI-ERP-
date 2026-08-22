@@ -123,7 +123,7 @@ export async function searchHistory(
       },
       // Cheap prefilter so scoring runs over a plausible set rather than the
       // whole archive. Any single term is enough to be worth looking at.
-      OR: queryTerms.map((term) => ({ content: { contains: term } })),
+      OR: queryTerms.map((term) => ({ content: { contains: term, mode: "insensitive" } })),
     },
     orderBy: { createdAt: "desc" },
     take: 400,

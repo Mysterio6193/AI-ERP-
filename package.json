@@ -17,7 +17,10 @@
     "db:reset": "prisma migrate reset",
     "test": "vitest run",
     "test:watch": "vitest",
-    "probe:agent": "bun scripts/agent-probe.ts"
+    "probe:agent": "bun scripts/agent-probe.ts",
+    "pg:start": "node scripts/pg.mjs start",
+    "pg:stop": "node scripts/pg.mjs stop",
+    "pg:status": "node scripts/pg.mjs status"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^3.0.33",
@@ -100,6 +103,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "bun-types": "^1.3.4",
+    "embedded-postgres": "^18.4.0-beta.17",
     "eslint": "^9",
     "eslint-config-next": "^16.1.1",
     "tailwindcss": "^4",

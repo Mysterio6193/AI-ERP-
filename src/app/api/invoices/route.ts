@@ -20,8 +20,8 @@ export async function GET(request: NextRequest) {
                     search
                         ? {
                             OR: [
-                                { invoiceNumber: { contains: search } },
-                                { customer: { name: { contains: search } } },
+                                { invoiceNumber: { contains: search, mode: "insensitive" } },
+                                { customer: { name: { contains: search, mode: "insensitive" } } },
                             ],
                         }
                         : {},

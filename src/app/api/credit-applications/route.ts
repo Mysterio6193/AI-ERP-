@@ -20,10 +20,10 @@ export async function GET(request: NextRequest) {
           search
             ? {
                 OR: [
-                  { businessName: { contains: search } },
-                  { tradingName: { contains: search } },
-                  { contactEmail: { contains: search } },
-                  { customer: { name: { contains: search } } },
+                  { businessName: { contains: search, mode: "insensitive" } },
+                  { tradingName: { contains: search, mode: "insensitive" } },
+                  { contactEmail: { contains: search, mode: "insensitive" } },
+                  { customer: { name: { contains: search, mode: "insensitive" } } },
                 ],
               }
             : {},

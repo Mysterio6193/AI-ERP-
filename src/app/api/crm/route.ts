@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 
+import type { Prisma } from "@prisma/client"
 import { requireAdminUser } from "@/lib/admin-auth"
 import { findLapsedAccounts, getFocusList, summarisePipeline } from "@/lib/crm"
 import { db } from "@/lib/db"
@@ -66,18 +67,18 @@ export async function GET(request: NextRequest) {
         const page = Math.max(Number(searchParams.get("page")) || 1, 1)
         const pageSize = Math.min(Math.max(Number(searchParams.get("pageSize")) || 50, 1), 200)
 
-        const where = {
+        const where: Prisma.LeadWhereInput = {
           ...(userId ? { ownerId: userId } : {}),
           ...(status && status !== "all" ? { status } : {}),
           ...(search
             ? {
                 OR: [
-                  { businessName: { contains: search } },
-                  { contactName: { contains: search } },
-                  { email: { contains: search } },
-                  { phone: { contains: search } },
-                  { suburb: { contains: search } },
-                  { industry: { contains: search } },
+                  { businessName: { contains: search, mode: "insensitive" } },
+                  { contactName: { contains: search, mode: "insensitive" } },
+                  { email: { contains: search, mode: "insensitive" } },
+                  { phone: { contains: search, mode: "insensitive" } },
+                  { suburb: { contains: search, mode: "insensitive" } },
+                  { industry: { contains: search, mode: "insensitive" } },
                 ],
               }
             : {}),

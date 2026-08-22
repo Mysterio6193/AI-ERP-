@@ -4,8 +4,8 @@ import type { AgentPrincipal } from "../context"
 
 /** Helpers shared by every tool domain. */
 
-export function money(value: number) {
-  return Number(value.toFixed(2))
+export function money(value: number | { toString(): string }) {
+  return Number(Number(value).toFixed(2))
 }
 
 export function days(from: Date, to = new Date()) {
@@ -40,10 +40,10 @@ export async function findProducts(query: string, limit = 8) {
       status: "active",
       AND: terms.map((term) => ({
         OR: [
-          { name: { contains: term } },
-          { sku: { contains: term } },
-          { brand: { contains: term } },
-          { description: { contains: term } },
+          { name: { contains: term, mode: "insensitive" } },
+          { sku: { contains: term, mode: "insensitive" } },
+          { brand: { contains: term, mode: "insensitive" } },
+          { description: { contains: term, mode: "insensitive" } },
         ],
       })),
     },

@@ -63,5 +63,8 @@ local-*
 .claude
 .codex
 
+# local Postgres cluster (embedded-postgres)
+.pgdata/
+
 # Skills directory
 /skills/

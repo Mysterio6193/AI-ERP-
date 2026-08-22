@@ -25,11 +25,11 @@ export function buildCrmTools(principal: AgentPrincipal) {
         const customers = await db.customer.findMany({
           where: {
             OR: [
-              { name: { contains: query } },
-              { tradingName: { contains: query } },
-              { contactPerson: { contains: query } },
-              { email: { contains: query } },
-              { phone: { contains: query } },
+              { name: { contains: query, mode: "insensitive" } },
+              { tradingName: { contains: query, mode: "insensitive" } },
+              { contactPerson: { contains: query, mode: "insensitive" } },
+              { email: { contains: query, mode: "insensitive" } },
+              { phone: { contains: query, mode: "insensitive" } },
             ],
           },
           take: limit ?? 8,

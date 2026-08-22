@@ -6,7 +6,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -1656,7 +1656,7 @@ model Payment {
   customerId String
   customer   Customer @relation(fields: [customerId], references: [id])
 
-  amount    Float
+  amount    Decimal  @db.Decimal(12, 2)
   method    String // bank_transfer, bpay, credit_card, eftpos, cash, cheque
   reference String?
 
@@ -1684,13 +1684,13 @@ model CreditNote {
   invoice   Invoice? @relation(fields: [invoiceId], references: [id])
 
   customerId String
-  amount     Float
-  taxAmount  Float  @default(0)
+  amount     Decimal  @db.Decimal(12, 2)
+  taxAmount  Decimal  @default(0) @db.Decimal(12, 2)
   reason     String
   status     String @default("active") // active, applied, cancelled
 
   appliedToInvoice String?
-  appliedAmount    Float   @default(0)
+  appliedAmount    Decimal  @default(0) @db.Decimal(12, 2)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1762,8 +1762,8 @@ model CreditTransaction {
 
   // Transaction details
   type         String // credit_grant, invoice_charge, payment_received, adjustment, refund
-  amount       Float // Positive for credits granted/payments, negative for charges
-  balanceAfter Float // Running balance after this transaction
+  amount       Decimal  @db.Decimal(12, 2) // Positive for credits granted/payments, negative for charges
+  balanceAfter Decimal  @db.Decimal(12, 2) // Running balance after this transaction
 
   // Reference
   referenceType String? // invoice, payment, manual
@@ -1894,8 +1894,8 @@ model JournalLine {
   account   ChartOfAccount @relation(fields: [accountId], references: [id])
 
   description String?
-  debit       Float   @default(0)
-  credit      Float   @default(0)
+  debit       Decimal  @default(0) @db.Decimal(12, 2)
+  credit      Decimal  @default(0) @db.Decimal(12, 2)
 
   createdAt DateTime @default(now())
 }
@@ -1991,14 +1991,14 @@ model BankTransaction {
   transactionDate DateTime
   description     String
   reference       String?
-  amount          Float
+  amount          Decimal  @db.Decimal(12, 2)
   direction       String // money_in, money_out
   category        String? // receipt, expense, fee, transfer, adjustment
   status          String   @default("unmatched") // unmatched, matched, ignored
   source          String   @default("manual") // manual, import, bank_feed
   externalId      String?
   counterparty    String?
-  balanceAfter    Float?
+  balanceAfter    Decimal? @db.Decimal(12, 2)
   notes           String?
 
   invoiceId String?

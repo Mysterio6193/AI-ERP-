@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
       where: {
         AND: [
           search
-            ? { name: { contains: search } }
+            ? { name: { contains: search, mode: "insensitive" } }
             : {},
           type ? { type: type } : {},
         ],

@@ -46,8 +46,8 @@ export async function GET(request: NextRequest) {
           search
             ? {
                 OR: [
-                  { poNumber: { contains: search } },
-                  { supplier: { name: { contains: search } } },
+                  { poNumber: { contains: search, mode: "insensitive" } },
+                  { supplier: { name: { contains: search, mode: "insensitive" } } },
                 ],
               }
             : {},

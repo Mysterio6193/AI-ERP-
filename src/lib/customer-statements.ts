@@ -16,11 +16,12 @@ type StatementCustomer = {
     outstandingAmt: number
     status: string
   }>
+  // Prisma now returns Decimal for ledger fields (Postgres); coerce with Number() inside.
   creditTransactions: Array<{
     id: string
     type: string
-    amount: number
-    balanceAfter: number
+    amount: number | { toString(): string }
+    balanceAfter: number | { toString(): string }
     description: string
     notes: string | null
     referenceType: string | null
@@ -77,11 +78,11 @@ export function buildCustomerStatement(customer: StatementCustomer, referenceDat
 
   const totalCharges = statementTransactions
     .filter((transaction) => transaction.type === "invoice_charge")
-    .reduce((sum, transaction) => sum + Math.max(transaction.amount, 0), 0)
+    .reduce((sum, transaction) => sum + Math.max(Number(transaction.amount), 0), 0)
 
   const totalPayments = statementTransactions
     .filter((transaction) => ["payment_received", "refund"].includes(transaction.type))
-    .reduce((sum, transaction) => sum + Math.abs(transaction.amount), 0)
+    .reduce((sum, transaction) => sum + Math.abs(Number(transaction.amount)), 0)
 
   const outstandingBalance = openInvoices.reduce((sum, invoice) => sum + invoice.outstandingAmt, 0)
   const overdueAmount = overdueInvoices.reduce((sum, invoice) => sum + invoice.outstandingAmt, 0)
@@ -133,8 +134,8 @@ export function buildCustomerStatement(customer: StatementCustomer, referenceDat
       reference: transaction.referenceId || transaction.id,
       description: transaction.description || getTransactionLabel(transaction),
       type: transaction.type,
-      amount: transaction.amount,
-      balanceAfter: transaction.balanceAfter,
+      amount: Number(transaction.amount),
+      balanceAfter: Number(transaction.balanceAfter),
       status: getTransactionStatus(transaction),
       notes: transaction.notes,
       referenceType: transaction.referenceType,

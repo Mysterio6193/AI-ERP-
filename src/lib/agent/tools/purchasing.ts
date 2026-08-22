@@ -47,10 +47,10 @@ export function buildPurchasingTools(principal: AgentPrincipal) {
             ...(query
               ? {
                   OR: [
-                    { name: { contains: query } },
-                    { tradingName: { contains: query } },
-                    { contactPerson: { contains: query } },
-                    { email: { contains: query } },
+                    { name: { contains: query, mode: "insensitive" } },
+                    { tradingName: { contains: query, mode: "insensitive" } },
+                    { contactPerson: { contains: query, mode: "insensitive" } },
+                    { email: { contains: query, mode: "insensitive" } },
                   ],
                 }
               : {}),

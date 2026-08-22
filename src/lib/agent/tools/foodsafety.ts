@@ -129,7 +129,7 @@ export function buildFoodSafetyTools(principal: AgentPrincipal) {
       }),
       execute: async ({ recipe }) => {
         const bom = await db.billOfMaterial.findFirst({
-          where: { OR: [{ id: recipe }, { name: { contains: recipe } }] },
+          where: { OR: [{ id: recipe }, { name: { contains: recipe, mode: "insensitive" } }] },
           select: { id: true },
         })
 

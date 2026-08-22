@@ -22,10 +22,10 @@ export async function GET(request: NextRequest) {
           search
             ? {
                 OR: [
-                  { product: { name: { contains: search } } },
-                  { product: { sku: { contains: search } } },
-                  { reference: { contains: search } },
-                  { reason: { contains: search } },
+                  { product: { name: { contains: search, mode: "insensitive" } } },
+                  { product: { sku: { contains: search, mode: "insensitive" } } },
+                  { reference: { contains: search, mode: "insensitive" } },
+                  { reason: { contains: search, mode: "insensitive" } },
                 ],
               }
             : {},

@@ -33,8 +33,8 @@ export async function GET(request: NextRequest) {
           search
             ? {
               OR: [
-                { orderNumber: { contains: search } },
-                { customer: { name: { contains: search } } },
+                { orderNumber: { contains: search, mode: "insensitive" } },
+                { customer: { name: { contains: search, mode: "insensitive" } } },
               ],
             }
             : {},

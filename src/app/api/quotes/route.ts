@@ -45,8 +45,8 @@ export async function GET(request: NextRequest) {
           search
             ? {
                 OR: [
-                  { quoteNumber: { contains: search } },
-                  { customer: { name: { contains: search } } },
+                  { quoteNumber: { contains: search, mode: "insensitive" } },
+                  { customer: { name: { contains: search, mode: "insensitive" } } },
                 ],
               }
             : {},

@@ -40,9 +40,9 @@ export async function GET(request: NextRequest) {
       where: search
         ? {
             OR: [
-              { name: { contains: search } },
-              { email: { contains: search } },
-              { phone: { contains: search } },
+              { name: { contains: search, mode: "insensitive" } },
+              { email: { contains: search, mode: "insensitive" } },
+              { phone: { contains: search, mode: "insensitive" } },
             ],
           }
         : undefined,
