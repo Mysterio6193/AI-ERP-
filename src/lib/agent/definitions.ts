@@ -132,13 +132,16 @@ const ACCOUNTS_TOOLS = [
   "listSuppliers", "listPurchaseOrders", "getPurchaseOrder",
   "businessSnapshot", "salesReport",
   "listTasks", "createTask",
+  "recallMemories", "remember",
+]
+
 /** Comprehensive yet token-efficient operations tools set. */
 export const OPS_TOOLS = [
   "searchProducts", "getProductUnits", "convertQuantity", "getStock", "stockOutlook", "checkStockAvailability",
   "quoteBasket", "listQuotes", "createSalesOrder", "listOrders", "getOrder", "updateOrderStatus",
   "findCustomers", "getCustomer", "lapsedAccounts", "accountTimeline",
   "listTasks", "createTask", "completeTask", "logCustomerNote",
-  "listSuppliers", "listPurchaseOrders", "getPurchaseOrder", "createPurchaseOrder", "receiveStock",
+  "listSuppliers", "listPurchaseOrders", "getPurchaseOrder", "createPurchaseOrder", "receivePurchaseOrder",
   "listInvoices", "getInvoice", "agedReceivables", "businessSnapshot", "salesReport",
   "getBatches", "expiringStock", "checkAllergens",
   "scanDocument", "listSkills", "readSkill", "recallMemories", "remember",
@@ -336,6 +339,7 @@ export async function ensureSystemDefinitions() {
       description: "The all-rounder. Knows stock, orders, customers and money.",
       avatar: "🧑‍🍳",
       instructions: OPS_INSTRUCTIONS,
+      toolsJson: JSON.stringify(OPS_TOOLS),
       audience: "staff",
     },
     {
@@ -353,7 +357,7 @@ export async function ensureSystemDefinitions() {
       where: { slug: builtin.slug },
       create: { ...builtin, isSystem: true, trigger: "manual" },
       // Only backfill presentation - never clobber edited instructions.
-      update: { description: builtin.description, avatar: builtin.avatar, isSystem: true },
+      update: { description: builtin.description, avatar: builtin.avatar, toolsJson: builtin.toolsJson, isSystem: true },
     })
   }
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { defaultSlugFor, FALLBACK_SLUGS, getFallback } from "./definitions"
+import { defaultSlugFor, FALLBACK_SLUGS, getFallback, OPS_TOOLS } from "./definitions"
 import { TOOL_POLICY } from "./tools"
 
 const staff = (role: string) => ({ kind: "staff", role, userId: "u1" }) as never
@@ -33,11 +33,18 @@ describe("role agent allowlists", () => {
 
   it("names only tools that actually exist", () => {
     // A typo here silently gives the agent fewer tools than intended, and the
-    // only symptom is the agent saying it cannot do something it should.
-    for (const slug of roleAgents) {
+    // only symptom is the agent saying it cannot do something it should. This
+    // caught "receiveStock", which is spelled receivePurchaseOrder.
+    for (const slug of [...roleAgents, "ops"] as const) {
       for (const tool of getFallback(slug).tools ?? []) {
         expect(TOOL_POLICY[tool], `${slug} lists unknown tool "${tool}"`).toBeDefined()
       }
+    }
+  })
+
+  it("keeps every OPS_TOOLS entry real", () => {
+    for (const tool of OPS_TOOLS) {
+      expect(TOOL_POLICY[tool], `OPS_TOOLS lists unknown tool "${tool}"`).toBeDefined()
     }
   })
 
@@ -80,8 +87,16 @@ describe("role agent allowlists", () => {
     }
   })
 
-  it("leaves ops on the full registry", () => {
-    expect(getFallback("ops").tools).toBeNull()
+  it("gives ops more reach than any single role, but still not everything", () => {
+    // ops is the admin default. It has to span the business, but the free-tier
+    // prompt cap means "every tool" is not an option: 94 tools overflowed it.
+    const ops = getFallback("ops").tools ?? []
+    const total = Object.keys(TOOL_POLICY).length
+
+    for (const slug of roleAgents) {
+      expect(ops.length).toBeGreaterThan((getFallback(slug).tools ?? []).length)
+    }
+    expect(ops.length).toBeLessThan(total)
   })
 
   it("exposes every fallback slug", () => {
