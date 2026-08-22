@@ -81,7 +81,7 @@ async function recordProposals(input: {
       data: {
         toolName: toolCall.toolName,
         argsJson: JSON.stringify(args),
-        summary: summarise(toolCall.toolName, args),
+        summary: await summarise(toolCall.toolName, args),
         risk: TOOL_POLICY[toolCall.toolName]?.risk === "high" ? "high" : "medium",
         valueAmount: valueFor(toolCall.toolName, args) ?? null,
         requestedBy: personaFor(input.principal),

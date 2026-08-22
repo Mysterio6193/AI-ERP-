@@ -19,6 +19,7 @@ import { resolveAgentModel } from "./model"
 import { availableSkills, formatSkillCatalogue } from "./skills"
 import { decide, getThresholds, type AgentThresholds } from "./policy"
 import { buildTools, TOOL_POLICY } from "./tools"
+import { describeSettingProposal } from "./tools/settings"
 
 /**
  * The agent runtime.
@@ -55,8 +56,19 @@ export function personaFor(principal: AgentPrincipal): AgentPersona {
   return defaultSlugFor(principal)
 }
 
-export function summarise(toolName: string, args: Record<string, unknown>) {
+/**
+ * The one line a person reads before approving.
+ *
+ * Async because a settings change is only meaningful as a diff against what is
+ * saved right now — "defaultRate: not set → 15%" is consent, a JSON blob is
+ * not. Both call sites already build the proposal inside an await.
+ */
+export async function summarise(toolName: string, args: Record<string, unknown>): Promise<string> {
   switch (toolName) {
+    case "proposeSettingChange":
+      return describeSettingProposal(args)
+    case "resetSetting":
+      return `Reset ${args.namespace} settings to their defaults`
     case "createSalesOrder":
       return `Create an order for $${Number(args.estimatedTotal || 0).toFixed(2)}`
     case "recordPayment":
@@ -286,7 +298,7 @@ export async function runAgentTurn(input: {
         data: {
           toolName: toolCall.toolName,
           argsJson: JSON.stringify(args),
-          summary: summarise(toolCall.toolName, args),
+          summary: await summarise(toolCall.toolName, args),
           policyReason: decision.type === "approve" ? decision.reason : null,
           risk: TOOL_POLICY[toolCall.toolName]?.risk === "high" ? "high" : "medium",
           valueAmount: valueFor(toolCall.toolName, args) ?? null,

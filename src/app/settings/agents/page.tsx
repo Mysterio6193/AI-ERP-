@@ -44,6 +44,7 @@ interface AutonomyState {
     readOnly: boolean
   }
   limits: Record<string, number>
+  allowSettingWrites: boolean
   summary: string[]
 }
 
@@ -376,6 +377,35 @@ export default function AgentStudioPage() {
                   Limits are hidden while the agent is read-only, because none of them apply.
                 </p>
               )}
+
+              <label className="flex items-start justify-between gap-3 rounded-md border p-2.5">
+                <span className="text-xs">
+                  Let the agent propose settings changes
+                  <span className="mt-0.5 block text-[11px] font-normal text-muted-foreground">
+                    Tax rates, due dates, numbering, pricing. Every change still needs your
+                    approval, and you see exactly which values would move. The agent can never
+                    change its own limits.
+                  </span>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={autonomy.allowSettingWrites}
+                  disabled={saving === "policy"}
+                  onChange={async (event) => {
+                    setSaving("policy")
+                    try {
+                      const response = await fetch("/api/agent/policy", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ allowSettingWrites: event.target.checked }),
+                      }).then((r) => r.json())
+                      if (response.success) await load()
+                    } finally {
+                      setSaving(null)
+                    }
+                  }}
+                />
+              </label>
 
               <p className="text-[11px] text-muted-foreground">
                 Set a limit to 0 to make the agent always ask. These limits can only be changed

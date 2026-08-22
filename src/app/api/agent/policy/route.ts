@@ -9,6 +9,7 @@ import {
   DEFAULT_THRESHOLDS,
   THRESHOLD_LIMITS,
 } from "@/lib/agent/policy"
+import { agentSettingWritesEnabled } from "@/lib/agent/tools/settings"
 import { db } from "@/lib/db"
 
 /**
@@ -34,7 +35,10 @@ export async function GET(request: NextRequest) {
     return auth.response
   }
 
-  const thresholds = await getThresholds()
+  const [thresholds, allowSettingWrites] = await Promise.all([
+    getThresholds(),
+    agentSettingWritesEnabled(),
+  ])
 
   return NextResponse.json({
     success: true,
@@ -42,6 +46,7 @@ export async function GET(request: NextRequest) {
       thresholds,
       defaults: DEFAULT_THRESHOLDS,
       limits: THRESHOLD_LIMITS,
+      allowSettingWrites,
       // Rendered above the form, so nobody has to infer what a number means.
       summary: describeThresholds(thresholds),
     },
@@ -65,6 +70,30 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: { thresholds: restored, summary: describeThresholds(restored) },
+    })
+  }
+
+  // Whether the agent may propose settings changes at all. Stored under the
+  // `agent.` prefix the agent itself is forbidden from writing, so it cannot
+  // switch its own writes on — only a human here can.
+  if (body.allowSettingWrites !== undefined) {
+    const enabled = Boolean(body.allowSettingWrites)
+
+    await db.setting.upsert({
+      where: { key: "agent.allowSettingWrites" },
+      create: { key: "agent.allowSettingWrites", value: JSON.stringify(enabled), category: "agent" },
+      update: { value: JSON.stringify(enabled) },
+    })
+
+    await record(auth.user?.id, { allowSettingWrites: !enabled }, { allowSettingWrites: enabled }, "update")
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        thresholds: current,
+        allowSettingWrites: enabled,
+        summary: describeThresholds(current),
+      },
     })
   }
 

@@ -12,6 +12,7 @@ import { buildFulfilmentTools } from "./fulfilment"
 import { buildHistoryTools } from "./history"
 import { buildMarketingTools } from "./marketing"
 import { buildMemoryTools } from "./memory"
+import { buildSettingsTools } from "./settings"
 import { buildPipelineTools } from "./pipeline"
 import { buildPurchasingTools } from "./purchasing"
 import { buildReportingTools } from "./reporting"
@@ -33,6 +34,13 @@ import { buildUnitTools } from "./units"
  */
 
 export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
+  // Settings. Reads are open to admins; writes reshape every figure the
+  // platform produces, so they always stop for a person regardless of value.
+  listSettings: { risk: "read", roles: ["admin"] },
+  getSetting: { risk: "read", roles: ["admin"] },
+  proposeSettingChange: { risk: "high", roles: ["admin"], alwaysApprove: true },
+  resetSetting: { risk: "high", roles: ["admin"], alwaysApprove: true },
+
   // Catalog
   searchProducts: { risk: "read" },
   // Packing levels. Read-only: how a thing is sold, not what is in stock.
@@ -192,6 +200,7 @@ export function buildTools(principal: AgentPrincipal, channel?: string): ToolSet
     ...buildFoodSafetyTools(principal),
     ...buildMarketingTools(principal),
     ...buildMemoryTools(principal),
+    ...buildSettingsTools(principal),
     ...buildSkillTools(principal),
     ...buildPurchasingTools(principal),
     ...buildReportingTools(principal),
