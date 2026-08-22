@@ -28,13 +28,24 @@ async function proxy(request: NextRequest, path: string[]) {
     init.body = await request.arrayBuffer()
   }
 
-  const response = await fetch(targetUrl, init)
+  let response: Response
+  try {
+    response = await fetch(targetUrl, init)
+  } catch (error) {
+    return NextResponse.json(
+      { success: false, error: "Core server is not reachable. Ensure the main app is running on port 3000." },
+      { status: 502 }
+    )
+  }
+
   const responseHeaders = new Headers(response.headers)
   responseHeaders.delete("content-encoding")
   responseHeaders.delete("content-length")
   responseHeaders.delete("transfer-encoding")
 
-  const proxiedResponse = new NextResponse(response.body, {
+  const responseBuffer = await response.arrayBuffer()
+
+  const proxiedResponse = new NextResponse(responseBuffer, {
     status: response.status,
     statusText: response.statusText,
     headers: responseHeaders,
@@ -44,7 +55,8 @@ async function proxy(request: NextRequest, path: string[]) {
 
   if (isDriverSessionRoute && request.method === "POST" && response.ok) {
     try {
-      const data = await response.clone().json()
+      const text = new TextDecoder().decode(responseBuffer)
+      const data = JSON.parse(text)
       const token = data?.data?.token
       if (token) {
         proxiedResponse.cookies.set(DRIVER_SESSION_COOKIE, token, {
