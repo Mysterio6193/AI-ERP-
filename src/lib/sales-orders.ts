@@ -2,6 +2,8 @@ import { sendSalesOrderEmail } from "@/lib/communications"
 import { checkCreditForOrder } from "@/lib/credit"
 import { db } from "@/lib/db"
 import { ensurePickListForOrder, resolveDefaultWarehouseId } from "@/lib/pick-lists"
+import { getSettings } from "@/lib/settings/service"
+import { computeLineTax } from "@/lib/tax"
 
 /**
  * Shared sales order creation.
@@ -67,9 +69,35 @@ function createOrderRecord(data: Parameters<typeof db.salesOrder.create>[0]["dat
 }
 
 /** Prices a basket without writing anything - used for agent quotes and confirmations. */
-export async function priceSalesOrder(items: SalesOrderInputItem[]) {
+export interface PricingContext {
+  customerId?: string | null
+  companyId?: string | null
+}
+
+export async function priceSalesOrder(
+  items: SalesOrderInputItem[],
+  context: PricingContext = {}
+) {
   let subtotal = 0
   let totalTax = 0
+
+  // The rate used to be `product.gstRate` alone, so an exempt customer was
+  // still charged GST and `Company.gstRate` was never consulted.
+  const taxSettings = await getSettings("tax", { companyId: context.companyId })
+
+  const customer = context.customerId
+    ? await db.customer.findUnique({
+        where: { id: context.customerId },
+        select: { customerType: true },
+      })
+    : null
+
+  const company = context.companyId
+    ? await db.company.findUnique({
+        where: { id: context.companyId },
+        select: { gstRate: true, country: true },
+      })
+    : null
 
   const orderItems: Array<{
     productId: string
@@ -98,8 +126,14 @@ export async function priceSalesOrder(items: SalesOrderInputItem[]) {
       itemSubtotal -= itemSubtotal * (discount / 100)
     }
 
-    const taxAmount = itemSubtotal * (product.gstRate / 100)
-    const total = itemSubtotal + taxAmount
+    const lineTax = computeLineTax(
+      itemSubtotal,
+      { product: { gstRate: product.gstRate, gstExempt: product.gstExempt }, customer, company },
+      taxSettings
+    )
+
+    const taxAmount = lineTax.taxAmount
+    const total = lineTax.total
 
     subtotal += itemSubtotal
     totalTax += taxAmount
@@ -111,7 +145,7 @@ export async function priceSalesOrder(items: SalesOrderInputItem[]) {
       quantity: item.quantity,
       unitPrice,
       discount,
-      taxRate: product.gstRate,
+      taxRate: lineTax.rate,
       taxAmount,
       total,
     })
@@ -131,14 +165,17 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
     return { ok: false, error: "An order needs at least one line item", code: "no_items" }
   }
 
-  const priced = await priceSalesOrder(input.items)
-  if (!priced.ok) {
-    return { ok: false, error: priced.error, code: "product_not_found" }
-  }
-
   const customer = await db.customer.findUnique({ where: { id: input.customerId } })
   if (!customer) {
     return { ok: false, error: "Customer not found", code: "customer_not_found" }
+  }
+
+  const priced = await priceSalesOrder(input.items, {
+    customerId: input.customerId,
+    companyId: customer.companyId,
+  })
+  if (!priced.ok) {
+    return { ok: false, error: priced.error, code: "product_not_found" }
   }
 
   // Exposure includes orders already placed but not yet invoiced. Checking

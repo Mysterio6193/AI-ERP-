@@ -4,6 +4,8 @@ import { requireAdminUser } from "@/lib/admin-auth"
 import { getActiveCompanyId } from "@/lib/active-company"
 import { db } from "@/lib/db"
 import { ROLE_SETS } from "@/lib/permissions"
+import { getSettings } from "@/lib/settings/service"
+import { computeLineTax } from "@/lib/tax"
 
 /** The entity the request is acting as, not merely the first row. */
 async function getDefaultCompanyId(request: NextRequest) {
@@ -92,7 +94,7 @@ export async function POST(request: NextRequest) {
 
     const customer = await db.customer.findUnique({
       where: { id: customerId },
-      select: { id: true, companyId: true },
+      select: { id: true, companyId: true, customerType: true },
     })
 
     if (!customer) {
@@ -109,9 +111,18 @@ export async function POST(request: NextRequest) {
 
     const products = await db.product.findMany({
       where: { id: { in: productIds } },
-      select: { id: true, wholesalePrice: true, gstRate: true },
+      select: { id: true, wholesalePrice: true, gstRate: true, gstExempt: true },
     })
     const productMap = new Map(products.map((p) => [p.id, p]))
+
+    const quoteCompanyId = customer.companyId || (await getDefaultCompanyId(request))
+    const taxSettings = await getSettings("tax", { companyId: quoteCompanyId })
+    const quoteCompany = quoteCompanyId
+      ? await db.company.findUnique({
+          where: { id: quoteCompanyId },
+          select: { gstRate: true, country: true },
+        })
+      : null
 
     let subtotal = 0
     let discountAmount = 0
@@ -143,9 +154,26 @@ export async function POST(request: NextRequest) {
       const lineSubtotal = quantity * unitPrice
       const lineDiscount = lineSubtotal * (discount / 100)
       const netAmount = lineSubtotal - lineDiscount
-      const lineTaxRate = Number(item.taxRate) || product.gstRate || 0
-      const lineTaxAmount = netAmount * (lineTaxRate / 100)
-      const total = netAmount + lineTaxAmount
+      // `Number(item.taxRate) || ...` treated a deliberate 0% line as absent
+      // and silently reinstated the product's rate.
+      const rawLineRate = item.taxRate === undefined || item.taxRate === null
+        ? null
+        : Number(item.taxRate)
+
+      const lineTax = computeLineTax(
+        netAmount,
+        {
+          lineRate: rawLineRate,
+          product: { gstRate: product.gstRate, gstExempt: product.gstExempt },
+          customer,
+          company: quoteCompany,
+        },
+        taxSettings
+      )
+
+      const lineTaxRate = lineTax.rate
+      const lineTaxAmount = lineTax.taxAmount
+      const total = lineTax.total
 
       subtotal += lineSubtotal
       discountAmount += lineDiscount
@@ -166,7 +194,7 @@ export async function POST(request: NextRequest) {
       data: {
         quoteNumber: await generateQuoteNumber(),
         customerId,
-        companyId: customer.companyId || (await getDefaultCompanyId(request)),
+        companyId: quoteCompanyId,
         validUntil: validUntil ? new Date(validUntil) : null,
         subtotal,
         discountAmount,

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { requireAdminUser } from "@/lib/admin-auth"
 import {
+  getTelegramMe,
   getTelegramWebhookInfo,
   isTelegramConfigured,
   registerTelegramWebhook,
@@ -24,7 +25,10 @@ export async function GET(request: NextRequest) {
   }
 
   const configured = isTelegramConfigured()
-  const webhook = configured ? await getTelegramWebhookInfo() : null
+  const [webhook, me] = await Promise.all([
+    configured ? getTelegramWebhookInfo() : null,
+    configured ? getTelegramMe() : null,
+  ])
 
   const identities = await db.channelIdentity.findMany({
     where: { channel: "telegram", status: "active" },
@@ -56,6 +60,13 @@ export async function GET(request: NextRequest) {
     success: true,
     data: {
       configured,
+      bot: me
+        ? {
+            id: me.id,
+            username: me.username || null,
+            firstName: me.first_name,
+          }
+        : null,
       hasWebhookSecret: Boolean(process.env.TELEGRAM_WEBHOOK_SECRET),
       webhook: webhook
         ? {

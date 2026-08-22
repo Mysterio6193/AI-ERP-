@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { TelegramQrConnect } from "@/components/integrations/telegram-qr-connect"
 
 interface Connection {
   id: string
@@ -369,122 +370,7 @@ export default function AgentSettingsPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Send className="h-4 w-4" />
-              Telegram
-            </CardTitle>
-            <CardDescription>
-              The bot is how staff talk to the agent away from a desk, and how approvals get answered.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            {!status?.configured ? (
-              <div className="flex gap-3 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm dark:bg-amber-950/30">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-                <div className="space-y-2">
-                  <p className="font-medium">No bot token yet</p>
-                  <ol className="list-decimal space-y-1 pl-4 text-xs text-muted-foreground">
-                    <li>
-                      Message <span className="font-mono">@BotFather</span> on Telegram and send{" "}
-                      <span className="font-mono">/newbot</span>.
-                    </li>
-                    <li>
-                      Put the token in <code className="font-mono">.env</code> as{" "}
-                      <code className="font-mono">TELEGRAM_BOT_TOKEN</code>.
-                    </li>
-                    <li>
-                      Add a <code className="font-mono">TELEGRAM_WEBHOOK_SECRET</code> of your choosing,
-                      then restart the server.
-                    </li>
-                  </ol>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="flex flex-wrap items-center gap-2 text-sm">
-                  <Badge variant="secondary">Bot connected</Badge>
-                  {status.hasWebhookSecret ? (
-                    <Badge variant="outline" className="text-[10px]">
-                      webhook secret set
-                    </Badge>
-                  ) : (
-                    <Badge variant="destructive" className="text-[10px]">
-                      no webhook secret
-                    </Badge>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">Webhook</p>
-                  {status.webhook?.url ? (
-                    <p className="break-all font-mono text-xs text-muted-foreground">
-                      {status.webhook.url}
-                    </p>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">
-                      Not registered. Telegram needs a public HTTPS URL — your deployed domain, or an
-                      ngrok tunnel while developing.
-                    </p>
-                  )}
-                  {status.webhook?.lastErrorMessage ? (
-                    <p className="text-xs text-destructive">
-                      Telegram reported: {status.webhook.lastErrorMessage}
-                    </p>
-                  ) : null}
-
-                  <div className="flex gap-2">
-                    <Input
-                      value={webhookUrl}
-                      onChange={(event) => setWebhookUrl(event.target.value)}
-                      placeholder="https://your-domain.com"
-                      className="font-mono text-xs"
-                    />
-                    <Button onClick={() => void registerWebhook()} disabled={busy || !webhookUrl}>
-                      Register
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="space-y-3 border-t pt-5">
-              <div>
-                <p className="text-sm font-medium">Link your Telegram account</p>
-                <p className="text-xs text-muted-foreground">
-                  Generate a code, then send <span className="font-mono">/link YOURCODE</span> to the
-                  bot. The code expires in 15 minutes.
-                </p>
-              </div>
-
-              {code ? (
-                <div className="flex items-center gap-2">
-                  <code className="rounded-md border bg-muted px-3 py-2 font-mono text-lg tracking-widest">
-                    {code}
-                  </code>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => {
-                      void navigator.clipboard.writeText(`/link ${code}`)
-                      setCopied(true)
-                    }}
-                  >
-                    {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                  </Button>
-                </div>
-              ) : null}
-
-              <Button onClick={() => void generateCode()} disabled={busy} variant={code ? "outline" : "default"}>
-                <Link2 className="mr-2 h-3.5 w-3.5" />
-                {code ? "New code" : "Generate link code"}
-              </Button>
-            </div>
-
-            {message ? <p className="text-xs text-muted-foreground">{message}</p> : null}
-          </CardContent>
-        </Card>
+        <TelegramQrConnect onSuccess={load} />
 
         <Card>
           <CardHeader>

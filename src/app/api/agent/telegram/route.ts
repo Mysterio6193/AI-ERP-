@@ -107,7 +107,32 @@ async function handleMessage(message: NonNullable<TelegramUpdate["message"]>) {
     return
   }
 
-  if (text === "/start" || text === "/help") {
+  if (text.toLowerCase().startsWith("/start")) {
+    const rawArg = text.split(/\s+/)[1]
+    if (rawArg) {
+      const code = rawArg.replace(/^connect_/i, "").trim().toUpperCase()
+      const result = await consumeLinkCode({ channel: CHANNEL, externalId: chatId, code, displayName })
+
+      if (result.status === "linked") {
+        await sendTelegramMessage(
+          chatId,
+          `🎉 Account Connected!\n\nWelcome to SupplySure OS AI, ${result.identity.principal.name}.\n\nYou can now query operations, review live stock, approve purchase/sales orders, and look up customer accounts directly from Telegram.\n\nTry asking: "What needs attention today?" or "Check inventory on roma tomatoes"`
+        )
+        return
+      } else {
+        await sendTelegramMessage(
+          chatId,
+          "⚠️ That connection QR code is invalid or has expired. Please open SupplySure OS Settings → Telegram and scan a new QR code."
+        )
+        return
+      }
+    }
+
+    await sendTelegramMessage(chatId, helpText())
+    return
+  }
+
+  if (text === "/help") {
     await sendTelegramMessage(chatId, helpText())
     return
   }
@@ -129,7 +154,7 @@ async function handleMessage(message: NonNullable<TelegramUpdate["message"]>) {
 
     await sendTelegramMessage(
       chatId,
-      `Linked. You're signed in as ${result.identity.principal.name}. Ask me anything about the business.`
+      `🎉 Account Connected!\n\nWelcome to SupplySure OS AI, ${result.identity.principal.name}.\n\nYou can now ask me anything about the business or execute staff actions.`
     )
     return
   }

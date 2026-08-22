@@ -19,6 +19,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { bucketise, daysOverdue } from "@/lib/aging"
+import { useSettings } from "@/lib/settings/use-settings"
 import { useToast } from "@/hooks/use-toast"
 import {
   Table,
@@ -103,14 +105,8 @@ const INVOICE_STATUS_COLORS: Record<string, string> = {
   cancelled: "bg-gray-100 text-gray-500",
 }
 
-const AGING_BUCKETS = [
-  { label: "0-30 Days", min: 0, max: 30 },
-  { label: "31-60 Days", min: 31, max: 60 },
-  { label: "61-90 Days", min: 61, max: 90 },
-  { label: "90+ Days", min: 91, max: Infinity },
-]
-
 export default function InvoicesPage() {
+  const { settings: agingSettings } = useSettings("aging")
   const { toast } = useToast()
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
@@ -291,22 +287,18 @@ export default function InvoicesPage() {
     .filter(inv => inv.status === "paid" && new Date(inv.invoiceDate).getMonth() === new Date().getMonth())
     .reduce((sum, inv) => sum + inv.totalAmount, 0)
 
-  // Calculate aging
-  const getAgingDays = (dueDate: string) => {
-    const diff = Math.floor((new Date().getTime() - new Date(dueDate).getTime()) / (1000 * 60 * 60 * 24))
-    return Math.max(0, diff)
-  }
-
-  const agingSummary = AGING_BUCKETS.map(bucket => ({
-    ...bucket,
-    amount: invoices
-      .filter(inv => {
-        if (inv.status === "cancelled" || inv.status === "paid") return false
-        const days = getAgingDays(inv.dueDate)
-        return days >= bucket.min && days <= bucket.max
-      })
-      .reduce((sum, inv) => sum + inv.balanceDue, 0)
-  }))
+  // One shared definition, so this panel, the finance dashboard and the
+  // customer's statement PDF can no longer disagree about what "60 days
+  // overdue" means.
+  const agingSummary = bucketise(
+    invoices.map((invoice) => ({
+      dueDate: invoice.dueDate,
+      invoiceDate: invoice.invoiceDate,
+      outstanding: invoice.balanceDue,
+      status: invoice.status,
+    })),
+    agingSettings
+  ).buckets
 
   return (
     <AppShell title="Invoices" breadcrumbs={[{ label: "Invoices" }]}>
@@ -360,12 +352,12 @@ export default function InvoicesPage() {
               <CardTitle className="text-base">Receivables Aging</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${agingSummary.length}, minmax(0, 1fr))` }}>
                 {agingSummary.map((bucket) => (
                   <div key={bucket.label} className="text-center">
                     <p className="text-xs text-muted-foreground mb-1">{bucket.label}</p>
-                    <p className={`text-lg font-bold ${bucket.min >= 61 ? "text-red-600" :
-                      bucket.min >= 31 ? "text-orange-600" : "text-green-600"
+                    <p className={`text-lg font-bold ${bucket.minDays >= 61 ? "text-red-600" :
+                      bucket.minDays >= 31 ? "text-orange-600" : "text-green-600"
                       }`}>
                       {formatCurrencyShort(bucket.amount)}
                     </p>
@@ -501,7 +493,7 @@ export default function InvoicesPage() {
                             {new Date(invoice.dueDate).toLocaleDateString()}
                             {isOverdue && (
                               <span className="ml-2 text-xs">
-                                ({getAgingDays(invoice.dueDate)} days overdue)
+                                ({daysOverdue({ dueDate: invoice.dueDate, invoiceDate: invoice.invoiceDate, outstanding: invoice.balanceDue }, agingSettings)} days overdue)
                               </span>
                             )}
                           </div>

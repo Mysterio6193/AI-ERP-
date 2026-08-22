@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
+
 import {
   AlertTriangle,
   ArrowDownRight,
@@ -19,6 +20,8 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
+import { bucketise } from "@/lib/aging"
+import { useSettings } from "@/lib/settings/use-settings"
 import { formatCurrency, formatCurrencyShort, formatDate } from "@/lib/types"
 
 interface PaymentLite {
@@ -75,6 +78,7 @@ export default function FinanceDashboard() {
   const [orders, setOrders] = useState<OrderLite[]>([])
   const [invoices, setInvoices] = useState<InvoiceLite[]>([])
   const [customers, setCustomers] = useState<CustomerLite[]>([])
+  const { settings: agingSettings } = useSettings("aging")
 
   useEffect(() => {
     async function load() {
@@ -111,26 +115,19 @@ export default function FinanceDashboard() {
       0
     )
 
-    const today = new Date()
-    const agingBuckets = [
-      { label: "Current", amount: 0 },
-      { label: "1-30 days", amount: 0 },
-      { label: "31-60 days", amount: 0 },
-      { label: "60+ days", amount: 0 },
-    ]
-
-    invoices
-      .filter((invoice) => ["unpaid", "partial", "overdue"].includes(invoice.status))
-      .forEach((invoice) => {
-        const dueDate = invoice.dueDate ? new Date(invoice.dueDate) : new Date(invoice.invoiceDate)
-        const daysLate = Math.max(0, Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)))
-        const value = invoice.balanceDue ?? invoice.outstandingAmt ?? 0
-
-        if (daysLate === 0) agingBuckets[0].amount += value
-        else if (daysLate <= 30) agingBuckets[1].amount += value
-        else if (daysLate <= 60) agingBuckets[2].amount += value
-        else agingBuckets[3].amount += value
-      })
+    // Was a private 4-bucket definition ending "60+", which disagreed with
+    // both the invoices page and the statement the customer receives.
+    const { buckets: agingBuckets } = bucketise(
+      invoices
+        .filter((invoice) => ["unpaid", "partial", "overdue"].includes(invoice.status))
+        .map((invoice) => ({
+          dueDate: invoice.dueDate,
+          invoiceDate: invoice.invoiceDate,
+          outstanding: invoice.balanceDue ?? invoice.outstandingAmt ?? 0,
+          status: invoice.status,
+        })),
+      agingSettings
+    )
 
     const maxAging = Math.max(...agingBuckets.map((bucket) => bucket.amount), 1)
     const recentPayments = invoices
@@ -162,7 +159,7 @@ export default function FinanceDashboard() {
       })),
       recentPayments,
     }
-  }, [customers, invoices, orders])
+  }, [customers, invoices, orders, agingSettings])
 
   const metricCards = [
     {

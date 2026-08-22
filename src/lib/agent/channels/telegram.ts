@@ -132,6 +132,20 @@ export async function registerTelegramWebhook(url: string) {
   })
 }
 
+export interface TelegramMe {
+  id: number
+  is_bot: boolean
+  first_name: string
+  username?: string
+  can_join_groups?: boolean
+  can_read_all_group_messages?: boolean
+  supports_inline_queries?: boolean
+}
+
+export async function getTelegramMe(): Promise<TelegramMe | null> {
+  return call<TelegramMe>("getMe", {})
+}
+
 export async function getTelegramWebhookInfo() {
   return call<Record<string, unknown>>("getWebhookInfo", {})
 }

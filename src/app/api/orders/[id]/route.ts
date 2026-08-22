@@ -5,27 +5,10 @@ import { db } from "@/lib/db"
 import { ensurePickListForOrder } from "@/lib/pick-lists"
 import { ensureDeliveryForOrder } from "@/lib/delivery-routes"
 import { commitStockForOrder, ensureInvoiceForOrder } from "@/lib/order-fulfillment"
+import { getSettings } from "@/lib/settings/service"
+import { computeLineTax } from "@/lib/tax"
 
 const LINE_ITEM_EDITABLE_STATUSES = new Set(["draft", "pending_approval", "approved"])
-
-function calculateOrderItemTotals(input: {
-  quantity: number
-  unitPrice: number
-  discount: number
-  taxRate: number
-}) {
-  const lineSubtotal = input.unitPrice * input.quantity
-  const discountAmount = lineSubtotal * (input.discount / 100)
-  const taxableSubtotal = lineSubtotal - discountAmount
-  const taxAmount = taxableSubtotal * (input.taxRate / 100)
-
-  return {
-    discountAmount,
-    taxableSubtotal,
-    taxAmount,
-    total: taxableSubtotal + taxAmount,
-  }
-}
 
 // GET /api/orders/[id] - Get a single order
 export async function GET(
@@ -170,11 +153,26 @@ export async function PUT(
         select: {
           id: true,
           gstRate: true,
+          gstExempt: true,
           wholesalePrice: true,
         },
       })
 
       const productMap = new Map(products.map((product) => [product.id, product]))
+
+      // Resolved up front: the mapping below is synchronous, and tax now
+      // depends on who is buying and which entity is billing.
+      const taxSettings = await getSettings("tax", { companyId: existingOrder.companyId })
+      const taxCustomer = await db.customer.findUnique({
+        where: { id: existingOrder.customerId },
+        select: { customerType: true },
+      })
+      const taxCompany = existingOrder.companyId
+        ? await db.company.findUnique({
+            where: { id: existingOrder.companyId },
+            select: { gstRate: true, country: true },
+          })
+        : null
       const existingItemsById = new Map(existingOrder.items.map((item) => [item.id, item]))
 
       let subtotal = 0
@@ -198,12 +196,23 @@ export async function PUT(
             ? Number(item.unitPrice) || 0
             : product.wholesalePrice
         const discount = item.discount !== undefined ? Number(item.discount) || 0 : 0
-        const totals = calculateOrderItemTotals({
-          quantity,
-          unitPrice,
-          discount,
-          taxRate: product.gstRate,
-        })
+        const lineSubtotal = unitPrice * quantity
+        const discountAmount = lineSubtotal * (discount / 100)
+        const lineTax = computeLineTax(
+          lineSubtotal - discountAmount,
+          {
+            product: { gstRate: product.gstRate, gstExempt: product.gstExempt },
+            customer: taxCustomer,
+            company: taxCompany,
+          },
+          taxSettings
+        )
+        const totals = {
+          discountAmount,
+          taxableSubtotal: lineTax.taxableAmount,
+          taxAmount: lineTax.taxAmount,
+          total: lineTax.total,
+        }
         const existingItem = item.id ? existingItemsById.get(item.id) : null
 
         subtotal += totals.taxableSubtotal
@@ -216,7 +225,7 @@ export async function PUT(
           quantity,
           unitPrice,
           discount,
-          taxRate: product.gstRate,
+          taxRate: lineTax.rate,
           taxAmount: totals.taxAmount,
           total: totals.total,
           pickedQty: existingItem?.pickedQty || 0,

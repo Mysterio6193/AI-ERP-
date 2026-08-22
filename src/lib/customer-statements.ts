@@ -1,3 +1,6 @@
+import { bucketise } from "@/lib/aging"
+import { defaultsFor, type SettingsOf } from "@/lib/settings/registry"
+
 type StatementCustomer = {
   id: string
   name: string
@@ -62,7 +65,14 @@ function getTransactionStatus(transaction: StatementCustomer["creditTransactions
   return "Adjusted"
 }
 
-export function buildCustomerStatement(customer: StatementCustomer, referenceDate = new Date()) {
+export function buildCustomerStatement(
+  customer: StatementCustomer,
+  referenceDate = new Date(),
+  // The statement is what the customer actually receives, so its buckets
+  // must be the configured ones - the PDF used to compute its own, which
+  // disagreed with both on-screen views.
+  agingSettings: SettingsOf<"aging"> = defaultsFor("aging")
+) {
   const { start, end } = getStatementWindow(referenceDate)
   const openInvoices = customer.invoices.filter((invoice) =>
     ["unpaid", "partial", "overdue", "sent"].includes(invoice.status)
@@ -117,6 +127,16 @@ export function buildCustomerStatement(customer: StatementCustomer, referenceDat
       creditStatus: customer.creditStatus,
       paymentTerms: customer.paymentTerms,
     },
+    aging: bucketise(
+      customer.invoices.map((invoice) => ({
+        dueDate: invoice.dueDate,
+        invoiceDate: invoice.invoiceDate,
+        outstanding: invoice.outstandingAmt,
+        status: invoice.status,
+      })),
+      agingSettings,
+      end
+    ),
     invoices: customer.invoices
       .sort((a, b) => b.invoiceDate.getTime() - a.invoiceDate.getTime())
       .map((invoice) => ({

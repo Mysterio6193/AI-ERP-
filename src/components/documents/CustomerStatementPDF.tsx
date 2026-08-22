@@ -2,8 +2,9 @@
 
 import React from "react"
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer"
-import { differenceInCalendarDays, format } from "date-fns"
+import { format } from "date-fns"
 
+import { bucketise } from "@/lib/aging"
 import {
   getCompanyAddressLine,
   getCompanyDisplayName,
@@ -11,6 +12,7 @@ import {
   getCompanyWebsite,
   sanitizeCompanyBranding,
 } from "@/lib/company-branding"
+import { defaultsFor } from "@/lib/settings/registry"
 
 const styles = StyleSheet.create({
   page: {
@@ -152,24 +154,27 @@ function formatDate(value?: string | Date | null) {
   return format(new Date(value), "dd MMM yyyy")
 }
 
-function computeAgingBuckets(invoices: any[], statementEnd: string | Date, currency: string) {
-  const buckets = [
-    { label: "Current", min: Number.NEGATIVE_INFINITY, max: 0, amount: 0 },
-    { label: "1-30", min: 1, max: 30, amount: 0 },
-    { label: "31-60", min: 31, max: 60, amount: 0 },
-    { label: "61+", min: 61, max: Number.POSITIVE_INFINITY, amount: 0 },
-  ]
-  const end = new Date(statementEnd)
+/**
+ * Buckets come from `buildCustomerStatement`, which uses the configured
+ * definition. This used to compute its own — so the document a customer
+ * received disagreed with both on-screen views. `bucketise` is the fallback
+ * only for a caller that has not been migrated.
+ */
+function resolveAging(statement: any, currency: string) {
+  const computed =
+    statement.aging ??
+    bucketise(
+      (statement.invoices || []).map((invoice: any) => ({
+        dueDate: invoice.dueDate,
+        invoiceDate: invoice.invoiceDate,
+        outstanding: Number(invoice.outstandingAmount || 0),
+        status: invoice.status,
+      })),
+      defaultsFor("aging"),
+      new Date(statement.summary.statementEnd)
+    )
 
-  for (const invoice of invoices || []) {
-    const daysLate = differenceInCalendarDays(end, new Date(invoice.dueDate))
-    const bucket = buckets.find((item) => daysLate >= item.min && daysLate <= item.max)
-    if (bucket) {
-      bucket.amount += Number(invoice.outstandingAmount || 0)
-    }
-  }
-
-  return buckets.map((bucket) => ({
+  return computed.buckets.map((bucket: { label: string; amount: number }) => ({
     ...bucket,
     displayAmount: formatCurrency(bucket.amount, currency),
   }))
@@ -187,7 +192,7 @@ const CustomerStatementPDF = ({ statement, company }: CustomerStatementPDFProps)
   const companyEmail = getCompanyEmail(branding)
   const companyWebsite = getCompanyWebsite(branding)
   const currency = branding?.baseCurrency || "AUD"
-  const aging = computeAgingBuckets(statement.invoices || [], statement.summary.statementEnd, currency)
+  const aging = resolveAging(statement, currency)
   const recentTransactions = (statement.transactions || []).slice(0, 12)
 
   return (

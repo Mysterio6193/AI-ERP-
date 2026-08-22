@@ -1,6 +1,8 @@
 import type { Prisma, PrismaClient } from "@prisma/client"
 
 import { allocateFefo, consumeBatches } from "@/lib/batches"
+import { computeDueDate } from "@/lib/invoicing"
+import { getSettings } from "@/lib/settings/service"
 
 type DbClient = PrismaClient | Prisma.TransactionClient
 
@@ -183,6 +185,9 @@ export async function ensureInvoiceForOrder(db: DbClient, orderId: string) {
           creditBalance: true,
           creditLimit: true,
           creditStatus: true,
+          // Stored and shown on screen since forever; never read until now,
+          // so a Net 7 account got the same date as a Net 60 one.
+          paymentTerms: true,
         },
       },
     },
@@ -193,6 +198,14 @@ export async function ensureInvoiceForOrder(db: DbClient, orderId: string) {
   }
 
   const invoiceNumber = await getNextInvoiceNumber(db)
+
+  const issuedAt = new Date()
+  const invoicingSettings = await getSettings("invoicing", { companyId: order.companyId })
+  const dueDate = computeDueDate({
+    issuedAt,
+    paymentTerms: order.customer.paymentTerms,
+    settings: invoicingSettings,
+  })
   const nextCreditBalance = (order.customer.creditBalance || 0) + order.totalAmount
 
   const invoice = await db.invoice.create({
@@ -207,7 +220,7 @@ export async function ensureInvoiceForOrder(db: DbClient, orderId: string) {
       status: "unpaid",
       paidAmount: 0,
       outstandingAmt: order.totalAmount,
-      dueDate: new Date(new Date().getTime() + 30 * 24 * 60 * 60 * 1000),
+      dueDate,
     },
   })
 
