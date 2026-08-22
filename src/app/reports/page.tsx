@@ -6,6 +6,7 @@ import {
   ShoppingCart, BarChart3
 } from "lucide-react"
 import { AppShell } from "@/components/layout/app-shell"
+import { Button } from "@/components/ui/button"
 import { formatCurrency, formatCurrencyShort } from "@/lib/types"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -161,20 +162,49 @@ export default function ReportsPage() {
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Reports & Analytics</h1>
-            <p className="text-muted-foreground">Business insights and performance metrics</p>
+            <p className="text-muted-foreground">Business insights, financial summaries, and performance metrics</p>
           </div>
-          <Select value={period} onValueChange={setPeriod}>
-            <SelectTrigger className="w-40">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="today">Today</SelectItem>
-              <SelectItem value="week">This Week</SelectItem>
-              <SelectItem value="month">This Month</SelectItem>
-              <SelectItem value="quarter">This Quarter</SelectItem>
-              <SelectItem value="year">This Year</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex flex-wrap items-center gap-2">
+            <Select value={period} onValueChange={setPeriod}>
+              <SelectTrigger className="w-36">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="today">Today</SelectItem>
+                <SelectItem value="week">This Week</SelectItem>
+                <SelectItem value="month">This Month</SelectItem>
+                <SelectItem value="quarter">This Quarter</SelectItem>
+                <SelectItem value="year">This Year</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (!data) return
+                const rows = [
+                  ["Metric", "Value"],
+                  ["Total Revenue", data.totalRevenue.toFixed(2)],
+                  ["Total Orders", data.totalOrders],
+                  ["Total Customers", data.totalCustomers],
+                  ["Total Products", data.totalProducts],
+                  ["Pending Orders", data.pendingOrders],
+                  ["Low Stock Items", data.lowStockItems],
+                  ["Outstanding Invoiced Amount", data.outstandingAmount.toFixed(2)],
+                ]
+                const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n")
+                const encodedUri = encodeURI(csvContent)
+                const link = document.createElement("a")
+                link.setAttribute("href", encodedUri)
+                link.setAttribute("download", `Executive_Report_${period}_${new Date().toISOString().slice(0, 10)}.csv`)
+                document.body.appendChild(link)
+                link.click()
+                document.body.removeChild(link)
+              }}
+            >
+              Export CSV Report
+            </Button>
+          </div>
         </div>
 
         {/* Key Metrics */}
