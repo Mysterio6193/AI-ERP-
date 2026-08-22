@@ -40,16 +40,30 @@ const has = (flag: string) => args.includes(flag)
 const keep = has("--keep")
 
 const providerArg = (argValue("--provider") || "auto").toLowerCase()
-if (!["auto", "local", "gateway"].includes(providerArg)) {
-  console.error(`--provider must be auto | local | gateway (got "${providerArg}")`)
+if (!["auto", "local", "gateway", "openrouter"].includes(providerArg)) {
+  console.error(`--provider must be auto | local | gateway | openrouter (got "${providerArg}")`)
   process.exit(2)
 }
 
 const gatewayKey = process.env.AI_GATEWAY_API_KEY?.trim()
-const resolvedProvider =
-  providerArg === "auto" ? (gatewayKey ? "gateway" : "local") : providerArg
+const openrouterKey = process.env.OPENROUTER_API_KEY?.trim()
 
-if (resolvedProvider === "local") {
+// `auto` used to mean "gateway if a gateway key exists, else local", which sent
+// a fully-configured OpenRouter setup at a local server that is not running.
+const resolvedProvider =
+  providerArg === "auto"
+    ? openrouterKey
+      ? "openrouter"
+      : gatewayKey
+        ? "gateway"
+        : "local"
+    : providerArg
+
+if (resolvedProvider === "openrouter") {
+  process.env.AGENT_PROVIDER = "openrouter"
+  const model = argValue("--model")
+  if (model) process.env.AGENT_MODEL = model
+} else if (resolvedProvider === "local") {
   process.env.AGENT_PROVIDER = "local"
   const baseUrl = argValue("--base-url")
   if (baseUrl) process.env.AGENT_LOCAL_BASE_URL = baseUrl
