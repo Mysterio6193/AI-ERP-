@@ -1,0 +1,195 @@
+import { z } from "zod"
+
+/**
+ * Configurable business behaviour.
+ *
+ * The system was full of decisions baked into code: GST hardcoded at 10 in
+ * eight places while `Company.gstRate` sat editable and unread, invoice due
+ * dates always +30 days regardless of the customer's terms, three different
+ * aging-bucket definitions that disagreed with the PDF customers receive.
+ *
+ * Every namespace here follows one rule: **its defaults reproduce today's
+ * behaviour exactly**. Turning the settings layer on changes nothing until
+ * somebody deliberately changes a value. That is what makes it safe to land
+ * ahead of the code that reads it.
+ */
+
+/** Payment-term sentinels already used by `types.ts`: 0 = COD, -1 = end of month. */
+export const taxSchema = z.object({
+  /** null inherits Company.country. */
+  country: z.enum(["AU", "IN"]).nullable().default(null),
+  /** null inherits Company.gstRate. */
+  defaultRate: z.number().min(0).max(100).nullable().default(null),
+  /** Where a line's rate comes from, first match wins. */
+  resolutionOrder: z
+    .array(z.enum(["line", "product", "customer", "company"]))
+    .default(["line", "product", "customer", "company"]),
+  roundingMode: z.enum(["line", "document"]).default("line"),
+  roundingDp: z.number().int().min(0).max(4).default(2),
+  exemptCustomerTypes: z.array(z.string()).default([]),
+  /**
+   * Declared but NOT implemented in the first pass. It changes every total in
+   * the system, so shipping it alongside the tax rewire would make regressions
+   * indistinguishable from configuration.
+   */
+  pricesIncludeTax: z.boolean().default(false),
+})
+
+export const invoicingSchema = z.object({
+  dueDateSource: z.enum(["customerTerms", "fixedDays"]).default("customerTerms"),
+  fixedDays: z.number().int().min(0).max(365).default(30),
+  /** Used when the customer has no terms set. Matches today's hardcoded +30. */
+  fallbackDays: z.number().int().min(0).max(365).default(30),
+  eomHandling: z.enum(["endOfMonth", "endOfNextMonth"]).default("endOfMonth"),
+  codDueSameDay: z.boolean().default(true),
+  autoInvoiceOnStatuses: z.array(z.string()).default(["invoiced", "delivered"]),
+  overdueGraceDays: z.number().int().min(0).max(90).default(0),
+})
+
+export const agingSchema = z.object({
+  basis: z.enum(["dueDate", "invoiceDate"]).default("dueDate"),
+  buckets: z
+    .array(
+      z.object({
+        label: z.string(),
+        minDays: z.number().int(),
+        /** null means open-ended. */
+        maxDays: z.number().int().nullable(),
+      })
+    )
+    .default([
+      { label: "Current", minDays: -99999, maxDays: 0 },
+      { label: "1-30 days", minDays: 1, maxDays: 30 },
+      { label: "31-60 days", minDays: 31, maxDays: 60 },
+      { label: "61-90 days", minDays: 61, maxDays: 90 },
+      { label: "90+ days", minDays: 91, maxDays: null },
+    ]),
+})
+
+const docNumberFormat = z.object({
+  prefix: z.string().min(1).max(8),
+  dateToken: z.enum(["none", "YY", "YYYY", "YYYYMM", "YYYYMMDD"]),
+  separator: z.string().max(2).default("-"),
+  pad: z.number().int().min(1).max(10),
+  start: z.number().int().min(0),
+  reset: z.enum(["never", "yearly", "monthly", "daily"]),
+  suffix: z.string().max(8).default(""),
+  /**
+   * False keeps the legacy generator, byte for byte. Flipped per document kind
+   * once its counter has been seeded, because the legacy path continues a
+   * sequence by parsing the previous number - so changing the format before
+   * the counter is live breaks continuation.
+   */
+  useCounter: z.boolean().default(false),
+})
+
+/** Defaults reproduce each existing generator exactly, including pad width. */
+export const numberingSchema = z.object({
+  salesOrder: docNumberFormat.default({ prefix: "SO", dateToken: "YYYY", separator: "-", pad: 5, start: 1001, reset: "yearly", suffix: "", useCounter: false }),
+  quote: docNumberFormat.default({ prefix: "QT", dateToken: "YYYY", separator: "-", pad: 5, start: 1001, reset: "yearly", suffix: "", useCounter: false }),
+  invoice: docNumberFormat.default({ prefix: "INV", dateToken: "YYYY", separator: "-", pad: 5, start: 1001, reset: "yearly", suffix: "", useCounter: false }),
+  purchaseOrder: docNumberFormat.default({ prefix: "PO", dateToken: "YYYY", separator: "-", pad: 5, start: 1001, reset: "yearly", suffix: "", useCounter: false }),
+  pickList: docNumberFormat.default({ prefix: "PK", dateToken: "YYYY", separator: "-", pad: 5, start: 1, reset: "yearly", suffix: "", useCounter: false }),
+  delivery: docNumberFormat.default({ prefix: "DL", dateToken: "YYYYMMDD", separator: "-", pad: 5, start: 1, reset: "daily", suffix: "", useCounter: false }),
+  route: docNumberFormat.default({ prefix: "RT", dateToken: "YYYYMMDD", separator: "-", pad: 3, start: 1, reset: "daily", suffix: "", useCounter: false }),
+  productionOrder: docNumberFormat.default({ prefix: "PRD", dateToken: "YYYY", separator: "-", pad: 4, start: 1, reset: "yearly", suffix: "", useCounter: false }),
+  freightBooking: docNumberFormat.default({ prefix: "FB", dateToken: "YYYY", separator: "-", pad: 4, start: 1, reset: "yearly", suffix: "", useCounter: false }),
+  creditNote: docNumberFormat.default({ prefix: "CN", dateToken: "YYYY", separator: "-", pad: 4, start: 1, reset: "yearly", suffix: "", useCounter: false }),
+  return: docNumberFormat.default({ prefix: "RET", dateToken: "YYYY", separator: "-", pad: 4, start: 1, reset: "yearly", suffix: "", useCounter: false }),
+  case: docNumberFormat.default({ prefix: "CS", dateToken: "YYYY", separator: "-", pad: 5, start: 1, reset: "yearly", suffix: "", useCounter: false }),
+})
+
+export const pricingSchema = z.object({
+  /** Off by default. Turning it on changes what customers are charged. */
+  enablePriceLists: z.boolean().default(false),
+  enableDiscountRules: z.boolean().default(false),
+  fallback: z.enum(["wholesalePrice", "retailPrice"]).default("wholesalePrice"),
+  useDefaultPriceListWhenCustomerHasNone: z.boolean().default(false),
+  volumeBreaks: z.boolean().default(true),
+  allowManualPriceOverride: z.boolean().default(true),
+  maxLineDiscountPercent: z.number().min(0).max(100).default(100),
+  discountStacking: z.enum(["best", "sum", "first"]).default("best"),
+  roundPricesTo: z.number().int().min(0).max(4).default(2),
+})
+
+export const opsSchema = z.object({
+  defaultWarehouseId: z.string().nullable().default(null),
+  defaultPaymentTerms: z.number().int().min(-1).max(365).default(30),
+  /** null inherits Company.fiscalYearStart. */
+  fiscalYearStartMonth: z.number().int().min(1).max(12).nullable().default(null),
+  currencyDisplay: z.enum(["symbol", "code"]).default("symbol"),
+  lowStockReorderLevel: z.number().int().min(0).default(10),
+  lowStockReorderQty: z.number().int().min(0).default(50),
+})
+
+export interface NamespaceDefinition {
+  schema: z.ZodTypeAny
+  label: string
+  description: string
+  /** Roles permitted to write. Reads are open to any staff member. */
+  writeRoles: string[]
+}
+
+export const REGISTRY = {
+  tax: {
+    schema: taxSchema,
+    label: "Tax",
+    description: "How GST is resolved and rounded on every line.",
+    writeRoles: ["admin", "accounts"],
+  },
+  invoicing: {
+    schema: invoicingSchema,
+    label: "Invoicing",
+    description: "When invoices fall due, and what triggers one.",
+    writeRoles: ["admin", "accounts"],
+  },
+  aging: {
+    schema: agingSchema,
+    label: "Receivables aging",
+    description: "The buckets used on screen, in reports and on customer statements.",
+    writeRoles: ["admin", "accounts"],
+  },
+  numbering: {
+    schema: numberingSchema,
+    label: "Document numbering",
+    description: "Prefixes, sequences and reset behaviour for every document type.",
+    writeRoles: ["admin"],
+  },
+  pricing: {
+    schema: pricingSchema,
+    label: "Pricing",
+    description: "Whether price lists and discount rules apply to an order line.",
+    writeRoles: ["admin"],
+  },
+  ops: {
+    schema: opsSchema,
+    label: "Operations",
+    description: "Defaults for warehouses, payment terms and stock levels.",
+    writeRoles: ["admin", "warehouse"],
+  },
+} satisfies Record<string, NamespaceDefinition>
+
+export type Namespace = keyof typeof REGISTRY
+
+export type SettingsOf<K extends Namespace> = z.infer<(typeof REGISTRY)[K]["schema"]>
+
+export function isNamespace(value: string): value is Namespace {
+  // hasOwnProperty, not `in`. `"__proto__" in REGISTRY` is true for any object,
+  // so `in` would let inherited keys through the API route's guard and then
+  // hand `REGISTRY["__proto__"].writeRoles` — undefined — to the role check.
+  return Object.prototype.hasOwnProperty.call(REGISTRY, value)
+}
+
+/** The compiled-in defaults for a namespace, from the schema itself. */
+export function defaultsFor<K extends Namespace>(namespace: K): SettingsOf<K> {
+  return REGISTRY[namespace].schema.parse({}) as SettingsOf<K>
+}
+
+export function listNamespaces() {
+  return (Object.keys(REGISTRY) as Namespace[]).map((namespace) => ({
+    namespace,
+    label: REGISTRY[namespace].label,
+    description: REGISTRY[namespace].description,
+    writeRoles: REGISTRY[namespace].writeRoles,
+  }))
+}

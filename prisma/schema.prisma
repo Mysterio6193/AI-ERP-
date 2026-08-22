@@ -1,0 +1,2861 @@
+// SupplySure OS - Australian B2B Distribution System
+// Prisma Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// Company & Multi-Tenancy
+// ============================================
+
+model Company {
+  id          String  @id @default(cuid())
+  name        String
+  tradingName String?
+
+  // Multi-Country Support
+  country String @default("AU") // AU or IN
+
+  // Australian IDs
+  abn String? @unique // Australian Business Number
+  acn String? // Australian Company Number
+
+  // Indian IDs
+  gstin     String? // GST Identification Number (India)
+  pan       String? // Permanent Account Number (India)
+  tanNumber String? // Tax Deduction Account Number (India)
+  cinNumber String? // Corporate Identity Number (India)
+
+  phone   String?
+  email   String?
+  website String?
+  logoUrl String?
+
+  // Address
+  address  String?
+  city     String?
+  state    String? // AU or IN state
+  postcode String?
+
+  // Bank Details (AU)
+  bankName      String?
+  bsb           String? // Bank State Branch (AU)
+  accountNumber String?
+  accountName   String?
+
+  // Bank Details (IN)
+  ifscCode String? // IFSC Code (India)
+  upiId    String? // UPI VPA (India)
+
+  // Tax Settings
+  gstRegistered Boolean @default(true)
+  gstRate       Float   @default(10.0) // Default GST rate
+  abnOnInvoices Boolean @default(true)
+
+  // Accounting Settings
+  fiscalYearStart Int    @default(7) // Month (1-12), July for AU, April for IN
+  baseCurrency    String @default("AUD") // AUD or INR
+
+  // Terms & Conditions
+  defaultTerms  String?
+  invoiceFooter String?
+
+  // Settings
+  setupComplete  Boolean @default(false)
+  onboardingStep Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users                  User[]
+  warehouses             Warehouse[]
+  suppliers              Supplier[]
+  customers              Customer[]
+  products               Product[]
+  categories             Category[]
+  priceLists             PriceList[]
+  purchaseOrders         PurchaseOrder[]
+  salesOrders            SalesOrder[]
+  quotes                 Quote[]
+  invoices               Invoice[]
+  deliveryRoutes         DeliveryRoute[]
+  taxRates               TaxRate[]
+  chartOfAccounts        ChartOfAccount[]
+  journalEntries         JournalEntry[]
+  expenses               Expense[]
+  bankAccounts           BankAccount[]
+  bankTransactions       BankTransaction[]
+  reconciliationSessions ReconciliationSession[]
+  accountingIntegrations AccountingIntegration[]
+  financeDocuments       FinanceDocument[]
+  returns                Return[]
+  commerceSettings       CommerceSettings?
+}
+
+// ============================================
+// User & RBAC
+// ============================================
+
+model User {
+  id       String  @id @default(cuid())
+  email    String  @unique
+  name     String
+  password String
+  role     String  @default("sales") // admin, sales, warehouse, accounts, driver
+  status   String  @default("active") // active, inactive
+  avatar   String?
+  phone    String?
+
+  // Driver specific
+  licenseNumber String?
+  vehicleId     String?
+
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  stockMovements     StockMovement[]
+  pickLists          PickList[]
+  deliveries         Delivery[]
+  approvalActions    ApprovalAction[]
+  deliveryRoutes     DeliveryRoute[]
+  repCustomers       Customer[]       @relation("CustomerSalesRep")
+  ownedLeads         Lead[]           @relation("LeadOwner")
+  ownedOpportunities Opportunity[]    @relation("OpportunityOwner")
+  activities         Activity[]       @relation("ActivityUser")
+  assignedCases      Case[]           @relation("CaseAssignee")
+}
+
+// ============================================
+// Product & Category Management
+// ============================================
+
+model Category {
+  id          String     @id @default(cuid())
+  name        String
+  description String?
+  parentId    String?
+  parent      Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryHierarchy")
+  sortOrder   Int        @default(0)
+
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+
+  products Product[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Product {
+  id          String  @id @default(cuid())
+  sku         String  @unique
+  name        String
+  description String?
+
+  // Classification
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id])
+  brand      String?
+
+  // Unit Management
+  baseUnit String  @default("each") // carton, box, each, kg, litre
+  packSize Int     @default(1) // units per pack
+  packUnit String? // e.g., "carton of 24"
+
+  // Pricing
+  costPrice      Float  @default(0) // Purchase cost
+  wholesalePrice Float  @default(0) // Base selling price
+  retailPrice    Float? // RRP
+  minMargin      Float  @default(20) // Minimum margin %
+
+  // Tax
+  gstRate   Float   @default(10.0) // Australian GST
+  gstExempt Boolean @default(false)
+
+  // --- Food safety -------------------------------------------------------
+  // Declaring allergens is a legal requirement here (FSANZ 1.2.3), not a
+  // nicety, and this business makes gluten-free lines on the same site as
+  // wheat ones. Stored as JSON arrays of lowercase tokens ("gluten", "milk",
+  // "soy", "egg", "sesame", "nuts") so the set can grow without a migration.
+  /// Allergens present in the product.
+  allergensJson String?
+  /// Allergens possible through shared equipment - the "may contain" line.
+  mayContainJson String?
+
+  /// Days from production to best-before. Drives batch expiry on a run.
+  shelfLifeDays Int?
+  /// ambient, chilled, frozen
+  storageTemp   String?
+
+  /// Required for the label on a finished good.
+  ingredientsText String?
+  countryOfOrigin String?
+
+  // Dimensions (for shipping)
+  weight Float? // kg
+  length Float? // cm
+  width  Float? // cm
+  height Float? // cm
+
+  // Status
+  status String @default("active") // active, inactive, discontinued
+
+  // Tracking
+  barcode  String?
+  imageUrl String?
+
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+
+  // Relations
+  inventory         Inventory[]
+  orderItems        SalesOrderItem[]
+  poItems           PurchaseOrderItem[]
+  quoteItems        QuoteItem[]
+  priceItems        PriceListItem[]
+  stockMovements    StockMovement[]
+  reservations      StockReservation[]
+  suppliers         ProductSupplier[]
+  variants          ProductVariant[]
+  returnItems       ReturnItem[]
+  customerCartItems CustomerCartItem[]
+  wishlistItems     WishlistItem[]
+
+  // Manufacturing. A product can be the output of a recipe, an input to one,
+  // or both - a dough ball is sold, and is also a component of a pizza base.
+  units            ProductUnit[]
+  billsOfMaterial  BillOfMaterial[]        @relation("BomOutput")
+  bomLines         BomLine[]               @relation("BomComponent")
+  productionOrders ProductionOrder[]       @relation("ProductionOutput")
+  consumptions     ProductionConsumption[] @relation("ConsumedComponent")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================
+// Product Variants
+// ============================================
+
+model ProductVariant {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  sku        String  @unique
+  barcode    String?
+  name       String? // e.g., "Red / Large" or override name
+  attributes String? // JSON string or structured data
+
+  costPrice      Float? // override base product
+  wholesalePrice Float? // override base product
+  retailPrice    Float? // override base product
+
+  status String @default("active")
+
+  inventory         Inventory[]
+  orderItems        SalesOrderItem[]
+  poItems           PurchaseOrderItem[]
+  quoteItems        QuoteItem[]
+  stockMovements    StockMovement[]
+  returnItems       ReturnItem[]
+  customerCartItems CustomerCartItem[]
+  wishlistItems     WishlistItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Product-Supplier relationship
+model ProductSupplier {
+  id         String   @id @default(cuid())
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id])
+  supplierId String
+  supplier   Supplier @relation(fields: [supplierId], references: [id])
+
+  supplierSku String? // Supplier's product code
+  costPrice   Float   @default(0)
+  minOrderQty Int     @default(1)
+  leadTime    Int     @default(7) // days
+  isPreferred Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([productId, supplierId])
+}
+
+// ---------------------------------------------------------------------------
+// Manufacturing
+//
+// This business makes what it sells: flour, mozzarella and passata go in, pizza
+// bases come out. Without this the system can only ever describe finished goods
+// appearing from nowhere.
+//
+// Batch traceability is the part that is not optional. The factory is HACCP
+// certified, which means that when a raw ingredient lot is recalled you must be
+// able to say - quickly - which production runs used it and which customers
+// received the result. `ProductionConsumption.batchCode` is what makes that
+// answerable in one query instead of a day of paperwork.
+// ---------------------------------------------------------------------------
+
+/// A recipe: what goes into one batch of a finished product, and how much it makes.
+model BillOfMaterial {
+  id String @id @default(cuid())
+
+  /// The finished good this recipe produces.
+  productId String
+  product   Product @relation("BomOutput", fields: [productId], references: [id])
+
+  name    String
+  version Int    @default(1)
+
+  /// Units of the finished good one run of this recipe yields.
+  yieldQty  Float  @default(1)
+  yieldUnit String @default("carton")
+
+  /// The method. Free text: a dough recipe is prose, not columns.
+  instructions String?
+
+  /// Minutes of production time, for scheduling.
+  standardTimeMinutes Int?
+
+  status String @default("draft") // draft, active, archived
+
+  companyId String?
+
+  lines            BomLine[]
+  productionOrders ProductionOrder[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([productId, status])
+}
+
+model BomLine {
+  id    String         @id @default(cuid())
+  bomId String
+  bom   BillOfMaterial @relation(fields: [bomId], references: [id], onDelete: Cascade)
+
+  /// The input. A raw material, or another finished good for sub-assemblies.
+  componentId String
+  component   Product @relation("BomComponent", fields: [componentId], references: [id])
+
+  /// Quantity consumed per full batch, in the component's own base unit.
+  quantity Float
+  unit     String @default("each")
+
+  /// Expected loss - dough trimmings, spillage. Drives planned vs actual.
+  wastePercent Float @default(0)
+
+  notes String?
+
+  sortOrder Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([bomId])
+  @@index([componentId])
+}
+
+/// One run of a recipe.
+model ProductionOrder {
+  id          String @id @default(cuid())
+  orderNumber String @unique
+
+  productId String
+  product   Product @relation("ProductionOutput", fields: [productId], references: [id])
+
+  bomId String?
+  bom   BillOfMaterial? @relation(fields: [bomId], references: [id])
+
+  warehouseId String?
+
+  plannedQty  Float @default(0)
+  producedQty Float @default(0)
+  /// Made but not saleable. Kept separate so yield is honest.
+  rejectedQty Float @default(0)
+
+  /// planned, released, in_progress, completed, cancelled
+  status String @default("planned")
+
+  scheduledFor DateTime?
+  startedAt    DateTime?
+  completedAt  DateTime?
+
+  /// The lot code stamped on the output. The anchor for a recall.
+  batchCode  String?
+  expiryDate DateTime?
+
+  /// Rolled up from what was actually consumed.
+  materialCost Float @default(0)
+  unitCost     Float @default(0)
+
+  notes String?
+
+  createdById    String?
+  createdByAgent Boolean @default(false)
+
+  companyId String?
+
+  consumptions ProductionConsumption[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, scheduledFor])
+  @@index([batchCode])
+  @@index([productId])
+}
+
+/// What a run actually consumed, and from which incoming lot.
+model ProductionConsumption {
+  id                String          @id @default(cuid())
+  productionOrderId String
+  productionOrder   ProductionOrder @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
+
+  componentId String
+  component   Product @relation("ConsumedComponent", fields: [componentId], references: [id])
+
+  plannedQty Float @default(0)
+  actualQty  Float @default(0)
+
+  /// Supplier lot of this input. The backward half of traceability.
+  batchCode String?
+
+  unitCost  Float @default(0)
+  totalCost Float @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([productionOrderId])
+  @@index([batchCode])
+  @@index([componentId])
+}
+
+// ============================================
+// Supplier Management
+// ============================================
+
+model Supplier {
+  id            String  @id @default(cuid())
+  name          String
+  tradingName   String?
+  abn           String?
+  contactPerson String?
+  email         String?
+  phone         String?
+  website       String?
+
+  // Address
+  address  String?
+  city     String?
+  state    String?
+  postcode String?
+
+  // Terms
+  paymentTerms Int   @default(30) // Net 30
+  creditLimit  Float @default(0)
+
+  // Status
+  status String @default("active") // active, inactive, blocked
+
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+
+  products       ProductSupplier[]
+  purchaseOrders PurchaseOrder[]
+  communications CommunicationLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================
+// Warehouse & Inventory
+// ============================================
+
+model Warehouse {
+  id       String  @id @default(cuid())
+  name     String
+  code     String  @unique
+  location String
+  address  String?
+  city     String?
+  state    String?
+  postcode String?
+
+  // Contact
+  contactName  String?
+  contactPhone String?
+  contactEmail String?
+
+  // Capacity
+  capacity Int? // pallet positions
+
+  // Status
+  status    String  @default("active")
+  isDefault Boolean @default(false)
+
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+
+  inventory      Inventory[]
+  stockMoves     StockMovement[]
+  pickLists      PickList[]
+  reservations   StockReservation[]
+  deliveryRoutes DeliveryRoute[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Inventory {
+  id          String          @id @default(cuid())
+  productId   String
+  product     Product         @relation(fields: [productId], references: [id])
+  warehouseId String
+  warehouse   Warehouse       @relation(fields: [warehouseId], references: [id])
+  variantId   String?
+  variant     ProductVariant? @relation(fields: [variantId], references: [id])
+
+  // Quantities
+  quantity Int @default(0) // Available
+  reserved Int @default(0) // Reserved for orders
+  onOrder  Int @default(0) // On purchase orders
+
+  // Reordering
+  reorderLevel Int  @default(10)
+  reorderQty   Int  @default(50)
+  maxStock     Int?
+
+  // Location in warehouse
+  location String? // e.g., "A1-12-3"
+
+  // Cost tracking (FIFO/average)
+  avgCost  Float @default(0)
+  lastCost Float @default(0)
+
+  // Auditing
+  lastCountedAt DateTime?
+  variance      Int       @default(0)
+
+  movements    StockMovement[]
+  reservations StockReservation[]
+  batches      InventoryBatch[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([productId, warehouseId])
+}
+
+/// How a product is bought, held and sold.
+///
+/// The same base is sold by the box to a restaurant and by the pallet to a
+/// distributor, and the two must be the same stock. Three loose string fields
+/// (`baseUnit`, `packSize`, `packUnit`) could describe one packing level and
+/// convert nothing, so an order for "2 pallets" could not be turned into units
+/// to pick, price or freight.
+///
+/// Every unit states how many **base units** it equals. Stock is always held in
+/// the base unit; conversion happens at the edges - order entry, pricing,
+/// picking, freight.
+model ProductUnit {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  /// EACH, BOX, CARTON, PALLET - uppercase, unique per product.
+  code String
+  /// What a person calls it: "Box of 12", "Pallet (60 cartons)".
+  name String
+
+  /// Base units per one of these. The base unit itself is 1.
+  factor Float @default(1)
+
+  /// Exactly one per product. Stock is counted in it.
+  isBase Boolean @default(false)
+  /// Offered first at order entry.
+  isDefaultSell Boolean @default(false)
+  /// Offered when raising a purchase order.
+  isDefaultBuy Boolean @default(false)
+
+  /// Price for one of these. Null means derive it: base price x factor.
+  /// Set it when a pallet is genuinely cheaper per unit rather than a multiple.
+  price Float?
+
+  barcode String?
+
+  /// Shipping dimensions, needed per packing level - a pallet is not 60 boxes
+  /// worth of cardboard, and freight is quoted on the pallet.
+  weightKg Float?
+  lengthCm Float?
+  widthCm  Float?
+  heightCm Float?
+
+  /// Cartons per layer and layers per pallet, for pallet building.
+  perLayer  Int?
+  layers    Int?
+
+  status String @default("active")
+
+  orderItems SalesOrderItem[]
+  poItems    PurchaseOrderItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([productId, code])
+  @@index([productId, status])
+}
+
+/// Stock at lot level.
+///
+/// `Inventory.quantity` is the total; this says *which* stock it is. Frozen
+/// food has a shelf life and a lot code, and without this three things are
+/// impossible: picking the oldest stock first, warning before it expires, and
+/// — the one that matters — quarantining the remaining stock of a recalled
+/// batch. Production already stamps a batch code on every run; this is where
+/// that code lands so it means something afterwards.
+///
+/// `Inventory.quantity` stays the source of truth for availability so nothing
+/// that already reads it breaks; batches are reconciled against it.
+model InventoryBatch {
+  id          String    @id @default(cuid())
+  inventoryId String
+  inventory   Inventory @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+
+  productId   String
+  warehouseId String
+
+  /// Lot code. Our own for made goods, the supplier's for bought ones.
+  batchCode String
+
+  quantity Int @default(0)
+  reserved Int @default(0)
+
+  /// Drives FEFO picking and the expiry warning.
+  expiryDate DateTime?
+  /// When it was made or received, for FIFO where there is no expiry.
+  receivedAt DateTime @default(now())
+
+  /// production, purchase, adjustment, opening
+  sourceType        String  @default("purchase")
+  productionOrderId String?
+  purchaseOrderId   String?
+  supplierId        String?
+
+  unitCost Float @default(0)
+
+  /// available, quarantined, expired, consumed
+  ///
+  /// Quarantined stock is excluded from allocation but not deleted — a recall
+  /// needs the quantity to still be countable.
+  status String @default("available")
+  /// Why it was quarantined, so the freezer label matches the system.
+  holdReason String?
+
+  location String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([productId, warehouseId, status])
+  @@index([batchCode])
+  @@index([expiryDate, status])
+}
+
+model StockMovement {
+  id          String          @id @default(cuid())
+  productId   String
+  product     Product         @relation(fields: [productId], references: [id])
+  warehouseId String
+  warehouse   Warehouse       @relation(fields: [warehouseId], references: [id])
+  inventoryId String?
+  inventory   Inventory?      @relation(fields: [inventoryId], references: [id])
+  variantId   String?
+  variant     ProductVariant? @relation(fields: [variantId], references: [id])
+
+  // Movement details
+  type          String // in, out, transfer, adjustment, reservation, sale, purchase
+  quantity      Int // positive for in, negative for out
+  reason        String?
+  reference     String? // Order number, PO number, GRN, etc.
+  referenceType String? // sales_order, purchase_order, adjustment, transfer
+
+  // For transfers
+  toWarehouseId String?
+
+  // Cost tracking
+  unitCost  Float?
+  totalCost Float?
+
+  // Audit
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+model StockReservation {
+  id          String     @id @default(cuid())
+  productId   String
+  product     Product    @relation(fields: [productId], references: [id])
+  warehouseId String
+  warehouse   Warehouse  @relation(fields: [warehouseId], references: [id])
+  inventoryId String?
+  inventory   Inventory? @relation(fields: [inventoryId], references: [id])
+
+  // Reservation details
+  quantity      Int
+  referenceType String // sales_order, quote
+  referenceId   String // Order or Quote ID
+
+  // Expiry
+  expiresAt DateTime?
+
+  // Status
+  status String @default("active") // active, fulfilled, released, expired
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================
+// Customer Management
+// ============================================
+
+model Customer {
+  id String @id @default(cuid())
+
+  // Business Info
+  name        String // Business name
+  tradingName String?
+  abn         String? // Australian Business Number
+  acn         String?
+  gstin       String? // Indian GST Number
+  pan         String? // Indian PAN
+
+  // Primary Contact
+  contactPerson   String?
+  email           String?
+  passwordHash    String?
+  emailVerifiedAt DateTime?
+  otpCode         String?
+  otpExpiresAt    DateTime?
+  phone           String?
+  alternatePhone  String?
+  website         String?
+
+  // Credit & Terms
+  creditLimit   Float   @default(0)
+  creditBalance Float   @default(0) // Current outstanding balance
+  paymentTerms  Int     @default(30) // Net 7/14/30/60
+  creditStatus  String  @default("active") // active, on_hold, stopped
+  creditRating  String? // A, B, C, D
+
+  // Pricing
+  priceListId String?
+  priceList   PriceList? @relation(fields: [priceListId], references: [id])
+
+  // Classification
+  customerType String  @default("wholesale") // business, retail, wholesale
+  industry     String?
+  salesRepId   String?
+  salesRep     User?   @relation("CustomerSalesRep", fields: [salesRepId], references: [id])
+
+  // Status
+  status String @default("active") // active, inactive, blocked
+
+  // Parent account (for branches)
+  parentId String?
+  parent   Customer?  @relation("CustomerHierarchy", fields: [parentId], references: [id])
+  children Customer[] @relation("CustomerHierarchy")
+
+  // Company
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+
+  // Relations
+  locations          CustomerLocation[]
+  orders             SalesOrder[]
+  quotes             Quote[]
+  invoices           Invoice[]
+  payments           Payment[]
+  deliveries         Delivery[]
+  creditTransactions CreditTransaction[]
+  returns            Return[]
+  sessions           CustomerSession[]
+  cartItems          CustomerCartItem[]
+  wishlists          CustomerWishlist[]
+  creditApplications CreditApplication[]
+  communications     CommunicationLog[]
+
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  contacts      Contact[]
+  opportunities Opportunity[]
+  activities    Activity[]
+  cases         Case[]
+}
+
+model CustomerLocation {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  // Location details
+  label       String // Head Office, Branch, Warehouse, Delivery Point
+  contactName String?
+  phone       String?
+  email       String?
+
+  // Address
+  address  String
+  address2 String?
+  city     String
+  state    String
+  postcode String
+
+  // Delivery instructions
+  deliveryNotes String?
+
+  // Flags
+  isBilling  Boolean @default(false)
+  isShipping Boolean @default(false)
+  isDefault  Boolean @default(false)
+
+  // Geo coordinates for route planning
+  latitude  Float?
+  longitude Float?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CustomerSession {
+  id               String   @id @default(cuid())
+  customerId       String
+  customer         Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  accessToken      String   @unique
+  refreshToken     String   @unique
+  accessExpiresAt  DateTime
+  refreshExpiresAt DateTime
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model CustomerCartItem {
+  id         String          @id @default(cuid())
+  customerId String
+  customer   Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variantId  String?
+  variant    ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  quantity   Int             @default(1)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  @@unique([customerId, productId, variantId])
+}
+
+model CustomerWishlist {
+  id         String         @id @default(cuid())
+  customerId String
+  customer   Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  name       String
+  visibility String         @default("Private")
+  items      WishlistItem[]
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+}
+
+model WishlistItem {
+  id         String           @id @default(cuid())
+  wishlistId String
+  wishlist   CustomerWishlist @relation(fields: [wishlistId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variantId  String?
+  variant    ProductVariant?  @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  quantity   Int              @default(1)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  @@unique([wishlistId, productId, variantId])
+}
+
+model CreditApplication {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  businessName      String
+  tradingName       String?
+  abnOrAcn          String?
+  businessStructure String?
+  accountsContact   String?
+  accountsEmail     String?
+  contactEmail      String?
+  contactPhone      String?
+
+  requestedLimit      Float @default(0)
+  averageMonthlySpend Float @default(0)
+
+  status          String  @default("submitted") // submitted, under_review, approved, rejected
+  consentAccepted Boolean @default(false)
+  consentName     String?
+  termsVersion    String?
+  payloadJson     String
+
+  reviewNotes   String?
+  approvedLimit Float?
+  approvedTerms Int?
+  reviewedAt    DateTime?
+  reviewedBy    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================
+// Pricing Engine
+// ============================================
+
+model PriceList {
+  id          String  @id @default(cuid())
+  name        String
+  description String?
+
+  // Type
+  type     String @default("wholesale") // wholesale, retail, contract, promotional
+  currency String @default("AUD")
+
+  // Validity
+  validFrom DateTime?
+  validTo   DateTime?
+
+  // Status
+  status    String  @default("active")
+  isDefault Boolean @default(false)
+
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+
+  items     PriceListItem[]
+  customers Customer[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PriceListItem {
+  id          String    @id @default(cuid())
+  priceListId String
+  priceList   PriceList @relation(fields: [priceListId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  // Pricing
+  price  Float // Per unit/pack
+  minQty Int   @default(1) // Volume break start
+  maxQty Int? // Volume break end
+
+  // Discount structure
+  discountPercent Float @default(0)
+  discountFlat    Float @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([priceListId, productId, minQty])
+}
+
+// Discount rules for orders
+model DiscountRule {
+  id          String  @id @default(cuid())
+  name        String
+  description String?
+
+  // Type
+  type         String // order_total, line_item, customer_group
+  discountType String // percentage, flat
+
+  // Conditions
+  minOrderValue Float?
+  minQty        Int?
+  customerIds   String? // JSON array of customer IDs
+
+  // Discount
+  discountValue Float
+
+  // Approval threshold
+  requiresApproval  Boolean @default(false)
+  approvalThreshold Float?
+
+  // Validity
+  validFrom DateTime?
+  validTo   DateTime?
+
+  status String @default("active")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================
+// Quote Management
+// ============================================
+
+model Quote {
+  id          String @id @default(cuid())
+  quoteNumber String @unique
+
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+  locationId String?
+
+  // Dates
+  quoteDate  DateTime  @default(now())
+  validUntil DateTime?
+
+  // Pricing
+  subtotal       Float @default(0)
+  discountAmount Float @default(0)
+  taxAmount      Float @default(0)
+  totalAmount    Float @default(0)
+
+  // Status
+  status String @default("draft") // draft, sent, accepted, rejected, expired, converted
+
+  // Approval workflow
+  requiresApproval Boolean   @default(false)
+  approvedBy       String?
+  approvedAt       DateTime?
+
+  // Conversion
+  salesOrderId String?     @unique
+  salesOrder   SalesOrder?
+
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+
+  // Notes
+  customerNotes String?
+  internalNotes String?
+
+  // Version control
+  version       Int     @default(1)
+  parentQuoteId String?
+
+  items           QuoteItem[]
+  approvalActions ApprovalAction[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model QuoteItem {
+  id      String @id @default(cuid())
+  quoteId String
+  quote   Quote  @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product         @relation(fields: [productId], references: [id])
+  variantId String?
+  variant   ProductVariant? @relation(fields: [variantId], references: [id])
+
+  quantity     Int
+  unitPrice    Float
+  discount     Float   @default(0)
+  discountType String? // percentage, flat
+  taxRate      Float   @default(10)
+  taxAmount    Float   @default(0)
+  total        Float   @default(0)
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================
+// Sales Order Management
+// ============================================
+
+model SalesOrder {
+  id          String @id @default(cuid())
+  orderNumber String @unique
+
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+  locationId String?
+
+  // Source
+  quoteId String? @unique
+  quote   Quote?  @relation(fields: [quoteId], references: [id])
+
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+
+  // Dates
+  orderDate    DateTime  @default(now())
+  requiredDate DateTime?
+  deliveryDate DateTime?
+
+  // Pricing
+  subtotal       Float  @default(0)
+  discountAmount Float  @default(0)
+  taxAmount      Float  @default(0)
+  totalAmount    Float  @default(0)
+  sourceChannel  String @default("admin") // admin, customer_web, customer_app
+
+  // Status
+  status String @default("draft") // draft, pending_approval, approved, picking, packed, dispatched, delivered, invoiced, cancelled
+
+  // Fulfillment
+  warehouseId String?
+  pickListId  String?
+  deliveryId  String?
+
+  // Approval
+  requiresApproval Boolean   @default(false)
+  approvedBy       String?
+  approvedAt       DateTime?
+
+  // Notes
+  customerNotes        String?
+  internalNotes        String?
+  deliveryInstructions String?
+
+  items           SalesOrderItem[]
+  pickList        PickList?
+  invoice         Invoice?
+  approvalActions ApprovalAction[]
+  statusLogs      SalesOrderStatusLog[]
+  returns         Return[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CommerceSettings {
+  id        String   @id @default(cuid())
+  companyId String?  @unique
+  company   Company? @relation(fields: [companyId], references: [id])
+
+  websiteEnabled       Boolean @default(true)
+  mobileAppEnabled     Boolean @default(true)
+  maintenanceMode      Boolean @default(false)
+  autoApproveOrders    Boolean @default(true)
+  inventorySyncEnabled Boolean @default(true)
+  showOutOfStock       Boolean @default(true)
+
+  websiteUrl   String?
+  appStoreUrl  String?
+  playStoreUrl String?
+  supportEmail String?
+  supportPhone String?
+
+  announcementEnabled     Boolean @default(false)
+  announcementText        String?
+  heroTitle               String?
+  heroSubtitle            String?
+  primaryCtaLabel         String?
+  primaryCtaHref          String?
+  featuredCategoryIds     String?
+  guestCheckoutEnabled    Boolean @default(false)
+  minimumOrderAmount      Float   @default(0)
+  freeDeliveryThreshold   Float   @default(0)
+  supportHours            String?
+  estimatedDeliveryWindow String?
+  returnsPolicySummary    String?
+  seoTitle                String?
+  seoDescription          String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CommunicationLog {
+  id         String    @id @default(cuid())
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  supplierId String?
+  supplier   Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+
+  method         String // email, sms, whatsapp
+  direction      String  @default("outbound") // outbound, inbound
+  documentType   String?
+  documentId     String?
+  documentNumber String?
+  recipient      String
+  subject        String?
+  message        String?
+  status         String  @default("queued") // queued, sent, failed, received
+  externalId     String?
+  metadataJson   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SalesOrderItem {
+  id      String     @id @default(cuid())
+  orderId String
+  order   SalesOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product         @relation(fields: [productId], references: [id])
+  variantId String?
+  variant   ProductVariant? @relation(fields: [variantId], references: [id])
+
+  /// Always in BASE units, so stock maths never has to know about packing.
+  quantity   Int // Ordered
+  pickedQty  Int @default(0) // Picked
+  shippedQty Int @default(0) // Shipped
+
+  /// What the customer actually asked for - "2 pallets" - kept alongside the
+  /// base quantity so the order reads back the way it was placed and the
+  /// document shows their language, not ours.
+  unitId       String?
+  unit         ProductUnit? @relation(fields: [unitId], references: [id])
+  unitQuantity Float?
+
+  unitPrice    Float
+  discount     Float   @default(0)
+  discountType String?
+  taxRate      Float   @default(10)
+  taxAmount    Float   @default(0)
+  total        Float   @default(0)
+
+  // Stock allocation
+  warehouseId String?
+  reserved    Boolean @default(false)
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SalesOrderStatusLog {
+  id        String     @id @default(cuid())
+  orderId   String
+  order     SalesOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  status    String
+  userId    String?
+  notes     String?
+  timestamp DateTime   @default(now())
+}
+
+// ============================================
+// Purchase Order Management
+// ============================================
+
+model PurchaseOrder {
+  id       String @id @default(cuid())
+  poNumber String @unique
+
+  supplierId String
+  supplier   Supplier @relation(fields: [supplierId], references: [id])
+
+  // Delivery
+  warehouseId String?
+
+  // Dates
+  orderDate    DateTime  @default(now())
+  expectedDate DateTime?
+  receivedDate DateTime?
+
+  // Pricing
+  subtotal    Float @default(0)
+  taxAmount   Float @default(0)
+  totalAmount Float @default(0)
+
+  // Status
+  status String @default("draft") // draft, submitted, confirmed, partial, received, cancelled
+
+  // Notes
+  notes         String?
+  internalNotes String?
+
+  items PurchaseOrderItem[]
+
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PurchaseOrderItem {
+  id            String        @id @default(cuid())
+  poId          String
+  purchaseOrder PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product         @relation(fields: [productId], references: [id])
+  variantId String?
+  variant   ProductVariant? @relation(fields: [variantId], references: [id])
+
+  /// Base units, as with sales lines.
+  quantity    Int // Ordered
+  receivedQty Int @default(0) // Received
+
+  /// The packing level ordered from the supplier.
+  unitId       String?
+  unit         ProductUnit? @relation(fields: [unitId], references: [id])
+  unitQuantity Float?
+
+  unitCost  Float
+  taxRate   Float @default(10)
+  taxAmount Float @default(0)
+  total     Float @default(0)
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================
+// Warehouse Operations
+// ============================================
+
+model PickList {
+  id         String @id @default(cuid())
+  pickNumber String @unique
+
+  orderId String     @unique
+  order   SalesOrder @relation(fields: [orderId], references: [id])
+
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+
+  // Assignment
+  assignedTo String?
+  user       User?   @relation(fields: [assignedTo], references: [id])
+
+  // Status
+  status String @default("pending") // pending, in_progress, completed, cancelled
+
+  // Timing
+  startedAt   DateTime?
+  completedAt DateTime?
+
+  items PickListItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PickListItem {
+  id         String   @id @default(cuid())
+  pickListId String
+  pickList   PickList @relation(fields: [pickListId], references: [id], onDelete: Cascade)
+
+  productId String
+  location  String? // Bin location
+
+  requiredQty Int
+  pickedQty   Int @default(0)
+
+  // Status
+  status String @default("pending") // pending, picked, short
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================
+// Delivery & Route Planning
+// ============================================
+
+model DeliveryRoute {
+  id          String @id @default(cuid())
+  routeNumber String @unique
+  name        String
+
+  // Date
+  routeDate DateTime @default(now())
+
+  // Warehouse
+  warehouseId String?
+  warehouse   Warehouse? @relation(fields: [warehouseId], references: [id])
+
+  // Driver & Vehicle
+  driverId String?
+  driver   User?   @relation(fields: [driverId], references: [id])
+  vehicle  String? // Vehicle registration or ID
+
+  // Status
+  status String @default("planned") // planned, in_progress, completed, cancelled
+
+  // Timing
+  startTime DateTime?
+  endTime   DateTime?
+
+  // Stats
+  totalStops     Int    @default(0)
+  completedStops Int    @default(0)
+  totalDistance  Float? // km
+  totalWeight    Float? // kg
+
+  deliveries Delivery[]
+
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Delivery {
+  id             String @id @default(cuid())
+  deliveryNumber String @unique
+
+  routeId String?
+  route   DeliveryRoute? @relation(fields: [routeId], references: [id])
+
+  orderId    String?
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+  locationId String?
+
+  // Sequence
+  sequenceNo Int @default(0)
+
+  // Status
+  status String @default("pending") // pending, en_route, arrived, delivered, failed, returned
+
+  // Timing
+  scheduledDate DateTime
+  scheduledTime String? // Time window
+  enRouteAt     DateTime?
+  arrivedAt     DateTime?
+  deliveredAt   DateTime?
+  failedAt      DateTime?
+
+  // Proof of Delivery
+  signatureUrl        String?
+  photoUrl            String?
+  receivedBy          String?
+  notes               String?
+  exceptionReason     String?
+  exceptionPhotoUrl   String?
+  rescheduleRequested Boolean @default(false)
+
+  // Payment collection (COD)
+  codAmount    Float   @default(0)
+  codCollected Boolean @default(false)
+
+  driverId String?
+  driver   User?   @relation(fields: [driverId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Third-party freight
+//
+// Delivery is subcontracted, and which company gets the job depends on where it
+// is going - one carrier for Sydney metro, another for regional NSW, another
+// interstate. Each carrier wants its booking in its own shape, so the fields
+// are stored as data per carrier rather than modelled as columns: a new carrier
+// with a different form is a row, not a migration.
+// ---------------------------------------------------------------------------
+
+model Carrier {
+  id          String  @id @default(cuid())
+  name        String
+  tradingName String?
+  abn         String?
+
+  contactName String?
+  email       String?
+  phone       String?
+  website     String?
+
+  /// email, webform or api. Only email dispatches automatically today; the
+  /// others render the same payload for a human to lodge.
+  bookingMethod String  @default("email")
+  bookingEmail  String?
+  portalUrl     String?
+
+  /// JSON array of { key, label, required, source, default } describing the
+  /// carrier's own booking form. `source` is a dotted path the filler reads
+  /// from the order context, so mapping a new carrier is configuration.
+  formSchemaJson String?
+
+  /// Body template with {{key}} placeholders resolved from the payload.
+  bodySubject  String?
+  bodyTemplate String?
+
+  /// Daily booking cutoff, "HH:MM" local. Used to warn on late bookings.
+  cutoffTime String?
+
+  accountNumber String?
+  notes         String?
+
+  enabled Boolean @default(true)
+
+  companyId String?
+
+  zones    CarrierZone[]
+  bookings FreightBooking[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId, enabled])
+}
+
+/// One service area for a carrier. The lowest priority number that matches an
+/// address wins, so a specific postcode can override a whole-state fallback.
+model CarrierZone {
+  id        String  @id @default(cuid())
+  carrierId String
+  carrier   Carrier @relation(fields: [carrierId], references: [id], onDelete: Cascade)
+
+  name String
+
+  /// postcode, postcode_range, state or suburb.
+  matchType String @default("postcode")
+  /// "2000", "2000-2234", "NSW" or a suburb name, per matchType.
+  matchValue String
+
+  priority     Int @default(100)
+  leadTimeDays Int @default(1)
+
+  baseRate   Float @default(0)
+  perKgRate  Float @default(0)
+  minCharge  Float @default(0)
+
+  enabled Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([carrierId, enabled])
+  @@index([matchType, matchValue])
+}
+
+model FreightBooking {
+  id            String @id @default(cuid())
+  bookingNumber String @unique
+
+  orderId String?
+
+  carrierId String
+  carrier   Carrier @relation(fields: [carrierId], references: [id])
+  zoneId    String?
+
+  /// draft, awaiting_approval, sent, confirmed, in_transit, delivered,
+  /// failed, cancelled.
+  status String @default("draft")
+
+  /// The filled form, keyed by the carrier's own field keys.
+  payloadJson String?
+  /// Exactly what was sent, kept verbatim for disputes.
+  renderedSubject String?
+  renderedBody    String?
+
+  sentTo String?
+  sentAt DateTime?
+
+  externalRef     String?
+  consignmentNote String?
+  trackingUrl     String?
+
+  pickupDate  DateTime?
+  quotedPrice Float?
+  actualPrice Float?
+
+  /// Set when the payload was assembled by the agent rather than a person.
+  createdByAgent Boolean @default(false)
+
+  notes String?
+
+  companyId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([orderId])
+}
+
+// ============================================
+// Invoice & Finance
+// ============================================
+
+model Invoice {
+  id            String @id @default(cuid())
+  invoiceNumber String @unique
+
+  orderId String     @unique
+  order   SalesOrder @relation(fields: [orderId], references: [id])
+
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  // Dates
+  invoiceDate DateTime @default(now())
+  dueDate     DateTime
+
+  // Pricing
+  subtotal    Float
+  taxAmount   Float
+  totalAmount Float
+
+  // Status
+  status String @default("unpaid") // draft, sent, unpaid, partial, paid, overdue, cancelled
+
+  // Payments
+  paidAmount     Float @default(0)
+  outstandingAmt Float
+
+  payments         Payment[]
+  creditNotes      CreditNote[]
+  bankTransactions BankTransaction[]
+
+  // Company
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Payment {
+  id        String  @id @default(cuid())
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id])
+
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  amount    Float
+  method    String // bank_transfer, bpay, credit_card, eftpos, cash, cheque
+  reference String?
+
+  // Bank details for reconciliation
+  bankName      String?
+  bsb           String?
+  accountNumber String?
+
+  // Cheque details
+  chequeNumber String?
+  chequeDate   DateTime?
+
+  paidAt DateTime @default(now())
+  notes  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CreditNote {
+  id       String @id @default(cuid())
+  cnNumber String @unique
+
+  invoiceId String?
+  invoice   Invoice? @relation(fields: [invoiceId], references: [id])
+
+  customerId String
+  amount     Float
+  taxAmount  Float  @default(0)
+  reason     String
+  status     String @default("active") // active, applied, cancelled
+
+  appliedToInvoice String?
+  appliedAmount    Float   @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================
+// Approval Workflow
+// ============================================
+
+model ApprovalAction {
+  id         String @id @default(cuid())
+  entityType String // quote, sales_order, discount
+  entityId   String
+
+  quoteId      String?
+  quote        Quote?      @relation(fields: [quoteId], references: [id])
+  salesOrderId String?
+  salesOrder   SalesOrder? @relation(fields: [salesOrderId], references: [id])
+
+  action String // approved, rejected, requested_changes
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  comments String?
+
+  createdAt DateTime @default(now())
+}
+
+// ============================================
+// System Settings
+// ============================================
+
+model Setting {
+  id       String  @id @default(cuid())
+  key      String  @unique
+  value    String
+  category String? // general, invoice, email, integration
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================
+// Audit Log
+// ============================================
+
+model AuditLog {
+  id         String  @id @default(cuid())
+  entityType String
+  entityId   String
+  action     String // create, update, delete
+  userId     String?
+  oldValues  String? // JSON
+  newValues  String? // JSON
+  ipAddress  String?
+  userAgent  String?
+
+  createdAt DateTime @default(now())
+}
+
+// ============================================
+// Credit Transactions (Customer Credit Ledger)
+// ============================================
+
+model CreditTransaction {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  // Transaction details
+  type         String // credit_grant, invoice_charge, payment_received, adjustment, refund
+  amount       Float // Positive for credits granted/payments, negative for charges
+  balanceAfter Float // Running balance after this transaction
+
+  // Reference
+  referenceType String? // invoice, payment, manual
+  referenceId   String? // Invoice ID, Payment ID, etc.
+
+  description String
+  notes       String?
+
+  // Audit
+  createdBy String?
+
+  createdAt DateTime @default(now())
+}
+
+// ============================================
+// Tax Rates (Multi-Country)
+// ============================================
+
+model TaxRate {
+  id   String @id @default(cuid())
+  name String // e.g., "GST 10%", "CGST 9%", "SGST 9%", "IGST 18%"
+  code String // e.g., "AU_GST", "IN_CGST", "IN_SGST", "IN_IGST"
+
+  country String // AU or IN
+  rate    Float // Percentage (e.g., 10.0, 9.0, 18.0)
+
+  // Tax type
+  taxType String // gst, cgst, sgst, igst, cess, exempt
+
+  // For India: HSN/SAC codes
+  hsnFrom String? // HSN range start
+  hsnTo   String? // HSN range end
+
+  // Status
+  isDefault Boolean @default(false)
+  status    String  @default("active")
+
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([code, companyId])
+}
+
+// ============================================
+// Chart of Accounts (Accounting)
+// ============================================
+
+model ChartOfAccount {
+  id   String @id @default(cuid())
+  code String // e.g., "1000", "2000", "3000"
+  name String // e.g., "Cash", "Accounts Receivable"
+
+  // Classification
+  accountType String // asset, liability, equity, revenue, expense
+  subType     String? // current_asset, fixed_asset, current_liability, etc.
+
+  // Hierarchy
+  parentId String?
+  parent   ChartOfAccount?  @relation("AccountHierarchy", fields: [parentId], references: [id])
+  children ChartOfAccount[] @relation("AccountHierarchy")
+
+  // Balance
+  balance    Float  @default(0)
+  normalSide String @default("debit") // debit or credit
+
+  // Status
+  isSystem Boolean @default(false) // System accounts can't be deleted
+  status   String  @default("active")
+
+  description String?
+
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+
+  journalLines JournalLine[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([code, companyId])
+}
+
+// ============================================
+// Journal Entries (Double-Entry Bookkeeping)
+// ============================================
+
+model JournalEntry {
+  id          String @id @default(cuid())
+  entryNumber String @unique
+
+  // Details
+  date        DateTime @default(now())
+  description String
+
+  // Reference
+  referenceType String? // invoice, payment, expense, adjustment
+  referenceId   String?
+
+  // Status
+  status String @default("draft") // draft, posted, reversed
+
+  // Totals
+  totalDebit  Float @default(0)
+  totalCredit Float @default(0)
+
+  // Audit
+  postedBy String?
+  postedAt DateTime?
+
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+
+  lines JournalLine[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model JournalLine {
+  id             String       @id @default(cuid())
+  journalEntryId String
+  journalEntry   JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+
+  accountId String
+  account   ChartOfAccount @relation(fields: [accountId], references: [id])
+
+  description String?
+  debit       Float   @default(0)
+  credit      Float   @default(0)
+
+  createdAt DateTime @default(now())
+}
+
+// ============================================
+// Expense Tracking
+// ============================================
+
+model Expense {
+  id            String @id @default(cuid())
+  expenseNumber String @unique
+
+  // Details
+  date        DateTime @default(now())
+  category    String // rent, utilities, salary, travel, supplies, marketing, other
+  description String
+
+  // Amount
+  amount      Float
+  taxAmount   Float @default(0)
+  totalAmount Float
+
+  // Payment
+  paymentMethod String? // cash, bank_transfer, credit_card, upi
+  paidTo        String? // Vendor/payee name
+
+  // Receipt
+  receiptUrl String?
+
+  // Approval
+  status     String    @default("pending") // pending, approved, rejected, paid
+  approvedBy String?
+  approvedAt DateTime?
+
+  // Accounting
+  accountId String? // Chart of account
+
+  notes String?
+
+  companyId        String?
+  company          Company?          @relation(fields: [companyId], references: [id])
+  bankTransactions BankTransaction[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================
+// Bank Accounts (Reconciliation)
+// ============================================
+
+model BankAccount {
+  id   String @id @default(cuid())
+  name String // e.g., "Operating Account", "Tax Account"
+
+  bankName      String
+  accountNumber String
+
+  // AU-specific
+  bsb String?
+
+  // IN-specific
+  ifscCode String?
+  upiId    String?
+
+  // Balance
+  currentBalance   Float     @default(0)
+  lastReconciledAt DateTime?
+  lastSyncAt       DateTime?
+  provider         String?
+  connectionStatus String    @default("manual")
+
+  // Status
+  isDefault Boolean @default(false)
+  status    String  @default("active")
+
+  currency String @default("AUD")
+
+  companyId       String?
+  company         Company?                @relation(fields: [companyId], references: [id])
+  transactions    BankTransaction[]
+  reconciliations ReconciliationSession[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model BankTransaction {
+  id            String      @id @default(cuid())
+  bankAccountId String
+  bankAccount   BankAccount @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+
+  transactionDate DateTime
+  description     String
+  reference       String?
+  amount          Float
+  direction       String // money_in, money_out
+  category        String? // receipt, expense, fee, transfer, adjustment
+  status          String   @default("unmatched") // unmatched, matched, ignored
+  source          String   @default("manual") // manual, import, bank_feed
+  externalId      String?
+  counterparty    String?
+  balanceAfter    Float?
+  notes           String?
+
+  invoiceId String?
+  invoice   Invoice? @relation(fields: [invoiceId], references: [id])
+  expenseId String?
+  expense   Expense? @relation(fields: [expenseId], references: [id])
+
+  reconciliationSessionId String?
+  reconciliationSession   ReconciliationSession? @relation(fields: [reconciliationSessionId], references: [id])
+
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ReconciliationSession {
+  id            String      @id @default(cuid())
+  bankAccountId String
+  bankAccount   BankAccount @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+
+  statementDate    DateTime
+  periodStart      DateTime?
+  periodEnd        DateTime?
+  statementBalance Float
+  systemBalance    Float     @default(0)
+  difference       Float     @default(0)
+  matchedCount     Int       @default(0)
+  unmatchedCount   Int       @default(0)
+  status           String    @default("draft") // draft, in_progress, balanced, review_required
+  notes            String?
+
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+
+  transactions BankTransaction[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AccountingIntegration {
+  id            String    @id @default(cuid())
+  provider      String // xero, quickbooks, myob, bank_feed
+  category      String    @default("accounting") // accounting, banking, messaging
+  status        String    @default("disconnected") // disconnected, connected, needs_attention
+  displayName   String?
+  connectionRef String?
+  configJson    String?
+  lastSyncAt    DateTime?
+  notes         String?
+
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([provider, companyId])
+}
+
+model FinanceDocument {
+  id           String    @id @default(cuid())
+  documentType String // bank_statement, bill, receipt, export, policy
+  title        String
+  fileName     String?
+  fileUrl      String?
+  status       String    @default("ready") // ready, imported, exported, archived
+  source       String    @default("manual")
+  periodStart  DateTime?
+  periodEnd    DateTime?
+  metadataJson String?
+
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================
+// Returns Management (RMA)
+// ============================================
+
+model Return {
+  id           String @id @default(cuid())
+  returnNumber String @unique
+
+  orderId String?
+  order   SalesOrder? @relation(fields: [orderId], references: [id])
+
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+
+  status        String  @default("pending") // pending, approved, received, completed, rejected
+  reason        String?
+  notes         String?
+  internalNotes String?
+
+  // Financials
+  refundAmount Float @default(0)
+  restockFee   Float @default(0)
+  totalAmount  Float @default(0)
+
+  items ReturnItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ReturnItem {
+  id       String @id @default(cuid())
+  returnId String
+  return   Return @relation(fields: [returnId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  variantId String?
+  variant   ProductVariant? @relation(fields: [variantId], references: [id])
+
+  quantity  Int
+  condition String @default("saleable") // saleable, damaged, return_to_supplier
+
+  refundAmount Float @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Agent layer
+// Channel-agnostic conversational agents. Every surface (Telegram, WhatsApp,
+// iMessage, in-app chat) normalises into AgentThread + AgentMessage and runs
+// against the same tool registry, scoped by persona and policy.
+// Scalar owner ids (no relations) follow the AuditLog convention.
+// ---------------------------------------------------------------------------
+
+model ChannelIdentity {
+  id String @id @default(cuid())
+
+  channel     String // telegram, whatsapp, imessage, web
+  externalId  String // telegram chat id, E.164 phone, etc.
+  displayName String?
+
+  // Exactly one of these is set: staff identity or customer identity.
+  userId     String?
+  customerId String?
+
+  // Staff link via one-time code; customers verify by phone match.
+  linkCode      String?
+  linkExpiresAt DateTime?
+  verifiedAt    DateTime?
+
+  status       String  @default("pending") // pending, active, blocked
+  metadataJson String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([channel, externalId])
+  @@index([userId])
+  @@index([customerId])
+}
+
+model AgentThread {
+  id String @id @default(cuid())
+
+  channel   String // telegram, whatsapp, imessage, web
+  threadKey String // stable per conversation (chat id, phone, session id)
+  persona   String // ops, customer
+
+  userId     String?
+  customerId String?
+  identityId String?
+
+  title         String?
+  status        String    @default("open") // open, idle, closed
+  stateJson     String? // persona scratchpad (draft cart, pending confirmation)
+  lastMessageAt DateTime?
+
+  /// A short account of what this conversation was about and what was decided.
+  /// Written after the fact, so a search hit reads as something meaningful
+  /// rather than one stray line out of context.
+  summary       String?
+  summarisedAt  DateTime?
+  /// Messages at the time of summarising, so a thread that has moved on since
+  /// can be spotted and redone.
+  summarisedUpTo Int @default(0)
+
+  messages AgentMessage[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([channel, threadKey])
+  @@index([userId])
+  @@index([customerId])
+}
+
+model AgentMessage {
+  id       String      @id @default(cuid())
+  threadId String
+  thread   AgentThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  role           String // user, assistant, tool, system
+  content        String?
+  toolName       String?
+  toolCallsJson  String?
+  toolResultJson String?
+
+  externalId String? // provider message id, for dedupe
+  runId      String?
+  rawJson    String? // the full ModelMessage, replayed verbatim on the next turn
+
+  createdAt DateTime @default(now())
+
+  @@index([threadId, createdAt])
+  @@index([externalId])
+}
+
+/// A user-defined agent.
+///
+/// The runtime originally hardcoded two personas with their prompts baked into
+/// constants. Storing the definition instead lets staff build their own agents -
+/// their own instructions, their own subset of the tool registry, their own
+/// autonomy limits - without a deploy. The two built-in personas are seeded as
+/// isSystem rows so there is exactly one code path.
+model AgentDefinition {
+  id String @id @default(cuid())
+
+  slug        String  @unique // stable key, also the persona written onto runs
+  name        String
+  description String?
+  /// Emoji shown in the picker.
+  avatar      String?
+
+  /// The system prompt. Business context is appended by the runtime.
+  instructions String
+
+  /// JSON array of tool names from TOOL_POLICY. Null means every tool the
+  /// audience is allowed. An empty array means a conversation-only agent.
+  toolsJson String?
+
+  /// Which principal kind this agent serves: staff or customer.
+  audience String @default("staff")
+
+  /// Optional model override, otherwise the configured chat model.
+  model    String?
+  maxSteps Int     @default(12)
+
+  /// JSON Partial<AgentThresholds>, layered over the global thresholds. Lets one
+  /// agent stay read-only while another may place small orders.
+  thresholdsJson String?
+
+  /// manual, schedule or event.
+  trigger  String  @default("manual")
+  /// Cron expression when trigger is "schedule".
+  schedule String?
+  /// The prompt a scheduled or event run starts from.
+  runPrompt String?
+
+  enabled Boolean @default(true)
+  /// Built-in agents cannot be deleted, only edited.
+  isSystem Boolean @default(false)
+
+  createdById String?
+  /// The staff user a scheduled run acts as. Role limits and approval
+  /// thresholds are evaluated against this person, so an unattended run can
+  /// never do more than they could.
+  runAsUserId String?
+
+  lastRunAt     DateTime?
+  /// succeeded, failed or skipped, so a quietly broken schedule is visible.
+  lastRunStatus String?
+  lastRunError  String?
+  /// When this schedule is next due. Written forward *before* the run starts,
+  /// which is what stops two overlapping ticks executing the same agent twice.
+  nextRunAt     DateTime?
+  runCount      Int       @default(0)
+
+  runs AgentRun[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([enabled, trigger])
+}
+
+model AgentRun {
+  id String @id @default(cuid())
+
+  persona  String
+  trigger  String // message, cron, manual, webhook
+  channel  String?
+  threadId String?
+
+  definitionId String?
+  definition   AgentDefinition? @relation(fields: [definitionId], references: [id], onDelete: SetNull)
+
+  status     String  @default("running") // running, succeeded, failed
+  inputJson  String?
+  outputJson String?
+  errorText  String?
+
+  steps        Int     @default(0)
+  promptTokens Int     @default(0)
+  outputTokens Int     @default(0)
+  costUsd      Float   @default(0)
+  model        String?
+
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  @@index([persona, startedAt])
+  @@index([threadId])
+}
+
+/// A procedure the agent worked out and kept.
+///
+/// Memory stores facts — "we don't deliver to Tasmania". A skill stores *how to
+/// do something*: the steps for a month-end reconciliation, what to check
+/// before releasing a large order, how this business handles a recall. The
+/// agent writes these from experience rather than being given them, and revises
+/// them when a run shows the steps were wrong.
+///
+/// This is the difference between an agent that repeats work and one that gets
+/// better at it.
+model AgentSkill {
+  id   String @id @default(cuid())
+  slug String @unique
+  name String
+
+  /// When to reach for this. Read at selection time, so it must describe the
+  /// trigger, not the steps.
+  description String
+
+  /// The procedure itself, markdown. Written by the agent.
+  content String
+
+  /// Tool names this procedure expects, so a skill is not offered to an agent
+  /// that cannot carry it out.
+  toolsJson String?
+
+  category String @default("process") // process, checklist, analysis, recovery
+
+  status String @default("active") // draft, active, archived
+
+  version Int @default(1)
+
+  /// Outcome tracking. A skill that keeps failing should be revised or retired,
+  /// and that is only visible if it is counted.
+  useCount     Int @default(0)
+  successCount Int @default(0)
+  failureCount Int @default(0)
+
+  lastUsedAt DateTime?
+
+  /// Provenance: the run that produced it.
+  createdFromRunId String?
+  createdByAgent   Boolean @default(true)
+  createdById      String?
+
+  companyId String?
+
+  revisions AgentSkillRevision[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, category])
+}
+
+/// One edit to a skill, kept so a procedure's evolution is auditable and a bad
+/// revision can be traced.
+model AgentSkillRevision {
+  id      String     @id @default(cuid())
+  skillId String
+  skill   AgentSkill @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  version Int
+  content String
+  /// Why it changed, in the agent's own words.
+  changeNote String?
+
+  runId String?
+
+  createdAt DateTime @default(now())
+
+  @@index([skillId, version])
+}
+
+/// What the agent has learned and keeps.
+///
+/// A thread holds a conversation; this holds what should outlive it. Without it
+/// every session starts cold and the same things get re-explained forever,
+/// which is the difference between a chatbot and something that feels like
+/// *your* assistant.
+///
+/// Three scopes, and the separation is a boundary not a convenience:
+///   company - how this business works, shared by all staff
+///   user    - one person's own preferences and context
+///   entity  - a fact about a specific customer, supplier or product
+///
+/// Customer principals never read company or user memory. Their own scope is
+/// entity memory about their own account, nothing else.
+model AgentMemory {
+  id String @id @default(cuid())
+
+  scope String @default("company") // company, user, entity
+
+  /// Set when scope is "user". Personal memory is never shared between staff.
+  userId String?
+
+  /// Set when scope is "entity".
+  entityType String? // customer, supplier, product
+  entityId   String?
+
+  /// The fact itself, written as a short sentence to be read back into a prompt.
+  content String
+
+  /// Stable identifier for a recurring fact, so learning it again updates the
+  /// row instead of adding a near-duplicate.
+  key String?
+
+  /// preference, process, constraint, relationship, fact
+  category String @default("fact")
+
+  /// 0-100. Drives what survives the prompt budget when there is more memory
+  /// than room.
+  importance Int @default(50)
+
+  source         String  @default("agent") // agent, user, system
+  sourceThreadId String?
+
+  /// Retrieval signals. A fact nobody ever uses is a candidate for pruning.
+  lastUsedAt DateTime?
+  useCount   Int       @default(0)
+
+  /// Facts go stale. A superseded row is kept for audit but never retrieved.
+  status         String  @default("active") // active, superseded, archived
+  supersededById String?
+
+  companyId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([scope, status, importance])
+  @@index([userId, status])
+  @@index([entityType, entityId, status])
+  @@index([key])
+}
+
+/// Something the agent decided was worth interrupting a person about.
+///
+/// Recorded rather than fire-and-forget so the same alert is not resent every
+/// tick: a signal carries a stable `dedupeKey` and is only re-sent once its
+/// cooldown has passed. An agent that pings hourly gets muted, and a muted
+/// agent is worse than no agent.
+model AgentNotification {
+  id String @id @default(cuid())
+
+  /// Identifies the *thing*, not the occurrence - e.g. "invoice-overdue:<id>".
+  dedupeKey String
+
+  userId  String?
+  channel String @default("telegram")
+
+  kind     String // overdue_invoice, stock_out, lapsed_account, pending_approval, freight_cutoff
+  severity String @default("info") // info, warn, urgent
+
+  title String
+  body  String
+
+  entityType String?
+  entityId   String?
+
+  status String  @default("sent") // sent, failed, suppressed
+  error  String?
+
+  sentAt DateTime @default(now())
+
+  @@index([dedupeKey, sentAt])
+  @@index([userId, sentAt])
+}
+
+model AgentProposal {
+  id String @id @default(cuid())
+
+  // What the agent wants to do, as a replayable tool invocation.
+  toolName  String
+  argsJson  String
+  summary   String
+  reasoning String?
+
+  entityType String?
+  entityId   String?
+
+  risk        String @default("medium") // low, medium, high
+  valueAmount Float? // drives threshold comparison
+
+  // auto_executed when under policy threshold, otherwise pending until approved.
+  status       String  @default("pending") // pending, approved, rejected, auto_executed, executed, failed
+  autoActed    Boolean @default(false)
+  policyReason String?
+
+  requestedBy String? // agent persona
+  threadId    String?
+  runId       String?
+  approvalId  String? // SDK tool-approval id, used to resume a paused run
+
+  decidedByUserId String?
+  decidedAt       DateTime?
+  decisionNote    String?
+
+  resultJson String?
+  executedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([entityType, entityId])
+}
+
+model CrmTask {
+  id String @id @default(cuid())
+
+  title String
+  notes String?
+  type  String  @default("follow_up") // follow_up, call, visit, quote, collection
+
+  customerId String?
+  supplierId String?
+  entityType String?
+  entityId   String?
+
+  assignedToId   String?
+  createdById    String?
+  createdByAgent Boolean @default(false)
+
+  dueAt       DateTime?
+  priority    String    @default("normal") // low, normal, high
+  status      String    @default("open") // open, done, cancelled
+  completedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([assignedToId, status])
+  @@index([customerId])
+  @@index([dueAt])
+}
+
+// ---------------------------------------------------------------------------
+// CRM
+// A trade account is not one person: it has a buyer, a venue manager, an AP
+// clerk and an owner, and work happens against those people rather than the
+// business record. These models give the agent somewhere to put what it learns
+// so a rep never has to fill in a form.
+// ---------------------------------------------------------------------------
+
+model Contact {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  name     String
+  role     String  @default("buyer") // buyer, manager, chef, accounts_payable, owner, other
+  jobTitle String?
+  email    String?
+  phone    String?
+  mobile   String?
+
+  isPrimary        Boolean @default(false)
+  isDecisionMaker  Boolean @default(false)
+  preferredChannel String? // email, phone, whatsapp, telegram, sms
+
+  notes  String?
+  status String  @default("active") // active, inactive, left_business
+
+  activities Activity[]
+  cases      Case[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([email])
+}
+
+model Lead {
+  id String @id @default(cuid())
+
+  businessName String
+  contactName  String?
+  email        String?
+  phone        String?
+  suburb       String?
+  industry     String?
+
+  source String  @default("inbound") // inbound, referral, trade_show, cold_call, website, campaign
+  status String  @default("new") // new, contacted, qualified, converted, lost
+  notes  String?
+
+  estimatedValue Float?
+
+  ownerId String?
+  owner   User?   @relation("LeadOwner", fields: [ownerId], references: [id])
+
+  convertedCustomerId String?
+  convertedAt         DateTime?
+  lostReason          String?
+
+  opportunities Opportunity[]
+  activities    Activity[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([ownerId])
+}
+
+model Opportunity {
+  id   String @id @default(cuid())
+  name String
+
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  leadId     String?
+  lead       Lead?     @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  // prospect, qualified, proposal, negotiation, won, lost
+  stage       String @default("prospect")
+  value       Float  @default(0)
+  probability Int    @default(50)
+
+  expectedCloseDate DateTime?
+  closedAt          DateTime?
+  lossReason        String?
+
+  ownerId String?
+  owner   User?   @relation("OpportunityOwner", fields: [ownerId], references: [id])
+
+  notes String?
+
+  activities Activity[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([stage])
+  @@index([customerId])
+  @@index([ownerId])
+}
+
+/// The unified account timeline: one row per thing that happened, whoever did it.
+model Activity {
+  id String @id @default(cuid())
+
+  // call, visit, note, email, meeting, quote_sent, complaint, message
+  type    String
+  subject String
+  body    String?
+
+  customerId    String?
+  customer      Customer?    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  contactId     String?
+  contact       Contact?     @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  leadId        String?
+  lead          Lead?        @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  opportunityId String?
+  opportunity   Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+
+  userId String?
+  user   User?   @relation("ActivityUser", fields: [userId], references: [id])
+
+  createdByAgent  Boolean @default(false)
+  channel         String? // web, telegram, whatsapp, email, voice
+  durationMinutes Int?
+  outcome         String?
+
+  occurredAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  @@index([customerId, occurredAt])
+  @@index([contactId])
+  @@index([opportunityId])
+}
+
+model Case {
+  id         String @id @default(cuid())
+  caseNumber String @unique
+
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  contactId  String?
+  contact    Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  subject     String
+  description String?
+  // delivery, quality, pricing, billing, shortage, other
+  category    String  @default("other")
+  severity    String  @default("normal") // low, normal, high
+  status      String  @default("open") // open, in_progress, resolved, closed
+
+  orderId String?
+
+  assignedToId String?
+  assignedTo   User?   @relation("CaseAssignee", fields: [assignedToId], references: [id])
+
+  resolution String?
+  resolvedAt DateTime?
+
+  createdByAgent Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, severity])
+  @@index([customerId])
+}
+
+/// A saved, re-evaluated audience definition. Feeds both reporting and campaigns.
+model Segment {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  description String?
+
+  /// JSON filter evaluated at read time, so membership is never stale.
+  definitionJson String
+
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Marketing
+// Campaigns are per-account, not blasts: the audience is a saved definition
+// evaluated at send time, and each recipient's copy is generated from that
+// account's own history. Consent and suppression are enforced on every send.
+// ---------------------------------------------------------------------------
+
+model Campaign {
+  id   String @id @default(cuid())
+  name String
+
+  /// win_back, catalogue_drop, promotion, price_change, cross_sell, reorder_nudge, event
+  type    String @default("promotion")
+  channel String @default("email") // email, whatsapp, sms, telegram
+
+  /// The brief the campaign was generated from, kept for auditing and reuse.
+  brief String?
+
+  segmentId      String?
+  /// Snapshot of the segment definition at build time, so a later edit to the
+  /// segment cannot change who a past campaign actually went to.
+  definitionJson String?
+
+  subject      String?
+  bodyTemplate String?
+
+  // draft, ready, approved, sending, sent, cancelled
+  status String @default("draft")
+
+  scheduledFor DateTime?
+  sentAt       DateTime?
+
+  createdById  String?
+  approvedById String?
+  approvedAt   DateTime?
+
+  createdByAgent Boolean @default(false)
+  proposalId     String?
+
+  members CampaignMember[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+}
+
+model CampaignMember {
+  id         String   @id @default(cuid())
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  customerId String
+  contactId  String?
+  recipient  String // resolved address or number at build time
+
+  /// Copy written for this specific account, reviewable before anything sends.
+  subject String?
+  message String?
+
+  /// pending, approved, suppressed, sent, failed, replied, converted
+  status            String  @default("pending")
+  suppressionReason String?
+  failureReason     String?
+
+  sentAt    DateTime?
+  repliedAt DateTime?
+
+  /// Set when an order arrives from this recipient after the send.
+  convertedOrderId String?
+  convertedAt      DateTime?
+  convertedValue   Float?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([campaignId, customerId])
+  @@index([status])
+}
+
+model MessageTemplate {
+  id      String @id @default(cuid())
+  name    String @unique
+  channel String @default("email")
+
+  /// WhatsApp business-initiated messages need a Meta-approved template.
+  externalTemplateName String?
+  approvalStatus       String  @default("draft") // draft, submitted, approved, rejected
+
+  subject String?
+  body    String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Consent and suppression, per address and channel. Checked on every send.
+model ConsentRecord {
+  id String @id @default(cuid())
+
+  customerId String?
+  contactId  String?
+  address    String // email address or E.164 number
+  channel    String // email, whatsapp, sms
+
+  /// granted, withdrawn, bounced, complained
+  state  String  @default("granted")
+  source String? // signup, contract, verbal, imported
+  note   String?
+
+  changedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([address, channel])
+  @@index([customerId])
+}

@@ -1,0 +1,107 @@
+import { describe, expect, it } from "vitest"
+
+import { checkEnvironment } from "./env-guard"
+
+/**
+ * These checks are the difference between a deployment that refuses to start
+ * and one that quietly signs admin sessions with a secret published in the
+ * repository. The fatal cases matter most: they must stay fatal.
+ */
+
+const prod = (extra: Record<string, string> = {}) =>
+  ({
+    NODE_ENV: "production",
+    DATABASE_URL: "postgres://localhost/app",
+    ...extra,
+  }) as NodeJS.ProcessEnv
+
+const secret = "a".repeat(40)
+
+const fatalKeys = (env: NodeJS.ProcessEnv) =>
+  checkEnvironment(env)
+    .filter((issue) => issue.level === "fatal")
+    .map((issue) => issue.key)
+
+describe("checkEnvironment in production", () => {
+  it("refuses to start when session secrets are unset", () => {
+    expect(fatalKeys(prod())).toEqual(
+      expect.arrayContaining(["ADMIN_SESSION_SECRET", "DRIVER_SESSION_SECRET"])
+    )
+  })
+
+  it("refuses the known development secrets", () => {
+    const keys = fatalKeys(
+      prod({
+        ADMIN_SESSION_SECRET: "supplysure-admin-dev-secret",
+        DRIVER_SESSION_SECRET: "driver-session-dev-secret",
+      })
+    )
+
+    expect(keys).toContain("ADMIN_SESSION_SECRET")
+    expect(keys).toContain("DRIVER_SESSION_SECRET")
+  })
+
+  it("accepts NEXTAUTH_SECRET as a shared fallback", () => {
+    expect(fatalKeys(prod({ NEXTAUTH_SECRET: secret }))).toEqual([])
+  })
+
+  it("warns but starts on a short secret", () => {
+    const issues = checkEnvironment(
+      prod({ ADMIN_SESSION_SECRET: "abc", DRIVER_SESSION_SECRET: "def" })
+    )
+
+    expect(issues.filter((issue) => issue.level === "fatal")).toEqual([])
+    expect(issues.some((issue) => issue.message.includes("characters"))).toBe(true)
+  })
+
+  it("is fatal without a database URL", () => {
+    const env = { NODE_ENV: "production", NEXTAUTH_SECRET: secret } as NodeJS.ProcessEnv
+
+    expect(fatalKeys(env)).toContain("DATABASE_URL")
+  })
+
+  it("warns about SQLite but does not block", () => {
+    const issues = checkEnvironment(
+      prod({ DATABASE_URL: "file:./db/dev.db", NEXTAUTH_SECRET: secret })
+    )
+
+    expect(issues.filter((issue) => issue.level === "fatal")).toEqual([])
+    expect(issues.some((issue) => issue.key === "DATABASE_URL")).toBe(true)
+  })
+
+  it("passes cleanly when fully configured", () => {
+    const issues = checkEnvironment(
+      prod({
+        ADMIN_SESSION_SECRET: secret,
+        DRIVER_SESSION_SECRET: "b".repeat(40),
+        CRON_SECRET: "c".repeat(40),
+        AI_GATEWAY_API_KEY: "key",
+      })
+    )
+
+    expect(issues).toEqual([])
+  })
+
+  it("flags AUTH_BYPASS as a warning, since the build already ignores it", () => {
+    const issues = checkEnvironment(
+      prod({ NEXTAUTH_SECRET: secret, AUTH_BYPASS: "true" })
+    )
+
+    const bypass = issues.find((issue) => issue.key === "AUTH_BYPASS")
+
+    expect(bypass?.level).toBe("warn")
+  })
+})
+
+describe("checkEnvironment in development", () => {
+  it("never blocks local work", () => {
+    const issues = checkEnvironment({
+      NODE_ENV: "development",
+      DATABASE_URL: "file:./db/dev.db",
+    } as NodeJS.ProcessEnv)
+
+    expect(issues.filter((issue) => issue.level === "fatal")).toEqual([])
+    // Still says something, so the gap is visible before deploying.
+    expect(issues.length).toBeGreaterThan(0)
+  })
+})
