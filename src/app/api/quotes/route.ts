@@ -99,6 +99,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Customer not found" }, { status: 404 })
     }
 
+    const productIds = Array.from(
+      new Set(
+        items
+          .map((item: any) => String(item.productId || "").trim())
+          .filter(Boolean)
+      )
+    )
+
+    const products = await db.product.findMany({
+      where: { id: { in: productIds } },
+      select: { id: true, wholesalePrice: true, gstRate: true },
+    })
+    const productMap = new Map(products.map((p) => [p.id, p]))
+
     let subtotal = 0
     let discountAmount = 0
     let taxAmount = 0
@@ -112,11 +126,9 @@ export async function POST(request: NextRequest) {
       taxAmount: number
       total: number
     }> = []
+
     for (const item of items) {
-      const product = await db.product.findUnique({
-        where: { id: item.productId },
-        select: { id: true, wholesalePrice: true, gstRate: true },
-      })
+      const product = productMap.get(item.productId)
 
       if (!product) {
         return NextResponse.json(

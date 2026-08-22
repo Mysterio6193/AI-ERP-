@@ -91,25 +91,36 @@ export async function PATCH(request: NextRequest) {
         )
       }
       newQuantity -= quantity
+    } else if (type === "adjustment") {
+      newQuantity = quantity
+    } else {
+      return NextResponse.json(
+        { success: false, error: "Invalid movement type" },
+        { status: 400 }
+      )
     }
 
-    // Update inventory
-    const updatedInventory = await db.inventory.update({
-      where: { id: inventory.id },
-      data: { quantity: newQuantity },
-    })
+    const delta = newQuantity - inventory.quantity
 
-    // Create stock movement log
-    await db.stockMovement.create({
-      data: {
-        productId,
-        warehouseId,
-        inventoryId: inventory.id,
-        type: type,
-        quantity: type === "out" ? -quantity : quantity,
-        reason: notes,
-        referenceType: "adjustment",
-      },
+    const updatedInventory = await db.$transaction(async (tx) => {
+      const updated = await tx.inventory.update({
+        where: { id: inventory.id },
+        data: { quantity: newQuantity },
+      })
+
+      await tx.stockMovement.create({
+        data: {
+          productId,
+          warehouseId,
+          inventoryId: inventory.id,
+          type,
+          quantity: delta,
+          reason: notes || (type === "adjustment" ? `Stock adjustment to ${newQuantity}` : undefined),
+          referenceType: "adjustment",
+        },
+      })
+
+      return updated
     })
 
     return NextResponse.json({ success: true, data: updatedInventory })

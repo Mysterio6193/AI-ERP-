@@ -354,6 +354,11 @@ export async function PUT(
           where: { orderId: id },
           data: { status: "failed" },
         })
+
+        await db.stockReservation.updateMany({
+          where: { referenceId: id, status: "active" },
+          data: { status: "released" },
+        })
       }
 
       try {

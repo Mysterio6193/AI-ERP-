@@ -8,6 +8,7 @@ import {
   quarantineBatch,
   releaseBatch,
 } from "@/lib/batches"
+import { traceBatch } from "@/lib/manufacturing"
 import { db } from "@/lib/db"
 
 import type { AgentPrincipal } from "../context"
@@ -162,6 +163,15 @@ export function buildFoodSafetyTools(principal: AgentPrincipal) {
       description: "Take a batch off hold once it has been cleared.",
       inputSchema: z.object({ batchCode: z.string() }),
       execute: async ({ batchCode }) => releaseBatch(batchCode),
+    }),
+
+    traceBatch: defineTool({
+      description:
+        "Perform forward and backward lot traceability for food safety or recall. Shows what raw ingredients went into a finished batch, or which customers and sales orders received product made from a supplier lot.",
+      inputSchema: z.object({
+        batchCode: z.string().describe("The lot code / batch code to trace"),
+      }),
+      execute: async ({ batchCode }) => traceBatch(batchCode),
     }),
   }
 }
