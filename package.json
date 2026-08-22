@@ -16,7 +16,8 @@
     "db:migrate": "prisma migrate dev",
     "db:reset": "prisma migrate reset",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "probe:agent": "bun scripts/agent-probe.ts"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^3.0.33",
