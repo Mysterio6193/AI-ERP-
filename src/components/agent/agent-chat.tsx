@@ -13,6 +13,8 @@ import {
   FileText,
   Loader2,
   Mic,
+  Volume2,
+  VolumeX,
   Paperclip,
   Send,
   Sparkles,
@@ -110,6 +112,15 @@ export function AgentChat({ threadKey, suggestions, pageContext, compact }: Agen
   const fileInputRef = useRef<HTMLInputElement>(null)
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
 
+  // Reading replies aloud completes the hands-free loop dictation started:
+  // useful in a van or on a warehouse floor, where reading a screen is the
+  // actual barrier. Browser speech synthesis, so it needs no credential and no
+  // audio leaves the machine.
+  const [speaking, setSpeaking] = useState(false)
+  const speechSupported =
+    typeof window !== "undefined" && typeof window.speechSynthesis !== "undefined"
+  const spokenRef = useRef<string | null>(null)
+
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
@@ -125,6 +136,41 @@ export function AgentChat({ threadKey, suggestions, pageContext, compact }: Agen
   })
 
   const busy = status === "submitted" || status === "streaming"
+
+  useEffect(() => {
+    if (!speaking || !speechSupported || busy) {
+      return
+    }
+
+    const last = messages[messages.length - 1]
+    if (!last || last.role !== "assistant") {
+      return
+    }
+
+    const text = (last.parts || [])
+      .map((part) => (part.type === "text" ? part.text : ""))
+      .join(" ")
+      .trim()
+
+    // Only once per message, and only once it has stopped streaming —
+    // otherwise every token restarts the utterance.
+    if (!text || spokenRef.current === last.id) {
+      return
+    }
+
+    spokenRef.current = last.id
+    window.speechSynthesis.cancel()
+    window.speechSynthesis.speak(new SpeechSynthesisUtterance(text))
+  }, [messages, busy, speaking, speechSupported])
+
+  useEffect(() => {
+    // Never keep talking after the panel closes.
+    return () => {
+      if (typeof window !== "undefined" && window.speechSynthesis) {
+        window.speechSynthesis.cancel()
+      }
+    }
+  }, [])
 
   useEffect(() => {
     const params = threadKey ? `?threadKey=${encodeURIComponent(threadKey)}` : ""
@@ -441,6 +487,24 @@ export function AgentChat({ threadKey, suggestions, pageContext, compact }: Agen
               title={listening ? "Stop dictation" : "Dictate"}
             >
               <Mic className="h-4 w-4" />
+            </Button>
+          ) : null}
+          {speechSupported ? (
+            <Button
+              size="icon"
+              variant={speaking ? "default" : "outline"}
+              className="h-11 w-11 shrink-0"
+              onClick={() => {
+                setSpeaking((current) => {
+                  if (current) window.speechSynthesis.cancel()
+                  // Don't read out whatever is already on screen when switched on.
+                  spokenRef.current = messages[messages.length - 1]?.id ?? null
+                  return !current
+                })
+              }}
+              title={speaking ? "Stop reading replies aloud" : "Read replies aloud"}
+            >
+              {speaking ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
             </Button>
           ) : null}
           <Button

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { NAME_SUGGESTIONS } from "@/lib/agent/identity-shared"
 
 export default function AdminSetupPage() {
   const router = useRouter()
@@ -14,11 +15,12 @@ export default function AdminSetupPage() {
   const [checkingState, setCheckingState] = useState(true)
   const [error, setError] = useState("")
   const [form, setForm] = useState({
-    companyName: "Jumbo Foods",
+    companyName: "",
     name: "",
     email: "",
     password: "",
     confirmPassword: "",
+    agentName: "",
   })
 
   useEffect(() => {
@@ -96,7 +98,7 @@ export default function AdminSetupPage() {
                 id="companyName"
                 value={form.companyName}
                 onChange={(event) => setForm((current) => ({ ...current, companyName: event.target.value }))}
-                placeholder="Jumbo Foods"
+                placeholder="Your business name"
               />
             </div>
             <div className="space-y-2">
@@ -115,7 +117,7 @@ export default function AdminSetupPage() {
                 type="email"
                 value={form.email}
                 onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
-                placeholder="admin@jumbofoods.com"
+                placeholder="you@yourbusiness.com"
               />
             </div>
             <div className="space-y-2">
@@ -137,6 +139,34 @@ export default function AdminSetupPage() {
                 onChange={(event) => setForm((current) => ({ ...current, confirmPassword: event.target.value }))}
                 placeholder="Repeat password"
               />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="agentName">Name your assistant</Label>
+              <Input
+                id="agentName"
+                value={form.agentName}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, agentName: event.target.value }))
+                }
+                placeholder="Leave blank to decide later"
+              />
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-xs text-muted-foreground">Suggestions:</span>
+                {NAME_SUGGESTIONS.map((suggestion) => (
+                  <button
+                    key={suggestion}
+                    type="button"
+                    className="rounded-full border px-2.5 py-0.5 text-xs hover:bg-muted"
+                    onClick={() => setForm((current) => ({ ...current, agentName: suggestion }))}
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Staff will talk to it by this name. It always says it is an assistant and never
+                passes as a person.
+              </p>
             </div>
             {error ? (
               <div className="md:col-span-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">

@@ -1,5 +1,16 @@
 import { db } from "@/lib/db"
 
+import {
+  DEFAULT_IDENTITY,
+  NAME_SUGGESTIONS,
+  formatIdentity,
+  type AgentIdentity,
+} from "./identity-shared"
+
+// Re-exported so server callers keep one import site; client components must
+// import from `identity-shared` directly, since this module touches the database.
+export { DEFAULT_IDENTITY, NAME_SUGGESTIONS, formatIdentity, type AgentIdentity }
+
 /**
  * The agent's own identity.
  *
@@ -15,22 +26,6 @@ import { db } from "@/lib/db"
 
 const SETTING_KEY = "agent.identity"
 
-export interface AgentIdentity {
-  name: string
-  email: string
-  phone: string | null
-  signature: string
-  /** Never impersonate a person: outbound copy says what this is. */
-  disclosure: string
-}
-
-export const DEFAULT_IDENTITY: AgentIdentity = {
-  name: "SupplySure Assistant",
-  email: "orders@localhost",
-  phone: null,
-  signature: "SupplySure Assistant",
-  disclosure: "I'm the automated assistant. Reply and a person will pick it up if you'd rather.",
-}
 
 export async function getAgentIdentity(): Promise<AgentIdentity> {
   try {
@@ -84,6 +79,17 @@ export async function ensureAgentUser() {
   })
 
   if (existing) {
+    // Reconcile drift. The identity row can be reset or edited out of band,
+    // and a User row left on the old name makes every audit trail, task and
+    // activity point at a name that no longer exists.
+    if (existing.name !== identity.name) {
+      return db.user.update({
+        where: { id: existing.id },
+        data: { name: identity.name },
+        select: { id: true, name: true, email: true, role: true, status: true },
+      })
+    }
+
     return existing
   }
 
@@ -108,3 +114,5 @@ export async function signOutbound(message: string) {
   const identity = await getAgentIdentity()
   return `${message}\n\n— ${identity.signature}\n${identity.disclosure}`
 }
+
+

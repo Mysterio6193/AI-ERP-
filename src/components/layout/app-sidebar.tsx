@@ -69,6 +69,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { type UserRole } from "@/lib/types"
 import { getCompanyDisplayName, type CompanyBranding } from "@/lib/company-branding"
+import { useAgentIdentity } from "@/lib/agent/use-agent-identity"
 
 interface NavItem {
   label: string
@@ -456,10 +457,18 @@ export function AppSidebar({ user }: AppSidebarProps) {
     void fetchSidebarData()
   }, [router, user])
 
+  const agentIdentity = useAgentIdentity()
+
   const currentUser = sessionUser
 
   const filteredNavItems = currentUser
-    ? navItems.filter((item) => item.roles.includes(currentUser.role))
+    ? navItems
+        .filter((item) => item.roles.includes(currentUser.role))
+        // The agent has a name; the sidebar should use it rather than calling
+        // it "AI Assistant" while it introduces itself as something else.
+        .map((item) =>
+          item.href === "/ai" ? { ...item, label: agentIdentity.name } : item
+        )
     : []
 
   // Group items

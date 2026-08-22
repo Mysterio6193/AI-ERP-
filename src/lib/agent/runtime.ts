@@ -20,6 +20,7 @@ import { availableSkills, formatSkillCatalogue } from "./skills"
 import { decide, getThresholds, type AgentThresholds } from "./policy"
 import { buildTools, TOOL_POLICY } from "./tools"
 import { describeSettingProposal } from "./tools/settings"
+import { formatIdentity, getAgentIdentity } from "./identity"
 
 /**
  * The agent runtime.
@@ -106,11 +107,12 @@ export async function buildAgent(
 
   const tools = applyToolAllowlist(buildTools(principal, channel), resolved.tools)
 
-  const [context, memories, skills] = await Promise.all([
+  const [context, memories, skills, identity] = await Promise.all([
     buildPrincipalContext(principal),
     recall(principal, { query }),
     // Only procedures this agent can actually carry out with the tools it has.
     availableSkills(resolved.tools ?? Object.keys(tools)),
+    getAgentIdentity(),
   ])
 
   const learned = formatMemories(memories)
@@ -123,6 +125,8 @@ export async function buildAgent(
   return new ToolLoopAgent({
     model: resolveAgentModel("chat"),
     instructions: [
+      // First, so the agent knows who it is before it knows what it does.
+      formatIdentity(identity),
       resolved.instructions,
       learned,
       procedures,

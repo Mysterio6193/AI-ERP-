@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { saveAgentIdentity } from "@/lib/agent/identity"
 
 import {
   attachAdminSessionCookie,
@@ -61,6 +62,13 @@ export async function POST(request: NextRequest) {
       email,
       password,
     })
+
+    // Optional: blank means keep the neutral default rather than assigning a
+    // persona nobody chose.
+    const agentName = String(body.agentName || "").trim()
+    if (agentName) {
+      await saveAgentIdentity({ name: agentName, signature: agentName })
+    }
 
     const token = await signAdminSessionToken(user)
     const response = NextResponse.json({
