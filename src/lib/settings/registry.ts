@@ -120,6 +120,19 @@ export const opsSchema = z.object({
   fiscalYearStartMonth: z.number().int().min(1).max(12).nullable().default(null),
   currencyDisplay: z.enum(["symbol", "code"]).default("symbol"),
   lowStockReorderLevel: z.number().int().min(0).default(10),
+
+  /**
+   * Refuse an order status change that does not make physical sense, rather
+   * than recording it and allowing it.
+   *
+   * Off by default, and deliberately so. The transition map was derived from
+   * reading what the side effects assume, and a map derived that way will be
+   * wrong somewhere — turning it into hard refusals before anyone has seen
+   * what it rejects would break real flows. While this is off, an illegal move
+   * is written to the audit trail as `sales_order_transition`, so the moves a
+   * business actually makes become visible first.
+   */
+  enforceOrderTransitions: z.boolean().default(false),
   lowStockReorderQty: z.number().int().min(0).default(50),
 })
 

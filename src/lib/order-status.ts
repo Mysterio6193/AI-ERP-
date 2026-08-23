@@ -4,6 +4,7 @@ import { ensureDeliveryForOrder } from "@/lib/delivery-routes"
 import { commitStockForOrder, ensureInvoiceForOrder } from "@/lib/order-fulfillment"
 import { ensurePickListForOrder } from "@/lib/pick-lists"
 import { releaseReservationsForOrder, reserveStockForOrder } from "@/lib/reservations"
+import { getSettings } from "@/lib/settings/service"
 
 type DbClient = PrismaClient | Prisma.TransactionClient
 
@@ -111,10 +112,11 @@ export interface ApplyStatusResult {
 /**
  * Apply a status change and everything that goes with it.
  *
- * `enforce` decides whether an illegal move is refused or merely recorded.
- * Defaults to logging, because a transition map derived from reading code will
- * be wrong somewhere, and turning it into hard refusals on day one would break
- * real flows before anyone had seen what it rejects.
+ * Whether an illegal move is refused or merely recorded comes from the
+ * `ops.enforceOrderTransitions` setting, which an explicit `enforce` option
+ * overrides. It defaults to logging, because a transition map derived from
+ * reading code will be wrong somewhere, and turning it into hard refusals on
+ * day one would break real flows before anyone had seen what it rejects.
  */
 export async function applyOrderStatus(
   db: DbClient,
@@ -124,7 +126,7 @@ export async function applyOrderStatus(
 ): Promise<ApplyStatusResult> {
   const order = await db.salesOrder.findUnique({
     where: { id: orderId },
-    select: { id: true, status: true, orderNumber: true },
+    select: { id: true, status: true, orderNumber: true, companyId: true },
   })
 
   if (!order) {
@@ -133,8 +135,16 @@ export async function applyOrderStatus(
 
   const check = checkTransition(order.status, next)
 
+  // The caller's explicit choice wins; otherwise the business setting decides.
+  // Without this the flag was a function argument nobody could reach, so the
+  // safety it provides could never actually be switched on by anyone
+  // operating the system.
+  const enforce =
+    options?.enforce ??
+    (await getSettings("ops", { companyId: order.companyId })).enforceOrderTransitions
+
   if (!check.allowed) {
-    if (options?.enforce) {
+    if (enforce) {
       return { ok: false, status: order.status, previous: order.status, error: check.reason, effects: [] }
     }
 

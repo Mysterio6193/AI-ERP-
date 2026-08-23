@@ -23,7 +23,9 @@ async function main() {
     process.exit(1)
   }
 
-  let me = null
+  // Annotated, because `let me = null` infers the type `null` and every
+  // property read on it afterwards is an error.
+  let me: Awaited<ReturnType<typeof getTelegramMe>> = null
   let attempts = 0
   while (!me && attempts < 10) {
     attempts++
