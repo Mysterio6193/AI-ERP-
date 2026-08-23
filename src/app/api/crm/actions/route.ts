@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAdminUser } from "@/lib/admin-auth"
 import { db } from "@/lib/db"
 import { nextDocumentNumber } from "@/lib/numbering"
+import { getActiveCompanyId } from "@/lib/active-company"
 
 /**
  * CRM write actions.
@@ -12,9 +13,25 @@ import { nextDocumentNumber } from "@/lib/numbering"
  * in the UI and one resolved by the agent from Telegram produce the same rows.
  */
 
+/**
+ * The acting company travels with every action.
+ *
+ * convertLead used to resolve the owning entity with db.company.findFirst() —
+ * the first row in the table, regardless of who was acting. In a group that
+ * bills from more than one entity that is a coin flip which always lands the
+ * same way: convert a lead while acting as one company and the customer is
+ * filed under another, with the wrong ABN and bank details on everything that
+ * follows.
+ */
+interface ActionContext {
+  userId: string
+  companyId: string | null
+}
+
 type ActionHandler = (
   payload: Record<string, unknown>,
-  userId: string
+  userId: string,
+  context: ActionContext
 ) => Promise<{ ok: boolean; error?: string; data?: unknown }>
 
 const handlers: Record<string, ActionHandler> = {
@@ -394,7 +411,7 @@ const handlers: Record<string, ActionHandler> = {
     return { ok: true, data: lead }
   },
 
-  async convertLead(payload, userId) {
+  async convertLead(payload, userId, context) {
     const leadId = String(payload.leadId || "")
     if (!leadId) {
       return { ok: false, error: "leadId is required" }
@@ -409,7 +426,8 @@ const handlers: Record<string, ActionHandler> = {
       return { ok: false, error: "That lead has already been converted" }
     }
 
-    const company = await db.company.findFirst({ select: { id: true } })
+    // The entity the user is acting as, not whichever row happens to be first.
+    const companyId = context.companyId
 
     const customer = await db.customer.create({
       data: {
@@ -422,7 +440,7 @@ const handlers: Record<string, ActionHandler> = {
         paymentTerms: Number(payload.paymentTerms ?? 30),
         creditLimit: Number(payload.creditLimit ?? 0),
         salesRepId: lead.ownerId,
-        companyId: company?.id,
+        companyId,
       },
       select: { id: true, name: true },
     })
@@ -524,7 +542,10 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await handler(body, auth.user!.id)
+    // Resolved once, from the request, and handed to every handler.
+    const companyId = await getActiveCompanyId(request)
+
+    const result = await handler(body, auth.user!.id, { userId: auth.user!.id, companyId })
 
     if (!result.ok) {
       return NextResponse.json({ success: false, error: result.error }, { status: 400 })

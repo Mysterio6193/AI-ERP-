@@ -32,6 +32,17 @@ const PUBLIC_API_ROUTES = [
   "/api/agent/telegram", // webhook, verified by Telegram's secret token header
   "/api/agent/email", // inbound email webhook, verified by its own shared secret
   "/api/stripe/webhook", // verified by Stripe's signature, not a session
+
+  // The storefront browses categories before anyone signs in. This and the
+  // product reads below only ever worked because AUTH_BYPASS short-circuited
+  // this file; with the flag off — which is every production build — the
+  // external shop's catalogue calls were refused outright.
+  "/api/products/get-categories",
+
+  // Liveness. A monitor has no session by definition, and a health check that
+  // requires one reports the app as down whenever auth is misconfigured, which
+  // is exactly when you need it to answer.
+  "/api/health",
 ]
 
 /**
@@ -45,6 +56,19 @@ const SELF_AUTHENTICATING_API_PREFIXES = [
   "/api/driver/",
 ]
 
+/**
+ * Storefront reads that validate a customer bearer token themselves.
+ *
+ * Listed individually rather than opening the whole `/api/products/` prefix:
+ * that namespace also holds the staff catalogue, including its writes, and a
+ * prefix here would drop those to "some credential present" — which accepts an
+ * unverified Authorization header.
+ */
+const CUSTOMER_PRODUCT_ROUTES = [
+  "/api/products/get-products",
+  "/api/products/detail-product-variant",
+]
+
 function isStaticAsset(pathname: string) {
   return pathname.startsWith("/_next") || pathname === "/favicon.ico" || /\.[^/]+$/.test(pathname)
 }
@@ -54,7 +78,10 @@ function isPublicApi(pathname: string) {
 }
 
 function isSelfAuthenticatingApi(pathname: string) {
-  return SELF_AUTHENTICATING_API_PREFIXES.some((prefix) => pathname.startsWith(prefix))
+  return (
+    SELF_AUTHENTICATING_API_PREFIXES.some((prefix) => pathname.startsWith(prefix)) ||
+    CUSTOMER_PRODUCT_ROUTES.includes(pathname)
+  )
 }
 
 /**

@@ -4,6 +4,7 @@ import { db } from "@/lib/db"
 import { getCustomerLoginBlockReason } from "@/lib/customer-access"
 import { createCustomerSession, normalizeEmail, verifyPassword } from "@/lib/customer-auth"
 import { customerError, customerJson, customerOptions, mapProfile } from "@/lib/customer-api"
+import { guardRate, RATE_LIMITS } from "@/lib/rate-guard"
 
 const prisma = db as any
 
@@ -16,6 +17,15 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const email = normalizeEmail(body.email)
     const password = body.password || ""
+
+    // Keyed by the address being attacked as well as the caller, so a
+    // rotating-IP attempt still runs into a limit on the target account.
+    const limited = guardRate(request, {
+      ...RATE_LIMITS.login,
+      subject: email,
+      message: "Too many sign-in attempts. Try again in a few minutes.",
+    })
+    if (limited) return limited
 
     const customer = await prisma.customer.findFirst({
       where: { email },
