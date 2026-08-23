@@ -148,7 +148,7 @@ export default function CustomReportPDF({
   headers,
   rows,
   summaryCards,
-  companyName = "SupplySure OS Wholesale Distribution",
+  companyName = "RDM Pizza Australia (RDM Manufacturing Pty Ltd)",
 }: CustomReportPDFProps) {
   const dateStr = format(new Date(), "dd MMM yyyy, HH:mm")
 
