@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAdminUser } from "@/lib/admin-auth"
 import { db } from "@/lib/db"
 import { ROLE_SETS } from "@/lib/permissions"
+import { getActiveCompanyId } from "@/lib/active-company"
 
 // GET /api/pricing - List all price lists
 export async function GET(request: NextRequest) {
@@ -74,10 +75,15 @@ export async function POST(request: NextRequest) {
       validTo,
     } = body
 
-    // If setting as default, unset other defaults
+    const companyId = await getActiveCompanyId(request)
+
+    // Scoped to the company. This used to clear `isDefault` on every list in
+    // the database, so creating a default for one entity silently removed
+    // another entity's — which matters here, where one group bills from
+    // several companies.
     if (isDefault) {
       await db.priceList.updateMany({
-        where: { isDefault: true },
+        where: { isDefault: true, companyId },
         data: { isDefault: false },
       })
     }
@@ -91,6 +97,7 @@ export async function POST(request: NextRequest) {
         isDefault: isDefault || false,
         validFrom: validFrom ? new Date(validFrom) : null,
         validTo: validTo ? new Date(validTo) : null,
+        companyId,
       },
     })
 

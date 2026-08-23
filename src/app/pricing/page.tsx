@@ -89,6 +89,8 @@ export default function PricingPage() {
   const [search, setSearch] = useState("")
   const [typeFilter, setTypeFilter] = useState<string>("all")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [selectedPriceList, setSelectedPriceList] = useState<PriceList | null>(null)
   const [formData, setFormData] = useState({
@@ -141,8 +143,10 @@ export default function PricingPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      const response = await fetch("/api/pricing", {
-        method: "POST",
+      // Same dialog for both: creating posts to the collection, editing
+      // patches the one being edited.
+      const response = await fetch(editingId ? `/api/pricing/${editingId}` : "/api/pricing", {
+        method: editingId ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
       })
@@ -169,6 +173,59 @@ export default function PricingPage() {
       validTo: "",
     })
     setSelectedPriceList(null)
+    setEditingId(null)
+    setActionError(null)
+  }
+
+  const startEdit = (priceList: PriceList) => {
+    setEditingId(priceList.id)
+    setActionError(null)
+    setFormData({
+      name: priceList.name,
+      description: priceList.description || "",
+      type: priceList.type,
+      status: priceList.status,
+      isDefault: priceList.isDefault,
+      validFrom: priceList.validFrom ? String(priceList.validFrom).slice(0, 10) : "",
+      validTo: priceList.validTo ? String(priceList.validTo).slice(0, 10) : "",
+    })
+    setIsDialogOpen(true)
+  }
+
+  const duplicatePriceList = async (priceList: PriceList) => {
+    setActionError(null)
+    const response = await fetch(`/api/pricing/${priceList.id}/duplicate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    }).then((r) => r.json())
+
+    if (response.success) {
+      fetchPriceLists()
+    } else {
+      setActionError(response.error || "Could not duplicate that price list.")
+    }
+  }
+
+  const deletePriceList = async (priceList: PriceList) => {
+    setActionError(null)
+
+    // The server refuses when customers are assigned; this is only so nobody
+    // deletes a list by brushing past a menu.
+    if (!window.confirm(`Delete "${priceList.name}"? Its price lines go with it.`)) {
+      return
+    }
+
+    const response = await fetch(`/api/pricing/${priceList.id}`, { method: "DELETE" }).then((r) =>
+      r.json()
+    )
+
+    if (response.success) {
+      fetchPriceLists()
+    } else {
+      // Carries the server's reason, which names the customers still on it.
+      setActionError(response.error || "Could not delete that price list.")
+    }
   }
 
   const getTypeColor = (type: string) => {
@@ -193,13 +250,15 @@ export default function PricingPage() {
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <Button onClick={() => { resetForm(); setIsDialogOpen(true) }} className="bg-emerald-600 hover:bg-emerald-700">
               <Plus className="mr-2 h-4 w-4" />
-              Create Price List
+              {editingId ? "Save Changes" : "Create Price List"}
             </Button>
             <DialogContent className="max-w-lg">
               <DialogHeader>
-                <DialogTitle>Create Price List</DialogTitle>
+                <DialogTitle>{editingId ? "Edit Price List" : "Create Price List"}</DialogTitle>
                 <DialogDescription>
-                  Create a new pricing structure for customers
+                  {editingId
+                    ? "Changes apply to every order priced from this list from now on."
+                    : "Create a new pricing structure for customers"}
                 </DialogDescription>
               </DialogHeader>
               <form onSubmit={handleSubmit}>
@@ -384,6 +443,14 @@ export default function PricingPage() {
           </CardContent>
         </Card>
 
+        {actionError ? (
+          // Carries the server's own words — the delete refusal names how many
+          // customers are still on the list, which is what makes it actionable.
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            {actionError}
+          </div>
+        ) : null}
+
         {/* Price Lists Table */}
         <Card>
           <CardContent className="p-0">
@@ -478,16 +545,19 @@ export default function PricingPage() {
                               <Eye className="mr-2 h-4 w-4" />
                               View & Edit Items
                             </DropdownMenuItem>
-                            <DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => startEdit(pl)}>
                               <Edit className="mr-2 h-4 w-4" />
                               Edit Details
                             </DropdownMenuItem>
-                            <DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => void duplicatePriceList(pl)}>
                               <Copy className="mr-2 h-4 w-4" />
                               Duplicate
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-red-600">
+                            <DropdownMenuItem
+                              className="text-red-600"
+                              onClick={() => void deletePriceList(pl)}
+                            >
                               <Trash2 className="mr-2 h-4 w-4" />
                               Delete
                             </DropdownMenuItem>
