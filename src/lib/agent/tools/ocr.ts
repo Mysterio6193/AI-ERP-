@@ -1,8 +1,8 @@
-import { tool } from "ai"
 import { z } from "zod"
 
 import type { AgentPrincipal } from "../context"
 import { processDocumentOcr } from "@/lib/ocr/engine"
+import { defineTool } from "./define"
 
 export function buildOcrTools(principal: AgentPrincipal) {
   // Staff members can scan supplier invoices, delivery dockets, BOLs and receipts
@@ -11,10 +11,10 @@ export function buildOcrTools(principal: AgentPrincipal) {
   }
 
   return {
-    scanDocument: tool({
+    scanDocument: defineTool({
       description:
         "Extracts structured data (vendor, invoice/docket number, date, line items, quantities, prices, GST, totals) from an image, PDF or raw text of an invoice, receipt, delivery docket, or bill of lading.",
-      parameters: z.object({
+      inputSchema: z.object({
         imageUrl: z
           .string()
           .optional()

@@ -1,8 +1,33 @@
 import { NextRequest, NextResponse } from "next/server"
+import { requireAdminUser } from "@/lib/admin-auth"
 import { db } from "@/lib/db"
 import { hash } from "bcryptjs"
 
+/**
+ * Seeds demonstration data.
+ *
+ * This upserts staff accounts — including an admin — with a known password, so
+ * it needs a guard of its own rather than relying on middleware alone. That
+ * middleware previously accepted any `Authorization` header as proof of
+ * identity, which is exactly why a route like this should not be the only
+ * thing standing between a request and an admin account.
+ *
+ * Refused outright outside development: demo data has no business being
+ * creatable against real records, whoever is asking.
+ */
 export async function POST(request: NextRequest) {
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json(
+      { success: false, error: "Demo seeding is disabled outside development." },
+      { status: 403 }
+    )
+  }
+
+  const auth = await requireAdminUser(request, ["admin"])
+  if (auth.response) {
+    return auth.response
+  }
+
   try {
     const hashedPassword = await hash("password123", 10)
 

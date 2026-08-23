@@ -65,7 +65,7 @@ export function buildMcpTools(principal: AgentPrincipal) {
       inputSchema: z.object({
         serverName: z.string().describe("Name of the MCP server, e.g. 'fetch_api', 'filesystem', or custom endpoint"),
         toolName: z.string().describe("Name of the MCP tool to execute"),
-        arguments: z.record(z.any()).describe("JSON parameters passed to the MCP tool"),
+        arguments: z.record(z.string(), z.any()).describe("JSON parameters passed to the MCP tool"),
       }),
       execute: async ({ serverName, toolName, arguments: args }) => {
         try {
@@ -111,7 +111,7 @@ export function buildMcpTools(principal: AgentPrincipal) {
       inputSchema: z.object({
         url: z.string().url().describe("Target API endpoint URL"),
         method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]).optional().default("GET"),
-        headers: z.record(z.string()).optional().describe("HTTP Request Headers (e.g. Authorization, Api-Key)"),
+        headers: z.record(z.string(), z.string()).optional().describe("HTTP Request Headers (e.g. Authorization, Api-Key)"),
         body: z.any().optional().describe("JSON request body (for POST/PUT/PATCH)"),
       }),
       execute: async ({ url, method = "GET", headers = {}, body }) => {

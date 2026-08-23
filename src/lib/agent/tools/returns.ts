@@ -1,7 +1,6 @@
 import { z } from "zod"
 
 import { db } from "@/lib/db"
-import { createReturnRequest } from "@/lib/returns"
 import type { AgentPrincipal } from "../context"
 import { defineTool } from "./define"
 import { isStaff, money } from "./shared"
@@ -38,7 +37,7 @@ export function buildReturnTools(principal: AgentPrincipal) {
           id: r.id,
           returnNumber: r.returnNumber,
           customer: r.customer.name,
-          orderNumber: r.order.orderNumber,
+          orderNumber: r.order?.orderNumber ?? null,
           status: r.status,
           refundAmount: money(r.refundAmount),
           reason: r.reason,
@@ -46,7 +45,7 @@ export function buildReturnTools(principal: AgentPrincipal) {
             product: i.product.name,
             sku: i.product.sku,
             quantity: i.quantity,
-            reason: i.reason,
+            condition: i.condition,
           })),
         }))
       },
@@ -89,8 +88,10 @@ export function buildReturnTools(principal: AgentPrincipal) {
             orderId: order.id,
             customerId: order.customerId,
             reason,
-            action,
-            status: "requested",
+            // Return has no `action` column; the requested action rides in
+            // notes until the model carries one.
+            notes: action ? `Requested action: ${action}` : null,
+            status: "pending",
             items: {
               create: items.map((item) => ({
                 productId: item.productId,

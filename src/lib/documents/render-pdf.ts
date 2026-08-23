@@ -5,6 +5,7 @@ import { db } from "@/lib/db"
 import InvoicePDF from "@/components/documents/InvoicePDF"
 import SalesOrderPDF from "@/components/documents/SalesOrderPDF"
 import CustomerStatementPDF from "@/components/documents/CustomerStatementPDF"
+import { buildCustomerStatement } from "@/lib/customer-statements"
 
 export async function renderInvoicePdfBuffer(invoiceIdOrNumber: string): Promise<{ buffer: Buffer; fileName: string } | null> {
   const [invoice, company] = await Promise.all([
@@ -23,9 +24,8 @@ export async function renderInvoicePdfBuffer(invoiceIdOrNumber: string): Promise
             },
           },
         },
-        items: {
-          include: { product: true },
-        },
+        // Invoice has no `items` relation: the lines live on the order it
+        // bills, which is already included above.
         payments: true,
       },
     }),
@@ -38,7 +38,7 @@ export async function renderInvoicePdfBuffer(invoiceIdOrNumber: string): Promise
 
   const populatedInvoice = {
     ...invoice,
-    items: invoice.items && invoice.items.length > 0 ? invoice.items : (invoice.order?.items || []).map((item) => ({
+    items: (invoice.order?.items || []).map((item) => ({
       id: item.id,
       productId: item.productId,
       product: item.product,
@@ -112,9 +112,11 @@ export async function renderCustomerStatementPdfBuffer(customerIdOrName: string)
           orderBy: { invoiceDate: "desc" },
           take: 30,
         },
-        payments: {
-          orderBy: { paymentDate: "desc" },
-          take: 20,
+        // buildCustomerStatement derives the ledger from these, so the two
+        // statement paths — screen and PDF — produce the same figures.
+        creditTransactions: {
+          orderBy: { createdAt: "desc" },
+          take: 50,
         },
       },
     }),
@@ -125,12 +127,14 @@ export async function renderCustomerStatementPdfBuffer(customerIdOrName: string)
     return null
   }
 
+  // The component takes a built statement, not raw rows. Building it here
+  // rather than passing loose arrays means the PDF, the screen and the API all
+  // age receivables the same way — which was the point of one bucketise().
+  const statement = buildCustomerStatement(customer as never)
+
   const docElement = React.createElement(CustomerStatementPDF, {
-    customer,
-    invoices: customer.invoices || [],
-    payments: customer.payments || [],
+    statement,
     company: company || {},
-    statementDate: new Date(),
   })
 
   const blob = await pdf(docElement as any).toBlob()

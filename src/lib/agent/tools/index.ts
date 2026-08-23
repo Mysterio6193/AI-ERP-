@@ -24,6 +24,7 @@ import { buildOcrTools } from "./ocr"
 import { buildPriceListTools } from "./pricing-tiers"
 import { buildReturnTools } from "./returns"
 import { buildRouteTools } from "./routes"
+import { buildAutomationTools } from "./automation"
 import { buildMultiAgentTools } from "./multi-agent"
 import { buildSettingsTools } from "./settings"
 import { buildPipelineTools } from "./pipeline"
@@ -56,11 +57,16 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
   //
   // Risk is set conservatively: setting another agent running is a write.
   //
-  // The automation tools (setReminder, createWorkflow, translateText and the
-  // rest) are deliberately absent: automation.ts does not compile against the
-  // schema — it uses `db.task`, which is `crmTask`, and an `AgentSkill.goal`
-  // field that does not exist — so those tools are not built. Registering
-  // policy for them would only hide that.
+  // Automation: reads are open, anything that schedules future work or writes
+  // a standing rule stops for a person, because it keeps producing work after
+  // the turn ends.
+  translateText: { risk: "read" },
+  summarizeThread: { risk: "read" },
+  generateQrCode: { risk: "read" },
+  setReminder: { risk: "low" },
+  createChecklist: { risk: "low" },
+  createRecurringReport: { risk: "high", roles: ["admin"], alwaysApprove: true },
+  createWorkflow: { risk: "high", roles: ["admin"], alwaysApprove: true },
   listAvailableAgents: { risk: "read" },
   // Standing configuration: these keep producing work after the turn ends, so
   // a person sees them before they start.
@@ -315,6 +321,7 @@ export function buildTools(principal: AgentPrincipal, channel?: string): ToolSet
     buildOcrTools(principal),
     buildDocumentTools(principal, channel),
     buildSettingsTools(principal),
+    buildAutomationTools(principal),
     buildMultiAgentTools(principal),
     buildSkillTools(principal),
     buildPurchasingTools(principal),

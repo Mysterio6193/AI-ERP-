@@ -20,21 +20,45 @@ export function buildChannelTools(principal: AgentPrincipal) {
       execute: async () => {
         const identities = await db.channelIdentity.findMany({
           where: { status: "active" },
-          include: {
-            user: { select: { name: true, role: true, email: true } },
-            customer: { select: { name: true, phone: true } },
-          },
         })
+
+        // ChannelIdentity holds `userId` and `customerId` as plain columns with
+        // no relations behind them — deliberately, since exactly one is set —
+        // so the names are resolved in two queries rather than an include.
+        const [users, customers] = await Promise.all([
+          db.user.findMany({
+            where: { id: { in: identities.map((i) => i.userId).filter((id): id is string => Boolean(id)) } },
+            select: { id: true, name: true, role: true },
+          }),
+          db.customer.findMany({
+            where: { id: { in: identities.map((i) => i.customerId).filter((id): id is string => Boolean(id)) } },
+            select: { id: true, name: true },
+          }),
+        ])
+
+        const userById = new Map(users.map((u) => [u.id, u]))
+        const customerById = new Map(customers.map((c) => [c.id, c]))
 
         return {
           totalConnected: identities.length,
-          channels: identities.map((i) => ({
-            id: i.id,
-            channel: i.channel,
-            externalId: i.externalId,
-            linkedTo: i.user ? `Staff: ${i.user.name} (${i.user.role})` : i.customer ? `Customer: ${i.customer.name}` : "Unlinked",
-            lastSeenAt: i.lastSeenAt,
-          })),
+          channels: identities.map((i) => {
+            const user = i.userId ? userById.get(i.userId) : null
+            const customer = i.customerId ? customerById.get(i.customerId) : null
+
+            return {
+              id: i.id,
+              channel: i.channel,
+              externalId: i.externalId,
+              linkedTo: user
+                ? `Staff: ${user.name} (${user.role})`
+                : customer
+                  ? `Customer: ${customer.name}`
+                  : "Unlinked",
+              // There is no lastSeenAt column; verifiedAt is when the link was
+              // confirmed, which is the closest honest answer.
+              verifiedAt: i.verifiedAt,
+            }
+          }),
         }
       },
     }),

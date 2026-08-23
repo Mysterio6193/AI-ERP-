@@ -38,8 +38,8 @@ export function buildManufacturingTools(principal: AgentPrincipal) {
           name: bom.name,
           product: bom.product.name,
           sku: bom.product.sku,
-          batchSize: bom.batchSize,
-          batchUnit: bom.batchUnit,
+          yieldQty: bom.yieldQty,
+          yieldUnit: bom.yieldUnit,
           componentsCount: bom.lines.length,
           components: bom.lines.map((l) => ({
             component: l.component.name,
@@ -64,14 +64,14 @@ export function buildManufacturingTools(principal: AgentPrincipal) {
       execute: async ({ productId, plannedQty, scheduledFor, batchCode, notes }) => {
         const product = await db.product.findUnique({
           where: { id: productId },
-          include: { boms: { where: { status: "active" }, take: 1 } },
+          include: { billsOfMaterial: { where: { status: "active" }, take: 1 } },
         })
 
         if (!product) {
           return { ok: false as const, error: "Product not found" }
         }
 
-        const bom = product.boms[0]
+        const bom = product.billsOfMaterial[0]
         const orderNumber = `PRD-${Date.now().toString().slice(-6)}`
 
         const productionOrder = await db.productionOrder.create({

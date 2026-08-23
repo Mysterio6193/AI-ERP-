@@ -1,5 +1,3 @@
-import { env } from "../src/lib/env"
-
 async function testAudio() {
   const apiKey = process.env.OPENROUTER_API_KEY
   console.log("Testing audio transcription via OpenRouter with gemini-2.5-flash...")
