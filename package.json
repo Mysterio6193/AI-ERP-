@@ -118,7 +118,15 @@
     "typescript": "^5",
     "vitest": "^4.1.11"
   },
+  "optionalDependencies": {
+    "@tailwindcss/oxide-linux-x64-gnu": "^4.0.0",
+    "@tailwindcss/oxide-linux-x64-musl": "^4.0.0"
+  },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"
+  },
+  "optionalDependencies": {
+    "@tailwindcss/oxide-linux-x64-gnu": "^4.3.3",
+    "@tailwindcss/oxide-linux-x64-musl": "^4.3.3"
   }
 }
