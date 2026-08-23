@@ -24,6 +24,7 @@ import { buildOcrTools } from "./ocr"
 import { buildPriceListTools } from "./pricing-tiers"
 import { buildReturnTools } from "./returns"
 import { buildRouteTools } from "./routes"
+import { buildMultiAgentTools } from "./multi-agent"
 import { buildSettingsTools } from "./settings"
 import { buildPipelineTools } from "./pipeline"
 import { buildPurchasingTools } from "./purchasing"
@@ -48,6 +49,27 @@ import { buildWebSearchTools } from "./websearch"
  */
 
 export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
+  // Automation and multi-agent. These were defined, listed in agent
+  // allowlists, and never spread into buildTools or registered here — so the
+  // ops prompt told the agent to "use spawnAgentTask" for a tool that did not
+  // reach it, and `decide()` would have denied it even if it had.
+  //
+  // Risk is set conservatively: setting another agent running is a write.
+  //
+  // The automation tools (setReminder, createWorkflow, translateText and the
+  // rest) are deliberately absent: automation.ts does not compile against the
+  // schema — it uses `db.task`, which is `crmTask`, and an `AgentSkill.goal`
+  // field that does not exist — so those tools are not built. Registering
+  // policy for them would only hide that.
+  listAvailableAgents: { risk: "read" },
+  // Standing configuration: these keep producing work after the turn ends, so
+  // a person sees them before they start.
+  // One agent starting others is the one that can run away on its own.
+  spawnAgentTask: { risk: "high", roles: ["admin"], alwaysApprove: true },
+  agentSwarm: { risk: "high", roles: ["admin"], alwaysApprove: true },
+  agentHandoff: { risk: "medium", roles: ["admin"] },
+  broadcastToAgents: { risk: "high", roles: ["admin"], alwaysApprove: true },
+
   // Settings. Reads are open to admins; writes reshape every figure the
   // platform produces, so they always stop for a person regardless of value.
   listSettings: { risk: "read", roles: ["admin"] },
@@ -256,41 +278,54 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
 }
 
 export function buildTools(principal: AgentPrincipal, channel?: string): ToolSet {
-  // Staff-only domains collapse to {} for customers, so the union needs
-  // widening to ToolSet before the runtime can hand it to the model.
-  return {
-    ...buildGeneralTools(principal),
-    ...buildUniversalTools(principal),
-    ...buildMcpTools(principal),
-    ...buildInterpreterTools(principal),
-    ...buildWebSearchTools(principal),
-    ...buildDelegationTools(principal),
-    ...buildNotificationTools(principal),
-    ...buildChannelTools(principal),
-    ...buildCatalogTools(principal),
-    ...buildUnitTools(principal),
-    ...buildSalesTools(principal, channel),
-    ...buildCrmTools(principal),
-    ...buildContactTools(principal),
-    ...buildPipelineTools(principal),
-    ...buildFinanceTools(principal),
-    ...buildFulfilmentTools(principal),
-    ...buildFreightTools(principal),
-    ...buildHistoryTools(principal),
-    ...buildFoodSafetyTools(principal),
-    ...buildMarketingTools(principal),
-    ...buildMemoryTools(principal),
-    ...buildOcrTools(principal),
-    ...buildDocumentTools(principal, channel),
-    ...buildSettingsTools(principal),
-    ...buildSkillTools(principal),
-    ...buildPurchasingTools(principal),
-    ...buildReportingTools(principal),
-    ...buildManufacturingTools(principal),
-    ...buildRouteTools(principal),
-    ...buildReturnTools(principal),
-    ...buildPriceListTools(principal),
-  } as ToolSet
+  // Assembled with Object.assign rather than one big object literal.
+  //
+  // Spreading ~30 builders into a single literal makes TypeScript compute the
+  // union of every possible shape, and staff-only domains collapsing to {} for
+  // customers multiplies it further. At 29 builders that exceeded the compiler's
+  // limit outright — "union type that is too complex to represent" — which made
+  // adding a tool a type-system problem rather than a product decision.
+  //
+  // Each builder still closes over the principal, so customer isolation is
+  // unchanged; only the way the results are merged differs.
+  // Typed as plain records: a staff-only builder returns `{}` for a customer,
+  // and `ToolSet[]` would reject that union rather than widen it.
+  const builders: Array<Record<string, unknown>> = [
+    buildGeneralTools(principal),
+    buildUniversalTools(principal),
+    buildMcpTools(principal),
+    buildInterpreterTools(principal),
+    buildWebSearchTools(principal),
+    buildDelegationTools(principal),
+    buildNotificationTools(principal),
+    buildChannelTools(principal),
+    buildCatalogTools(principal),
+    buildUnitTools(principal),
+    buildSalesTools(principal, channel),
+    buildCrmTools(principal),
+    buildContactTools(principal),
+    buildPipelineTools(principal),
+    buildFinanceTools(principal),
+    buildFulfilmentTools(principal),
+    buildFreightTools(principal),
+    buildHistoryTools(principal),
+    buildFoodSafetyTools(principal),
+    buildMarketingTools(principal),
+    buildMemoryTools(principal),
+    buildOcrTools(principal),
+    buildDocumentTools(principal, channel),
+    buildSettingsTools(principal),
+    buildMultiAgentTools(principal),
+    buildSkillTools(principal),
+    buildPurchasingTools(principal),
+    buildReportingTools(principal),
+    buildManufacturingTools(principal),
+    buildRouteTools(principal),
+    buildReturnTools(principal),
+    buildPriceListTools(principal),
+  ]
+
+  return Object.assign({}, ...builders) as ToolSet
 }
 
 /** Every tool the registry can produce, for settings screens and docs. */

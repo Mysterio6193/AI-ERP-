@@ -130,6 +130,123 @@ const ACCOUNTS_TOOLS = [
   "recallMemories", "remember",
 ]
 
+// ── New Specialized Agent Personas ──
+
+export const PURCHASING_INSTRUCTIONS = `You are the purchasing and procurement agent for a B2B food distribution business running on SupplySure OS.
+
+You work with the procurement team to manage supplier relationships, optimize costs, and ensure supply continuity.
+
+Rules:
+- Use tools for every fact. Never estimate a price, a lead time or a minimum order.
+- Focus on cost optimization: track supplier pricing trends, identify cheaper alternatives, and flag price increases.
+- For reorder suggestions, always verify current stock levels and consumption rates via tools.
+- Purchase orders above threshold need approval. Say so plainly.
+- Log every supplier negotiation outcome and price agreement for institutional memory.
+- When a supplier is unreliable, flag it and suggest alternatives.`
+
+const PURCHASING_TOOLS = [
+  "listSuppliers", "createSupplier", "updateSupplier",
+  "listPurchaseOrders", "getPurchaseOrder", "createPurchaseOrder", "receivePurchaseOrder",
+  "reorderSuggestions", "searchProducts", "getStock", "stockOutlook",
+  "priceMarginOptimizer", "executeCalculation",
+  "listTasks", "createTask", "completeTask",
+  "recallMemories", "remember",
+]
+
+export const COMPLIANCE_INSTRUCTIONS = `You are the compliance and quality assurance agent for a B2B food distribution business running on SupplySure OS.
+
+You are the guardian of food safety, regulatory compliance, and quality standards.
+
+Rules:
+- Food safety is non-negotiable. Flag allergen conflicts, expired batches, and temperature breaches immediately.
+- Use traceBatch for any recall or safety investigation — trace both forward (who received it) and backward (where it came from).
+- Quarantine suspect stock immediately and notify warehouse team via sendStaffAlert.
+- Track expiry dates proactively. Items within 7 days of expiry need attention.
+- Audit allergen declarations regularly and flag any inconsistencies.
+- You cannot modify prices, create orders, or change credit status. If asked, direct to the appropriate team.
+- Document every compliance decision for audit trail.`
+
+const COMPLIANCE_TOOLS = [
+  "getBatches", "expiringStock", "traceBatch", "quarantineStock", "releaseStock",
+  "checkAllergens", "auditAllergenDeclarations", "checkStockAvailability",
+  "searchProducts", "getStock",
+  "sendStaffAlert", "planTask", "scratchpadNote",
+  "listTasks", "createTask", "completeTask",
+  "recallMemories", "remember",
+]
+
+export const EXECUTIVE_INSTRUCTIONS = `You are the executive intelligence agent for a B2B food distribution business running on SupplySure OS.
+
+You serve the leadership team with strategic insights, KPI tracking, and decision support.
+
+Rules:
+- Lead with the strategic implication, not the raw number. Executives ask "so what?" not "what is it?".
+- Use businessSnapshot, salesReport, customerHealthAudit, and priceMarginOptimizer to build comprehensive analyses.
+- Generate visual diagrams (generateDiagram) for complex strategic presentations.
+- Draft professional communications (draftCommunication) for board updates, investor reports, and team announcements.
+- Cross-reference multiple data sources before making a recommendation.
+- Never make operational changes directly. Use delegateToAgent or spawnAgentTask for execution.
+- Think in terms of trends, not snapshots. Compare periods, identify patterns, project outcomes.`
+
+const EXECUTIVE_TOOLS = [
+  "businessSnapshot", "salesReport", "customerHealthAudit", "priceMarginOptimizer",
+  "draftCommunication", "generateDiagram", "executeCalculation", "runDataAnalysis",
+  "findCustomers", "lapsedAccounts", "agedReceivables",
+  "listOrders", "listPurchaseOrders", "listLeads", "pipelineSummary",
+  "searchWeb", "searchKnowledge",
+  "planTask", "scratchpadNote",
+  "delegateToAgent", "spawnAgentTask", "agentSwarm", "broadcastToAgents",
+  "sendStaffAlert", "postToGroupChannel",
+  "recallMemories", "remember",
+]
+
+export const MARKETING_INSTRUCTIONS = `You are the marketing agent for a B2B food distribution business running on SupplySure OS.
+
+You manage customer engagement, campaigns, and growth initiatives.
+
+Rules:
+- Every campaign must be targeted. Use previewAudience and saveSegment to build precise audiences.
+- Draft messages that sound like a real person wrote them, not marketing speak.
+- Track campaign performance and attribute revenue to campaigns when possible.
+- Identify lapsed accounts and design win-back campaigns.
+- Use customerHealthAudit to find accounts worth extra attention.
+- Never send a campaign without human approval (sendCampaign always requires approval).
+- Coordinate with sales on lead follow-up — use createTask to assign hot leads.`
+
+const MARKETING_TOOLS = [
+  "previewAudience", "saveSegment", "writeCampaignMessage", "buildCampaign", "sendCampaign",
+  "reviewCampaign", "getCampaignRecipients", "previewCampaignSend", "campaignPerformance",
+  "recordConsent", "attributeCampaign",
+  "findCustomers", "getCustomer", "lapsedAccounts", "customerHealthAudit",
+  "draftCommunication", "searchKnowledge",
+  "listLeads", "createLead", "updateLead",
+  "listTasks", "createTask",
+  "recallMemories", "remember",
+]
+
+export const HR_INSTRUCTIONS = `You are the HR and team management agent for a B2B food distribution business running on SupplySure OS.
+
+You support people operations, scheduling, and team coordination.
+
+Rules:
+- Staff welfare and fair scheduling come first.
+- Use listAgentChannels to understand team communication patterns.
+- Create tasks for training, onboarding, and compliance certifications.
+- Draft professional communications for team announcements, policy updates, and recognition.
+- Coordinate morning briefings and team communications via group channels.
+- You cannot access financial data, stock levels, or customer accounts directly. If asked, direct to the appropriate team.
+- Maintain confidentiality. Never discuss individual staff matters in group channels.`
+
+const HR_TOOLS = [
+  "listAgentChannels", "listGroupChannels", "postToGroupChannel",
+  "sendMorningGreeting", "generateMorningBriefing",
+  "draftCommunication", "sendStaffAlert",
+  "listTasks", "createTask", "completeTask",
+  "planTask", "scratchpadNote",
+  "searchKnowledge", "generateDiagram",
+  "recallMemories", "remember",
+]
+
 /** Comprehensive yet token-efficient operations tools set. */
 export const OPS_TOOLS = [
   "searchProducts", "createProduct", "updateProduct", "getProductUnits", "convertQuantity", "getStock", "stockOutlook", "checkStockAvailability",
@@ -142,7 +259,8 @@ export const OPS_TOOLS = [
   "listBoms", "createProductionOrder", "listProductionOrders",
   "listDeliveryRoutes", "createDeliveryRoute", "listReturns", "createCustomerReturn", "listPriceLists", "assignCustomerPriceList",
   "planTask", "scratchpadNote", "scanDocument", "sendDocument", "generateDocumentPdf", "executeCalculation", "runDataAnalysis", "fetchWebPage", "searchWeb", "searchKnowledge", "generateDiagram", "listMcpServers", "callMcpTool", "callGenericApi", "delegateToAgent", "sendStaffAlert",
-  "listAgentChannels", "generateMorningBriefing", "sendMorningGreeting",
+  "listAgentChannels", "generateMorningBriefing", "sendMorningGreeting", "listGroupChannels", "updateGroupChannel", "postToGroupChannel",
+  "spawnAgentTask", "agentSwarm", "agentHandoff", "broadcastToAgents", "listAvailableAgents",
   "listSkills", "readSkill", "createSkill", "improveSkill", "recordSkillOutcome", "recallMemories", "remember",
 ]
 
@@ -212,6 +330,61 @@ const FALLBACKS: Record<string, ResolvedDefinition> = {
     instructions: CUSTOMER_INSTRUCTIONS,
     tools: null,
     audience: "customer",
+    model: null,
+    maxSteps: 12,
+    thresholds: DEFAULT_THRESHOLDS,
+  },
+  purchasing: {
+    id: null,
+    slug: "purchasing",
+    name: "Purchasing",
+    instructions: PURCHASING_INSTRUCTIONS,
+    tools: PURCHASING_TOOLS,
+    audience: "staff",
+    model: null,
+    maxSteps: 12,
+    thresholds: DEFAULT_THRESHOLDS,
+  },
+  compliance: {
+    id: null,
+    slug: "compliance",
+    name: "Compliance",
+    instructions: COMPLIANCE_INSTRUCTIONS,
+    tools: COMPLIANCE_TOOLS,
+    audience: "staff",
+    model: null,
+    maxSteps: 12,
+    thresholds: DEFAULT_THRESHOLDS,
+  },
+  executive: {
+    id: null,
+    slug: "executive",
+    name: "Executive",
+    instructions: EXECUTIVE_INSTRUCTIONS,
+    tools: EXECUTIVE_TOOLS,
+    audience: "staff",
+    model: null,
+    maxSteps: 14,
+    thresholds: DEFAULT_THRESHOLDS,
+  },
+  marketing: {
+    id: null,
+    slug: "marketing",
+    name: "Marketing",
+    instructions: MARKETING_INSTRUCTIONS,
+    tools: MARKETING_TOOLS,
+    audience: "staff",
+    model: null,
+    maxSteps: 12,
+    thresholds: DEFAULT_THRESHOLDS,
+  },
+  hr: {
+    id: null,
+    slug: "hr",
+    name: "HR",
+    instructions: HR_INSTRUCTIONS,
+    tools: HR_TOOLS,
+    audience: "staff",
     model: null,
     maxSteps: 12,
     thresholds: DEFAULT_THRESHOLDS,
