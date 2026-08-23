@@ -1132,7 +1132,7 @@ model QuoteItem {
 
 model SalesOrder {
   id          String @id @default(cuid())
-  orderNumber String @unique
+  orderNumber String
 
   customerId String
   customer   Customer @relation(fields: [customerId], references: [id])
@@ -1184,6 +1184,19 @@ model SalesOrder {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  /// Unique within the entity that issued it, not across the whole database.
+  ///
+  /// This was globally unique while `nextDocumentNumber` scopes its counter per
+  /// company, so enabling per-entity numbering made both entities generate the
+  /// same first number and the second one hit a constraint violation. Two
+  /// companies each having their own orderNumber 1001 is correct: they are
+  /// separate legal entities with separate books.
+  ///
+  /// Rows with no company share a single counter, and Postgres treats NULLs as
+  /// distinct in a unique index, so uniqueness for those rests on the counter
+  /// rather than the constraint.
+  @@unique([orderNumber, companyId])
 }
 
 model CommerceSettings {
@@ -1317,7 +1330,7 @@ model SalesOrderStatusLog {
 
 model PurchaseOrder {
   id       String @id @default(cuid())
-  poNumber String @unique
+  poNumber String
 
   supplierId String
   supplier   Supplier @relation(fields: [supplierId], references: [id])
@@ -1351,6 +1364,19 @@ model PurchaseOrder {
   updatedAt DateTime @updatedAt
 
   supplierInvoices SupplierInvoice[]
+
+  /// Unique within the entity that issued it, not across the whole database.
+  ///
+  /// This was globally unique while `nextDocumentNumber` scopes its counter per
+  /// company, so enabling per-entity numbering made both entities generate the
+  /// same first number and the second one hit a constraint violation. Two
+  /// companies each having their own poNumber 1001 is correct: they are
+  /// separate legal entities with separate books.
+  ///
+  /// Rows with no company share a single counter, and Postgres treats NULLs as
+  /// distinct in a unique index, so uniqueness for those rests on the counter
+  /// rather than the constraint.
+  @@unique([poNumber, companyId])
 }
 
 model PurchaseOrderItem {
@@ -1674,7 +1700,7 @@ model FreightBooking {
 
 model Invoice {
   id            String @id @default(cuid())
-  invoiceNumber String @unique
+  invoiceNumber String
 
   orderId String     @unique
   order   SalesOrder @relation(fields: [orderId], references: [id])
@@ -1712,6 +1738,19 @@ model Invoice {
   @@index([customerId])
   @@index([status])
   @@index([dueDate])
+
+  /// Unique within the entity that issued it, not across the whole database.
+  ///
+  /// This was globally unique while `nextDocumentNumber` scopes its counter per
+  /// company, so enabling per-entity numbering made both entities generate the
+  /// same first number and the second one hit a constraint violation. Two
+  /// companies each having their own invoiceNumber 1001 is correct: they are
+  /// separate legal entities with separate books.
+  ///
+  /// Rows with no company share a single counter, and Postgres treats NULLs as
+  /// distinct in a unique index, so uniqueness for those rests on the counter
+  /// rather than the constraint.
+  @@unique([invoiceNumber, companyId])
 }
 
 model Payment {

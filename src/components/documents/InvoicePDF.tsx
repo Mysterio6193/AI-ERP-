@@ -247,6 +247,16 @@ const InvoicePDF = ({ invoice, company }: InvoicePDFProps) => {
     null
   const paymentTerms = customer.paymentTerms ? `Net ${customer.paymentTerms}` : "Due on receipt"
   const companyCurrency = branding?.baseCurrency || "AUD"
+  // Any one of these makes the invoice payable; none of them makes it a
+  // request for money with no destination.
+  const hasPaymentDetails = Boolean(
+    branding?.bankName ||
+      branding?.bsb ||
+      branding?.accountNumber ||
+      branding?.upiId ||
+      branding?.ifscCode
+  )
+
   const documentNotes = [invoice.notes, order.customerNotes, order.internalNotes].filter(Boolean)
   const paymentRows = Array.isArray(invoice.payments) ? invoice.payments.slice(0, 4) : []
 
@@ -367,6 +377,18 @@ const InvoicePDF = ({ invoice, company }: InvoicePDFProps) => {
             <Text style={[styles.sectionValue, { marginTop: 8 }]}>
               Please quote invoice number {invoice.invoiceNumber} with your remittance advice.
             </Text>
+            {/*
+              Every payment line below is conditional, so an entity with no
+              bank details configured printed "quote this number with your
+              remittance advice" followed by nothing at all — an invoice that
+              tells someone to pay without saying where, and looks complete.
+              Saying so is better than a silent gap the customer discovers.
+            */}
+            {hasPaymentDetails ? null : (
+              <Text style={[styles.sectionValue, { marginTop: 4 }]}>
+                Payment details are not set up yet — please contact us for remittance instructions.
+              </Text>
+            )}
             {branding?.bankName ? <Text style={styles.sectionValue}>Bank: {branding.bankName}</Text> : null}
             {branding?.bsb ? <Text style={styles.sectionValue}>BSB: {branding.bsb}</Text> : null}
             {branding?.accountNumber ? <Text style={styles.sectionValue}>Account: {branding.accountNumber}</Text> : null}

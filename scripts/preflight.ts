@@ -60,14 +60,41 @@ async function main() {
     add("fatal", "database", `Unreachable: ${(error as Error).message.slice(0, 90)}`)
   }
 
-  // --- Every company needs books before anything can post to them -----------
-  const companies = await db.company.findMany({ select: { id: true, name: true } })
+  // --- Every company needs books, and somewhere to be paid ------------------
+  const companies = await db.company.findMany({
+    select: {
+      id: true, name: true,
+      bankName: true, bsb: true, accountNumber: true, accountName: true,
+      upiId: true, ifscCode: true, abn: true, address: true,
+    },
+  })
+
   for (const company of companies) {
     const accounts = await db.chartOfAccount.count({ where: { companyId: company.id } })
     if (accounts === 0) {
       // Seeded lazily on first posting, so this is a warning rather than a
       // blocker — but it means that company has never transacted.
       add("warn", "accounting", `${company.name} has no chart of accounts yet.`)
+    }
+
+    // An invoice from an entity with no payment details tells the customer to
+    // quote a reference and never says where to send the money.
+    const payable = Boolean(
+      company.bankName || company.bsb || company.accountNumber || company.upiId || company.ifscCode
+    )
+
+    if (!payable) {
+      add("fatal", "invoicing", `${company.name} has no bank details, so its invoices cannot be paid.`)
+    } else if (!company.accountName) {
+      add("warn", "invoicing", `${company.name} has no account name on its remittance details.`)
+    }
+
+    if (!company.abn) {
+      add("warn", "compliance", `${company.name} has no ABN, which a tax invoice requires.`)
+    }
+
+    if (!company.address) {
+      add("warn", "compliance", `${company.name} has no address on its documents.`)
     }
   }
 

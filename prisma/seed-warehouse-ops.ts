@@ -273,7 +273,7 @@ async function main() {
   }
 
   // Create Inbound Purchase Orders
-  let po1 = await prisma.purchaseOrder.findUnique({ where: { poNumber: "PO-2026-104" } })
+  let po1 = await prisma.purchaseOrder.findFirst({ where: { poNumber: "PO-2026-104" } })
   if (!po1) {
     po1 = await prisma.purchaseOrder.create({
       data: {
@@ -314,7 +314,7 @@ async function main() {
     })
   }
 
-  let po2 = await prisma.purchaseOrder.findUnique({ where: { poNumber: "PO-2026-105" } })
+  let po2 = await prisma.purchaseOrder.findFirst({ where: { poNumber: "PO-2026-105" } })
   if (!po2) {
     po2 = await prisma.purchaseOrder.create({
       data: {
@@ -446,7 +446,7 @@ async function main() {
   console.log("✅ Seeded Customers & Delivery Locations")
 
   // 7. Sales Orders, Pick Lists, and Staged Dispatches
-  let so1 = await prisma.salesOrder.findUnique({ where: { orderNumber: "SO-1082" } })
+  let so1 = await prisma.salesOrder.findFirst({ where: { orderNumber: "SO-1082" } })
   if (!so1) {
     so1 = await prisma.salesOrder.create({
       data: {
@@ -489,7 +489,7 @@ async function main() {
     })
   }
 
-  let so2 = await prisma.salesOrder.findUnique({ where: { orderNumber: "SO-1089" } })
+  let so2 = await prisma.salesOrder.findFirst({ where: { orderNumber: "SO-1089" } })
   if (!so2) {
     so2 = await prisma.salesOrder.create({
       data: {
@@ -526,7 +526,7 @@ async function main() {
   }
 
   // Staged Packed Order for 3PL Dispatch
-  let so3 = await prisma.salesOrder.findUnique({ where: { orderNumber: "SO-1094" } })
+  let so3 = await prisma.salesOrder.findFirst({ where: { orderNumber: "SO-1094" } })
   if (!so3) {
     so3 = await prisma.salesOrder.create({
       data: {
@@ -563,7 +563,7 @@ async function main() {
   }
 
   // Pallet-scale order for 3PL Linehaul
-  let so4 = await prisma.salesOrder.findUnique({ where: { orderNumber: "SO-1098" } })
+  let so4 = await prisma.salesOrder.findFirst({ where: { orderNumber: "SO-1098" } })
   if (!so4) {
     so4 = await prisma.salesOrder.create({
       data: {
