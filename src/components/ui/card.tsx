@@ -28,11 +28,29 @@ function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
-function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
+/**
+ * A card's title is a heading.
+ *
+ * This rendered a plain <div>, and it is used on 48 pages — so no card title
+ * anywhere in the admin was a heading, and a screen reader had no structure to
+ * navigate by. Every page read as one flat run of text.
+ *
+ * `as` is here for the pages that need a different level to keep the document
+ * outline honest: a card that is the main subject of its page wants h2, a card
+ * inside a section wants h3, which is the default.
+ */
+function CardTitle({
+  className,
+  as: Component = "h3",
+  ...props
+}: React.ComponentProps<"h3"> & { as?: "h2" | "h3" | "h4" | "div" }) {
   return (
-    <div
+    <Component
       data-slot="card-title"
-      className={cn("leading-[1.1] font-semibold tracking-[-0.025em]", className)}
+      // Headings carry a browser default size and margin; the card's own type
+      // scale is set by the caller, so both are neutralised here rather than
+      // at 48 call sites.
+      className={cn("m-0 text-[length:inherit] leading-[1.1] font-semibold tracking-[-0.025em]", className)}
       {...props}
     />
   )

@@ -73,7 +73,10 @@ export default function AdminSigninPage() {
       router.refresh()
     } catch (requestError) {
       console.error("Admin sign-in error", requestError)
-      setError("Failed to sign in.")
+      // A network failure and a wrong password are different problems, and
+      // telling someone their details are wrong when the server is
+      // unreachable sends them looking in the wrong place.
+      setError("Could not reach the server. Check your connection and try again.")
     } finally {
       setLoading(false)
     }
@@ -95,7 +98,7 @@ export default function AdminSigninPage() {
         </div>
         <Card className="w-full max-w-md justify-self-end bg-white text-[#1d1d1f]">
           <CardHeader className="space-y-2">
-            <CardTitle className="text-[32px]">Sign in</CardTitle>
+            <CardTitle as="h2" className="text-[32px]">Sign in</CardTitle>
             <CardDescription>
               Use your staff account to access the admin dashboard and live operating modules.
             </CardDescription>
@@ -125,7 +128,13 @@ export default function AdminSigninPage() {
               />
             </div>
             {error ? (
-              <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              // role="alert" so a screen reader announces the failure. Without
+              // it the form silently does nothing as far as the user can tell.
+              <div
+                role="alert"
+                aria-live="assertive"
+                className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
+              >
                 {error}
               </div>
             ) : null}

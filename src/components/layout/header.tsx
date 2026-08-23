@@ -93,7 +93,11 @@ export function Header({ title, breadcrumbs }: HeaderProps) {
             </BreadcrumbList>
           </Breadcrumb>
         ) : (
-          <h1 className="text-[28px] font-semibold tracking-[-0.028em] text-white">{title || "Dashboard"}</h1>
+          // Not an <h1>. Every one of the 49 pages already declares its own,
+          // so this made each page carry two — and the text usually repeats
+          // the page heading a few pixels below it, which a screen reader then
+          // announces twice. Styling is unchanged; only the semantics move.
+          <p className="text-[28px] font-semibold tracking-[-0.028em] text-white">{title || "Dashboard"}</p>
         )}
       </div>
 

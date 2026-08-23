@@ -45,6 +45,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatCurrency, formatCurrencyShort, formatDate } from "@/lib/types"
+import { truncateLabel } from "@/lib/truncate"
 
 interface OrderItemLite {
   productId: string
@@ -687,6 +688,39 @@ function buildDashboardData({
   }
 }
 
+
+/**
+ * A chart axis tick that stays on one line.
+ *
+ * Recharts' default tick wraps a long label to fit the axis width, so
+ * "Independent Grocers Network" rendered as "Independent" stacked above
+ * "Groce…" — two lines that read as two separate customers. This renders a
+ * single <text> and shortens with an ellipsis instead, and carries the full
+ * name in a <title> so hovering still gives the real one.
+ */
+function SingleLineTick(props: {
+  x?: number
+  y?: number
+  payload?: { value?: unknown }
+  fill?: string
+}) {
+  const full = String(props.payload?.value ?? "")
+
+  return (
+    <text
+      x={props.x}
+      y={props.y}
+      dy={4}
+      textAnchor="end"
+      fill="#64748b"
+      fontSize={11}
+    >
+      <title>{full}</title>
+      {truncateLabel(full, 20)}
+    </text>
+  )
+}
+
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData>(EMPTY_DASHBOARD)
   const [loading, setLoading] = useState(true)
@@ -761,7 +795,7 @@ export default function DashboardPage() {
             <div>
               <h1 className="text-[36px] font-semibold tracking-[-0.04em] text-white md:text-[52px]">Operations command center</h1>
               <p className="max-w-2xl text-[17px] text-white/70">
-                Orders, warehouse, delivery, and receivables in one React dashboard.
+                Orders, warehouse, delivery, and receivables, on one screen.
               </p>
             </div>
             <p className="text-xs uppercase tracking-[0.08em] text-white/46">
@@ -1052,10 +1086,16 @@ export default function DashboardPage() {
                         <YAxis
                           type="category"
                           dataKey="name"
-                          width={120}
+                          width={150}
                           stroke="#64748b"
                           fontSize={11}
-                          tickFormatter={(value) => String(value).slice(0, 16)}
+                          // A custom tick, because the default one wraps a
+                          // name onto a second line to fit the axis width —
+                          // "Independent Grocers Network" rendered as
+                          // "Independent" above "Groce…", which reads as two
+                          // separate rows. One line, shortened with an
+                          // ellipsis, and the full name in the tooltip.
+                          tick={<SingleLineTick />}
                         />
                         <Tooltip
                           formatter={(value: number, name: string) => {
