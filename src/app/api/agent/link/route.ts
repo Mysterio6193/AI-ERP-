@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { getAdminUserFromRequest } from "@/lib/admin-auth"
 import { createLinkCode } from "@/lib/agent/channels/identity"
 import { db } from "@/lib/db"
+import { getTelegramMe } from "@/lib/agent/channels/telegram"
+import QRCode from "qrcode"
 
 // Issues the one-time code a staff member sends to the bot as /link CODE.
 
@@ -94,9 +96,39 @@ export async function POST(request: NextRequest) {
     select: { id: true, name: true, email: true },
   })
 
+  /**
+   * A scannable deep link, rather than a code to retype on a phone.
+   *
+   * The bot has always understood `/start connect_CODE` — its own failure
+   * message even says "scan a new QR code" — so the deep-link half of this was
+   * built and only the QR was missing. Typing a six-character code into
+   * Telegram on someone else's phone is where onboarding actually stalls.
+   */
+  let deepLink: string | null = null
+  let qr: string | null = null
+
+  if (channel === "telegram") {
+    const me = await getTelegramMe().catch(() => null)
+
+    if (me?.username) {
+      deepLink = `https://t.me/${me.username}?start=connect_${link.code}`
+      // A data URI, so the page needs no extra request and no image host.
+      qr = await QRCode.toDataURL(deepLink, { width: 320, margin: 1 }).catch(() => null)
+    }
+  }
+
   return NextResponse.json({
     success: true,
-    data: { ...link, forUser: owner, forSelf: targetUserId === user.id },
+    data: {
+      ...link,
+      forUser: owner,
+      forSelf: targetUserId === user.id,
+      deepLink,
+      qr,
+      // Null when the bot token is unset or getMe fails; the code still works
+      // typed as /link CODE, so the UI falls back rather than breaking.
+      qrUnavailableReason: qr ? null : "Bot username unavailable — check TELEGRAM_BOT_TOKEN.",
+    },
   })
 }
 

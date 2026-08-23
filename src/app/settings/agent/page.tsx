@@ -79,6 +79,8 @@ export default function AgentSettingsPage() {
   const [linkTarget, setLinkTarget] = useState("")
   const [staff, setStaff] = useState<Array<{ id: string; name: string; email: string; role: string }>>([])
   const [codeFor, setCodeFor] = useState<string | null>(null)
+  const [qr, setQr] = useState<string | null>(null)
+  const [deepLink, setDeepLink] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
 
@@ -220,6 +222,8 @@ export default function AgentSettingsPage() {
       if (payload.success) {
         setCode(payload.data.code)
         setCodeFor(payload.data.forSelf ? null : (payload.data.forUser?.name ?? null))
+        setQr(payload.data.qr ?? null)
+        setDeepLink(payload.data.deepLink ?? null)
         setCopied(false)
       } else {
         setMessage(payload.error)
@@ -596,23 +600,54 @@ export default function AgentSettingsPage() {
 
               {code ? (
                 <div className="rounded-md bg-muted p-3 text-center">
-                  <p className="font-mono text-xl font-semibold tracking-[0.2em]">{code}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {codeFor ? `${codeFor} sends ` : "Send "}
-                    <span className="font-mono">/link {code}</span>
-                    {codeFor ? " to the bot" : " to the bot"} within 15 minutes.
+                  {/*
+                    The QR is the point: retyping a six-character code into
+                    Telegram on someone else's phone is where onboarding
+                    stalls. The typed code stays as the fallback for when the
+                    bot username cannot be read.
+                  */}
+                  {qr ? (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={qr}
+                        alt={`QR code linking ${codeFor ?? "your account"} to Telegram`}
+                        className="mx-auto h-40 w-40 rounded bg-white p-1"
+                      />
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        {codeFor ? `${codeFor} scans this` : "Scan this"} with a phone camera —
+                        Telegram opens and connects on Start.
+                      </p>
+                    </>
+                  ) : null}
+
+                  <p className={qr ? "mt-3 font-mono text-lg font-semibold tracking-[0.2em]" : "font-mono text-xl font-semibold tracking-[0.2em]"}>
+                    {code}
                   </p>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="mt-1"
-                    onClick={() => {
-                      void navigator.clipboard.writeText(`/link ${code}`)
-                      setCopied(true)
-                    }}
-                  >
-                    {copied ? "Copied" : "Copy command"}
-                  </Button>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {qr ? "Or send " : codeFor ? `${codeFor} sends ` : "Send "}
+                    <span className="font-mono">/link {code}</span> to the bot within 15 minutes.
+                  </p>
+
+                  <div className="mt-2 flex justify-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        void navigator.clipboard.writeText(deepLink || `/link ${code}`)
+                        setCopied(true)
+                      }}
+                    >
+                      {copied ? "Copied" : deepLink ? "Copy link" : "Copy command"}
+                    </Button>
+                    {deepLink ? (
+                      <Button variant="ghost" size="sm" asChild>
+                        <a href={deepLink} target="_blank" rel="noopener noreferrer">
+                          Open Telegram
+                        </a>
+                      </Button>
+                    ) : null}
+                  </div>
                 </div>
               ) : null}
             </div>
