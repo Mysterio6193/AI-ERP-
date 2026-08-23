@@ -515,15 +515,15 @@ export function AppSidebar({ user }: AppSidebarProps) {
   }
 
   return (
-    <Sidebar className="border-r-0 bg-black text-white">
-      <SidebarHeader className="border-b border-white/8 p-5">
-        <Link href="/" className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/6 backdrop-blur">
-            <Building2 className="h-5 w-5 text-white" />
+    <Sidebar className="border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
+      <SidebarHeader className="border-b border-sidebar-border p-4">
+        <Link href="/" className="flex items-center gap-3 px-1">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
+            <Building2 className="h-5 w-5" />
           </div>
-          <div className="flex flex-col">
-            <span className="text-[19px] font-semibold tracking-[-0.026em] text-white">{getCompanyDisplayName(company)}</span>
-            <span className="text-[11px] uppercase tracking-[0.12em] text-white/45">SupplySure OS</span>
+          <div className="flex flex-col min-w-0">
+            <span className="truncate text-sm font-semibold tracking-tight text-sidebar-foreground">{getCompanyDisplayName(company)}</span>
+            <span className="text-[10px] font-medium uppercase tracking-widest text-sidebar-foreground/60">SupplySure OS</span>
           </div>
         </Link>
 
@@ -534,22 +534,22 @@ export function AppSidebar({ user }: AppSidebarProps) {
               <DropdownMenuTrigger asChild>
                 <button
                   disabled={switching}
-                  className="flex w-full items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-left transition-colors hover:bg-white/10 disabled:opacity-60"
+                  className="flex w-full items-center justify-between gap-2 rounded-md border border-sidebar-border bg-sidebar-accent/50 px-3 py-1.5 text-left transition-colors hover:bg-sidebar-accent disabled:opacity-60"
                 >
                   <span className="min-w-0">
-                    <span className="block truncate text-[12px] font-medium text-white">
+                    <span className="block truncate text-xs font-medium text-sidebar-foreground">
                       {entities.find((entity) => entity.id === activeEntityId)?.tradingName ||
                         entities.find((entity) => entity.id === activeEntityId)?.name ||
                         "Select entity"}
                     </span>
-                    <span className="block text-[10px] text-white/40">
-                      Billing entity · {entities.length} in group
+                    <span className="block text-[10px] text-sidebar-foreground/60">
+                      Entity · {entities.length} in group
                     </span>
                   </span>
-                  <ChevronDown className="h-3.5 w-3.5 shrink-0 text-white/40" />
+                  <ChevronDown className="h-3.5 w-3.5 shrink-0 text-sidebar-foreground/60" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-64">
+              <DropdownMenuContent align="start" className="w-64 border border-border bg-popover text-popover-foreground shadow-lg">
                 {entities.map((entity) => (
                   <DropdownMenuItem
                     key={entity.id}
@@ -567,8 +567,6 @@ export function AppSidebar({ user }: AppSidebarProps) {
 
                         if ((await response.json()).success) {
                           setActiveEntityId(entity.id)
-                          // Server components and cached reads are scoped to the
-                          // old entity, so a refresh is required, not cosmetic.
                           router.refresh()
                           window.location.reload()
                         }
@@ -595,15 +593,15 @@ export function AppSidebar({ user }: AppSidebarProps) {
           </div>
         ) : null}
       </SidebarHeader>
-      <SidebarContent className="overflow-y-auto px-3 py-4">
+      <SidebarContent className="overflow-y-auto px-2 py-3">
         {groupOrder.map((group) => {
           const items = groupedItems[group]
           if (!items || items.length === 0) return null
 
           return (
-            <SidebarGroup key={group}>
+            <SidebarGroup key={group} className="py-1">
               {group !== "Main" && (
-                <SidebarGroupLabel className="px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/38">
+                <SidebarGroupLabel className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
                   {group}
                 </SidebarGroupLabel>
               )}
@@ -618,22 +616,21 @@ export function AppSidebar({ user }: AppSidebarProps) {
                           asChild
                           isActive={isActive}
                           className={`
-                            w-full justify-start gap-3 rounded-2xl px-4 py-3 text-[14px] font-medium tracking-[-0.014em]
-                            transition-all duration-200
+                            w-full justify-start gap-2.5 rounded-md px-2.5 py-2 text-xs font-medium transition-all duration-150
                             ${isActive
-                              ? "bg-white text-black shadow-[rgba(255,255,255,0.12)_0_6px_24px] hover:bg-white"
-                              : "text-white/68 hover:bg-white/8 hover:text-white"
+                              ? "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 hover:text-primary-foreground font-semibold"
+                              : "text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                             }
                           `}
                         >
                           <Link href={item.href}>
-                            <item.icon className="h-4 w-4" />
-                            <span>{item.label}</span>
-                            {item.badge && (
-                              <Badge className="ml-auto border-0 bg-primary text-white text-[11px]">
+                            <item.icon className="h-4 w-4 shrink-0" />
+                            <span className="truncate">{item.label}</span>
+                            {item.badge ? (
+                              <Badge className="ml-auto h-4 px-1.5 text-[10px] font-semibold border-0 bg-primary-foreground/20 text-sidebar-foreground">
                                 {item.badge}
                               </Badge>
-                            )}
+                            ) : null}
                           </Link>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
@@ -645,15 +642,15 @@ export function AppSidebar({ user }: AppSidebarProps) {
           )
         })}
       </SidebarContent>
-      <SidebarFooter className="border-t border-white/8 p-3">
+      <SidebarFooter className="border-t border-sidebar-border p-2">
         <SidebarMenu>
           <SidebarMenuItem>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <SidebarMenuButton className="w-full justify-start gap-3 rounded-2xl px-3 py-3 text-white/72 hover:bg-white/8 hover:text-white">
-                  <Avatar className="h-8 w-8">
+                <SidebarMenuButton className="w-full justify-start gap-2.5 rounded-md px-2.5 py-2 text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground">
+                  <Avatar className="h-7 w-7 border border-sidebar-border">
                     <AvatarImage src={currentUser?.avatar} />
-                    <AvatarFallback className="bg-white/10 text-white text-sm">
+                    <AvatarFallback className="bg-sidebar-accent text-sidebar-foreground text-xs font-medium">
                       {(currentUser?.name || "SU")
                         .split(" ")
                         .map((n) => n[0])
@@ -661,35 +658,35 @@ export function AppSidebar({ user }: AppSidebarProps) {
                         .toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
-                  <div className="flex flex-col items-start text-left">
-                    <span className="text-sm font-medium text-white">
-                      {currentUser?.name || "Loading account"}
+                  <div className="flex flex-col items-start text-left min-w-0 flex-1">
+                    <span className="truncate text-xs font-medium text-sidebar-foreground">
+                      {currentUser?.name || "User account"}
                     </span>
-                    <span className="text-xs capitalize text-white/42">
+                    <span className="truncate text-[10px] capitalize text-sidebar-foreground/50">
                       {currentUser?.role || "session"}
                     </span>
                   </div>
-                  <ChevronDown className="ml-auto h-4 w-4 text-white/42" />
+                  <ChevronDown className="ml-auto h-3.5 w-3.5 shrink-0 text-sidebar-foreground/50" />
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 align="end"
-                className="w-56 rounded-[1.5rem] border border-white/8 bg-[#1d1d1f] text-white shadow-[rgba(0,0,0,0.3)_0_16px_40px]"
+                className="w-56 rounded-xl border border-border bg-popover text-popover-foreground shadow-lg"
               >
-                <DropdownMenuItem className="rounded-xl hover:bg-white/10 focus:bg-white/10" asChild>
+                <DropdownMenuItem className="cursor-pointer" asChild>
                   <Link href="/users">
-                  <UserCircle className="mr-2 h-4 w-4" />
-                  Staff & Profile
+                    <UserCircle className="mr-2 h-4 w-4" />
+                    Staff & Profile
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem className="rounded-xl hover:bg-white/10 focus:bg-white/10" asChild>
+                <DropdownMenuItem className="cursor-pointer" asChild>
                   <Link href="/settings">
-                  <Settings className="mr-2 h-4 w-4" />
-                  Settings
+                    <Settings className="mr-2 h-4 w-4" />
+                    Settings
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuSeparator className="bg-white/8" />
-                <DropdownMenuItem className="rounded-xl text-red-300 hover:bg-white/10 focus:bg-white/10" onClick={() => void handleLogout()}>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="cursor-pointer text-destructive focus:text-destructive" onClick={() => void handleLogout()}>
                   <LogOut className="mr-2 h-4 w-4" />
                   Log out
                 </DropdownMenuItem>

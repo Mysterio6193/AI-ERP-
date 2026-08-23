@@ -22,10 +22,10 @@ export function AppShell({ children, title, breadcrumbs, user }: AppShellProps) 
   return (
     <SidebarProvider>
       <AppSidebar user={user} />
-      <SidebarInset className="bg-[#f5f5f7]">
+      <SidebarInset className="bg-background min-h-screen flex flex-col">
         <Header title={title} breadcrumbs={breadcrumbs} />
-        <main className="flex-1 overflow-auto px-4 pb-6 pt-4 md:px-6 md:pb-8 md:pt-5">
-          <div className="mx-auto w-full max-w-[1600px]">
+        <main className="flex-1 overflow-auto p-4 md:p-6 lg:p-8">
+          <div className="mx-auto w-full max-w-[1600px] space-y-6">
             {children}
           </div>
         </main>

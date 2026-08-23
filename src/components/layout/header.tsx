@@ -72,8 +72,8 @@ export function Header({ title, breadcrumbs }: HeaderProps) {
   }, [])
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-white/8 bg-black/82 px-4 backdrop-blur-[20px] md:px-6">
-      <SidebarTrigger className="text-white hover:bg-white/10 hover:text-white md:hidden" />
+    <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-border bg-card/80 px-4 backdrop-blur-md md:px-6">
+      <SidebarTrigger className="text-muted-foreground hover:bg-accent hover:text-foreground md:hidden" />
       
       <div className="flex flex-1 items-center gap-4">
         {breadcrumbs ? (
@@ -82,55 +82,55 @@ export function Header({ title, breadcrumbs }: HeaderProps) {
               {breadcrumbs.map((crumb, index) => (
                 <BreadcrumbItem key={index}>
                   {crumb.href ? (
-                    <Link href={crumb.href} className="text-sm text-white/64 hover:text-white">
+                    <Link href={crumb.href} className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
                       {crumb.label}
                     </Link>
                   ) : (
-                    <BreadcrumbPage className="text-white">{crumb.label}</BreadcrumbPage>
+                    <BreadcrumbPage className="text-sm font-semibold text-foreground">{crumb.label}</BreadcrumbPage>
                   )}
                 </BreadcrumbItem>
               ))}
             </BreadcrumbList>
           </Breadcrumb>
         ) : (
-          <h1 className="text-[28px] font-semibold tracking-[-0.028em] text-white">{title || "Dashboard"}</h1>
+          <h1 className="text-xl font-semibold tracking-tight text-foreground">{title || "Dashboard"}</h1>
         )}
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-3">
         <div className="relative hidden md:block">
-          <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/48" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             type="search"
-            placeholder="Search..."
-            className="h-10 w-72 border-white/10 bg-white/8 pl-11 text-white placeholder:text-white/44"
+            placeholder="Search resources, SKUs, customers... (⌘K)"
+            className="h-9 w-80 bg-background/50 pl-9 text-sm placeholder:text-muted-foreground focus-visible:ring-1"
           />
         </div>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="relative text-white hover:bg-white/10 hover:text-white">
-              <Bell className="h-5 w-5" />
+            <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:bg-accent hover:text-foreground">
+              <Bell className="h-4 w-4" />
               {notifications.length > 0 ? (
-                <Badge className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border-0 bg-primary p-0 text-[11px] text-white">
+                <Badge className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full border-0 bg-primary px-1 text-[10px] text-primary-foreground">
                   {notifications.length}
                 </Badge>
               ) : null}
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-[22rem] rounded-[1.5rem] border border-black/8 bg-white p-2 shadow-[rgba(0,0,0,0.14)_0_16px_38px]">
-            <DropdownMenuLabel className="px-3 py-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-              Notifications
+          <DropdownMenuContent align="end" className="w-80 rounded-xl border border-border bg-popover p-2 shadow-lg">
+            <DropdownMenuLabel className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Notifications & Alerts
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             {loadingNotifications ? (
-              <DropdownMenuItem className="flex items-center gap-2 rounded-xl p-3 text-sm text-muted-foreground">
+              <DropdownMenuItem className="flex items-center gap-2 rounded-lg p-3 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 <span>Refreshing alerts...</span>
               </DropdownMenuItem>
             ) : notifications.length === 0 ? (
-              <DropdownMenuItem className="flex flex-col items-start gap-1 rounded-xl p-3">
-                <span className="font-medium text-sm">All clear</span>
+              <DropdownMenuItem className="flex flex-col items-start gap-1 rounded-lg p-3">
+                <span className="font-medium text-sm text-foreground">All clear</span>
                 <span className="text-xs text-muted-foreground">
                   There are no urgent inventory, order, or receivables alerts right now.
                 </span>
@@ -138,20 +138,20 @@ export function Header({ title, breadcrumbs }: HeaderProps) {
             ) : (
               notifications.map((notification) => (
                 <DropdownMenuItem key={notification.id} asChild>
-                  <Link href={notification.href} className="flex flex-col items-start gap-1 rounded-xl p-3 hover:bg-[#f5f5f7]">
+                  <Link href={notification.href} className="flex flex-col items-start gap-1 rounded-lg p-2.5 transition-colors hover:bg-accent">
                     <span className="flex items-center gap-2">
-                      <span className="font-medium text-sm">{notification.title}</span>
+                      <span className="font-medium text-xs text-foreground">{notification.title}</span>
                       <span
-                        className={`inline-block h-2.5 w-2.5 rounded-full ${
+                        className={`inline-block h-2 w-2 rounded-full ${
                           notification.tone === "critical"
-                            ? "bg-red-500"
+                            ? "bg-destructive"
                             : notification.tone === "warning"
                               ? "bg-amber-500"
                               : "bg-blue-500"
                         }`}
                       />
                     </span>
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-xs text-muted-foreground line-clamp-2">
                       {notification.description}
                     </span>
                   </Link>
