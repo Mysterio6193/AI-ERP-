@@ -110,7 +110,6 @@ export async function transcribeAudio(input: {
         content: `Transcribe this audio recording.\nData: data:${mime};base64,${base64.slice(0, 100)}...`,
       },
     ],
-    maxTokens: 1500,
   })
 
   return {

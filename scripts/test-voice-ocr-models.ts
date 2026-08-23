@@ -70,7 +70,7 @@ Payment Terms: Net 30 Days
     console.log("Executing scanDocument agent tool...")
     const toolRes = await ocrTools.scanDocument.execute({
       rawText: sampleInvoiceText,
-    }, { toolCallId: "test-call-1", messages: [] })
+    }, { toolCallId: "test-call-1", messages: [], context: {} })
 
     console.log("✅ Agent Tool scanDocument Output:")
     console.log(JSON.stringify(toolRes, null, 2))

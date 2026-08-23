@@ -23,9 +23,6 @@ export async function renderInvoicePdfBuffer(invoiceIdOrNumber: string): Promise
             },
           },
         },
-        items: {
-          include: { product: true },
-        },
         payments: true,
       },
     }),
@@ -38,7 +35,7 @@ export async function renderInvoicePdfBuffer(invoiceIdOrNumber: string): Promise
 
   const populatedInvoice = {
     ...invoice,
-    items: invoice.items && invoice.items.length > 0 ? invoice.items : (invoice.order?.items || []).map((item) => ({
+    items: (invoice.order?.items || []).map((item) => ({
       id: item.id,
       productId: item.productId,
       product: item.product,
@@ -113,7 +110,7 @@ export async function renderCustomerStatementPdfBuffer(customerIdOrName: string)
           take: 30,
         },
         payments: {
-          orderBy: { paymentDate: "desc" },
+          orderBy: { paidAt: "desc" },
           take: 20,
         },
       },
@@ -126,11 +123,13 @@ export async function renderCustomerStatementPdfBuffer(customerIdOrName: string)
   }
 
   const docElement = React.createElement(CustomerStatementPDF, {
-    customer,
-    invoices: customer.invoices || [],
-    payments: customer.payments || [],
+    statement: {
+      customer,
+      invoices: customer.invoices || [],
+      payments: customer.payments || [],
+      statementDate: new Date(),
+    },
     company: company || {},
-    statementDate: new Date(),
   })
 
   const blob = await pdf(docElement as any).toBlob()
