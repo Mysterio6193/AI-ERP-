@@ -65,12 +65,34 @@ export function buildMcpTools(principal: AgentPrincipal) {
       inputSchema: z.object({
         serverName: z.string().describe("Name of the MCP server, e.g. 'fetch_api', 'filesystem', or custom endpoint"),
         toolName: z.string().describe("Name of the MCP tool to execute"),
-        arguments: z.record(z.any()).describe("JSON parameters passed to the MCP tool"),
+        arguments: z.record(z.string(), z.any()).describe("JSON parameters passed to the MCP tool"),
       }),
       execute: async ({ serverName, toolName, arguments: args }) => {
         try {
           if (serverName === "fetch_api" || toolName === "http_request") {
             const url = args.url as string
+            
+            const parsed = new URL(url)
+            const host = parsed.hostname.toLowerCase()
+
+            if (
+              host === "localhost" ||
+              host === "127.0.0.1" ||
+              host === "::1" ||
+              host === "[::1]" ||
+              host === "169.254.169.254" ||
+              host.startsWith("10.") ||
+              host.startsWith("192.168.") ||
+              host.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./) ||
+              host === "metadata.google.internal" ||
+              host.endsWith(".internal")
+            ) {
+              return {
+                ok: false as const,
+                error: "Access to internal networks or metadata endpoints is forbidden.",
+              }
+            }
+
             const method = (args.method as string) || "GET"
             const headers = (args.headers as Record<string, string>) || {}
             const body = args.body ? JSON.stringify(args.body) : undefined
@@ -111,11 +133,33 @@ export function buildMcpTools(principal: AgentPrincipal) {
       inputSchema: z.object({
         url: z.string().url().describe("Target API endpoint URL"),
         method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]).optional().default("GET"),
-        headers: z.record(z.string()).optional().describe("HTTP Request Headers (e.g. Authorization, Api-Key)"),
+        headers: z.record(z.string(), z.string()).optional().describe("HTTP Request Headers (e.g. Authorization, Api-Key)"),
         body: z.any().optional().describe("JSON request body (for POST/PUT/PATCH)"),
       }),
       execute: async ({ url, method = "GET", headers = {}, body }) => {
         try {
+          const parsed = new URL(url)
+          const host = parsed.hostname.toLowerCase()
+
+          // SSRF Protection
+          if (
+            host === "localhost" ||
+            host === "127.0.0.1" ||
+            host === "::1" ||
+            host === "[::1]" ||
+            host === "169.254.169.254" ||
+            host.startsWith("10.") ||
+            host.startsWith("192.168.") ||
+            host.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./) ||
+            host === "metadata.google.internal" ||
+            host.endsWith(".internal")
+          ) {
+            return {
+              ok: false as const,
+              error: "Access to internal networks or metadata endpoints is forbidden.",
+            }
+          }
+
           const response = await fetch(url, {
             method,
             headers: {

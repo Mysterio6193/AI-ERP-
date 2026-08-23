@@ -13,7 +13,7 @@ import { evaluateSegment, validateDefinition, type SegmentDefinition } from "@/l
 
 import type { AgentPrincipal } from "../context"
 import { defineTool } from "./define"
-import { isStaff } from "./shared"
+import { isStaff, money, safeDb } from "./shared"
 
 /**
  * Marketing.
@@ -194,7 +194,7 @@ export function buildMarketingTools(principal: AgentPrincipal) {
         campaignId: z.string(),
         limit: z.number().int().min(1).max(50).optional(),
       }),
-      execute: async ({ campaignId, limit }) => getCampaignMemberContext(campaignId, limit ?? 25),
+      execute: async ({ campaignId, limit }) => safeDb(async () => getCampaignMemberContext(campaignId, limit ?? 25)),
     }),
 
     writeCampaignMessage: defineTool({
@@ -284,7 +284,7 @@ export function buildMarketingTools(principal: AgentPrincipal) {
       description:
         "Report exactly what a send would do right now - who would receive it, who would be suppressed and why - without contacting anyone. Safe to run at any time, and the right thing to show a human before asking them to approve the send.",
       inputSchema: z.object({ campaignId: z.string() }),
-      execute: async ({ campaignId }) => sendCampaign(campaignId, { dryRun: true }),
+      execute: async ({ campaignId }) => safeDb(async () => sendCampaign(campaignId, { dryRun: true })),
     }),
 
     sendCampaign: defineTool({
@@ -297,14 +297,14 @@ export function buildMarketingTools(principal: AgentPrincipal) {
           .optional()
           .describe("Go through every step and report the outcome without actually sending"),
       }),
-      execute: async ({ campaignId, dryRun }) => sendCampaign(campaignId, { dryRun }),
+      execute: async ({ campaignId, dryRun }) => safeDb(async () => sendCampaign(campaignId, { dryRun })),
     }),
 
     campaignPerformance: defineTool({
       description:
         "How campaigns performed: audience, sent, suppressed, conversions and attributed revenue.",
       inputSchema: z.object({ campaignId: z.string().optional() }),
-      execute: async ({ campaignId }) => campaignPerformance(campaignId),
+      execute: async ({ campaignId }) => safeDb(async () => campaignPerformance(campaignId)),
     }),
 
     attributeCampaign: defineTool({
@@ -314,7 +314,7 @@ export function buildMarketingTools(principal: AgentPrincipal) {
         campaignId: z.string(),
         windowDays: z.number().int().min(1).max(120).optional(),
       }),
-      execute: async ({ campaignId, windowDays }) => attributeCampaign(campaignId, windowDays),
+      execute: async ({ campaignId, windowDays }) => safeDb(async () => attributeCampaign(campaignId, windowDays)),
     }),
 
     recordConsent: defineTool({

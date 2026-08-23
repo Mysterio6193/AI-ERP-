@@ -114,6 +114,7 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
     valueField: "estimatedTotal",
   },
   receivePurchaseOrder: { risk: "medium", roles: ["admin", "warehouse"] },
+  closePurchaseOrder: { risk: "medium", roles: ["admin", "warehouse", "accounts"] },
 
   // Contacts, activities and cases
   listContacts: { risk: "read" },
@@ -138,7 +139,6 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
   trackDelivery: { risk: "read" },
   listPickLists: { risk: "read" },
   listDeliveries: { risk: "read" },
-  listRoutes: { risk: "read" },
   createPickList: { risk: "low", roles: ["admin", "warehouse", "sales"] },
 
   // Marketing. Sending contacts real customers, so it always needs a human.
@@ -206,8 +206,8 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
 
   // Model Context Protocol (MCP) & REST API Gateway
   listMcpServers: { risk: "read" },
-  callMcpTool: { risk: "low", roles: ["admin", "sales", "warehouse", "accounts"] },
-  callGenericApi: { risk: "low", roles: ["admin", "sales", "warehouse", "accounts"] },
+  callMcpTool: { risk: "high", roles: ["admin", "sales", "warehouse", "accounts"], alwaysApprove: true },
+  callGenericApi: { risk: "high", roles: ["admin", "sales", "warehouse", "accounts"], alwaysApprove: true },
 
   // Document Intelligence & PDF
   scanDocument: { risk: "read" },
@@ -228,6 +228,9 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
   listBoms: { risk: "read" },
   createProductionOrder: { risk: "medium", roles: ["admin", "warehouse"] },
   listProductionOrders: { risk: "read" },
+  updateProductionOrder: { risk: "medium", roles: ["admin", "warehouse", "sales"] },
+  completeProductionOrder: { risk: "high", roles: ["admin", "warehouse"] },
+  cancelProductionOrder: { risk: "medium", roles: ["admin", "warehouse"] },
 
   // Fleet Delivery Routes
   listDeliveryRoutes: { risk: "read" },
@@ -236,6 +239,9 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
   // Returns, RMAs & Credit Notes
   listReturns: { risk: "read" },
   createCustomerReturn: { risk: "low" },
+  approveReturn: { risk: "medium", roles: ["admin", "sales", "warehouse"] },
+  rejectReturn: { risk: "medium", roles: ["admin", "sales"] },
+  completeReturn: { risk: "high", roles: ["admin", "warehouse", "accounts"] },
 
   // Contract Pricing & Tiers
   listPriceLists: { risk: "read" },
@@ -258,39 +264,42 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
 export function buildTools(principal: AgentPrincipal, channel?: string): ToolSet {
   // Staff-only domains collapse to {} for customers, so the union needs
   // widening to ToolSet before the runtime can hand it to the model.
-  return {
-    ...buildGeneralTools(principal),
-    ...buildUniversalTools(principal),
-    ...buildMcpTools(principal),
-    ...buildInterpreterTools(principal),
-    ...buildWebSearchTools(principal),
-    ...buildDelegationTools(principal),
-    ...buildNotificationTools(principal),
-    ...buildChannelTools(principal),
-    ...buildCatalogTools(principal),
-    ...buildUnitTools(principal),
-    ...buildSalesTools(principal, channel),
-    ...buildCrmTools(principal),
-    ...buildContactTools(principal),
-    ...buildPipelineTools(principal),
-    ...buildFinanceTools(principal),
-    ...buildFulfilmentTools(principal),
-    ...buildFreightTools(principal),
-    ...buildHistoryTools(principal),
-    ...buildFoodSafetyTools(principal),
-    ...buildMarketingTools(principal),
-    ...buildMemoryTools(principal),
-    ...buildOcrTools(principal),
-    ...buildDocumentTools(principal, channel),
-    ...buildSettingsTools(principal),
-    ...buildSkillTools(principal),
-    ...buildPurchasingTools(principal),
-    ...buildReportingTools(principal),
-    ...buildManufacturingTools(principal),
-    ...buildRouteTools(principal),
-    ...buildReturnTools(principal),
-    ...buildPriceListTools(principal),
-  } as ToolSet
+  const tools: ToolSet = {}
+  Object.assign(
+    tools,
+    buildGeneralTools(principal),
+    buildUniversalTools(principal),
+    buildMcpTools(principal),
+    buildInterpreterTools(principal),
+    buildWebSearchTools(principal),
+    buildDelegationTools(principal),
+    buildNotificationTools(principal),
+    buildChannelTools(principal),
+    buildCatalogTools(principal),
+    buildUnitTools(principal),
+    buildSalesTools(principal, channel),
+    buildCrmTools(principal),
+    buildContactTools(principal),
+    buildPipelineTools(principal),
+    buildFinanceTools(principal),
+    buildFulfilmentTools(principal),
+    buildFreightTools(principal),
+    buildHistoryTools(principal),
+    buildFoodSafetyTools(principal),
+    buildMarketingTools(principal),
+    buildMemoryTools(principal),
+    buildOcrTools(principal),
+    buildDocumentTools(principal, channel),
+    buildSettingsTools(principal),
+    buildSkillTools(principal),
+    buildPurchasingTools(principal),
+    buildReportingTools(principal),
+    buildManufacturingTools(principal),
+    buildRouteTools(principal),
+    buildReturnTools(principal),
+    buildPriceListTools(principal),
+  )
+  return tools
 }
 
 /** Every tool the registry can produce, for settings screens and docs. */

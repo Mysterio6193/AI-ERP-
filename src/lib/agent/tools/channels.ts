@@ -20,21 +20,42 @@ export function buildChannelTools(principal: AgentPrincipal) {
       execute: async () => {
         const identities = await db.channelIdentity.findMany({
           where: { status: "active" },
-          include: {
-            user: { select: { name: true, role: true, email: true } },
-            customer: { select: { name: true, phone: true } },
-          },
         })
+
+        const userIds = identities.map((i) => i.userId).filter((id): id is string => Boolean(id))
+        const customerIds = identities.map((i) => i.customerId).filter((id): id is string => Boolean(id))
+
+        const users = userIds.length
+          ? await db.user.findMany({
+              where: { id: { in: userIds } },
+              select: { id: true, name: true, role: true, email: true },
+            })
+          : []
+
+        const customers = customerIds.length
+          ? await db.customer.findMany({
+              where: { id: { in: customerIds } },
+              select: { id: true, name: true, phone: true },
+            })
+          : []
+
+        const userMap = new Map(users.map((u) => [u.id, u]))
+        const customerMap = new Map(customers.map((c) => [c.id, c]))
 
         return {
           totalConnected: identities.length,
-          channels: identities.map((i) => ({
-            id: i.id,
-            channel: i.channel,
-            externalId: i.externalId,
-            linkedTo: i.user ? `Staff: ${i.user.name} (${i.user.role})` : i.customer ? `Customer: ${i.customer.name}` : "Unlinked",
-            lastSeenAt: i.lastSeenAt,
-          })),
+          channels: identities.map((i) => {
+            const user = i.userId ? userMap.get(i.userId) : null
+            const customer = i.customerId ? customerMap.get(i.customerId) : null
+
+            return {
+              id: i.id,
+              channel: i.channel,
+              externalId: i.externalId,
+              linkedTo: user ? `Staff: ${user.name} (${user.role})` : customer ? `Customer: ${customer.name}` : "Unlinked",
+              verifiedAt: i.verifiedAt,
+            }
+          }),
         }
       },
     }),
@@ -168,13 +189,9 @@ export function buildChannelTools(principal: AgentPrincipal) {
           select: { externalId: true },
         })
 
-        let sent = 0
-        for (const identity of staffIdentities) {
-          if (identity.externalId && !identity.externalId.startsWith("pending:")) {
-            await sendTelegramMessage(identity.externalId, greetingText)
-            sent++
-          }
-        }
+        const staffPromises = staffIdentities
+          .filter((identity) => identity.externalId && !identity.externalId.startsWith("pending:"))
+          .map((identity) => sendTelegramMessage(identity.externalId, greetingText))
 
         // Also send to all active group channels
         const groupChannels = await db.agentGroupChannel.findMany({
@@ -182,16 +199,20 @@ export function buildChannelTools(principal: AgentPrincipal) {
           select: { externalId: true, name: true },
         })
 
-        for (const group of groupChannels) {
-          await sendTelegramMessage(group.externalId, greetingText)
-          sent++
-        }
+        const groupPromises = groupChannels.map((group) => sendTelegramMessage(group.externalId, greetingText))
+
+        const results = await Promise.allSettled([...staffPromises, ...groupPromises])
+        const sent = results.filter((r) => r.status === "fulfilled").length
+        const failed = results.filter((r) => r.status === "rejected").length
 
         return {
           ok: true as const,
           sentToCount: sent,
+          failedCount: failed,
           briefingContent: greetingText,
-          message: `Morning greeting successfully broadcast to ${sent} recipient(s) (staff DMs + group channels).`,
+          message: failed > 0
+            ? `Morning greeting broadcast with ${sent} success(es) and ${failed} failure(s).`
+            : `Morning greeting successfully broadcast to ${sent} recipient(s) (staff DMs + group channels).`,
         }
       },
     }),
@@ -291,16 +312,26 @@ export function buildChannelTools(principal: AgentPrincipal) {
         }
 
         let sent = 0
-        for (const group of groups) {
-          await sendTelegramMessage(group.externalId, message)
-          sent++
+        let failed = 0
+        const promises = groups.map((group) => sendTelegramMessage(group.externalId, message))
+        const results = await Promise.allSettled(promises)
+        
+        for (const result of results) {
+          if (result.status === "fulfilled") {
+            sent++
+          } else {
+            failed++
+          }
         }
 
         return {
           ok: true as const,
           sentToGroups: sent,
+          failedCount: failed,
           groupNames: groups.map((g) => g.name),
-          message: `Message sent to ${sent} group channel(s).`,
+          message: failed > 0 
+            ? `Message broadcast with ${sent} success(es) and ${failed} failure(s).`
+            : `Message sent to ${sent} group channel(s).`,
         }
       },
     }),

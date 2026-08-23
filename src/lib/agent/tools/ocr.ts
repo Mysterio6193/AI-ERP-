@@ -14,7 +14,7 @@ export function buildOcrTools(principal: AgentPrincipal) {
     scanDocument: tool({
       description:
         "Extracts structured data (vendor, invoice/docket number, date, line items, quantities, prices, GST, totals) from an image, PDF or raw text of an invoice, receipt, delivery docket, or bill of lading.",
-      parameters: z.object({
+      inputSchema: z.object({
         imageUrl: z
           .string()
           .optional()

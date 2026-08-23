@@ -4,6 +4,19 @@ import type { AgentPrincipal } from "../context"
 
 /** Helpers shared by every tool domain. */
 
+export async function safeDb<T>(
+  fn: () => Promise<T>,
+  fallbackErrorMessage = "Database operation failed"
+): Promise<{ ok: true; data: T } | { ok: false; error: string }> {
+  try {
+    const data = await fn()
+    return { ok: true, data }
+  } catch (err: any) {
+    const message = err?.message || fallbackErrorMessage
+    return { ok: false, error: message }
+  }
+}
+
 export function money(value: number | { toString(): string }) {
   return Number(Number(value).toFixed(2))
 }
