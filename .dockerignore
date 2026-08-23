@@ -2,28 +2,18 @@
 .git
 .gitignore
 
-# docker
-Dockerfile
-.dockerignore
-
-# dependencies
+# dependencies & build outputs
 node_modules
-
-# build output
 .next
 apps/driver-app/.next
+.pgdata
 
-# package managers (lockfiles are copied in the image build, not the context)
-package-lock.json
-bun.lock
-yarn.lock
-pnpm-lock.yaml
-
-# secrets and env files
-.env*
+# secrets and env files (except example)
+.env
+.env*.local
 !.env.example
 
-# databases — must never enter an image layer
+# databases — runtime SQLite DBs (Postgres data is in volume)
 *.db
 *.db-journal
 *.db-wal
@@ -31,14 +21,13 @@ pnpm-lock.yaml
 db/
 prisma/db/
 
-# runtime uploads (driver proof-of-delivery etc.)
+# runtime uploads
 public/uploads/
 
 # logs
 *.log
 
 # docs / scratch / archives
-README.md
 docs.zip
 *.zip
 upload/

@@ -1,0 +1,74 @@
+name: supplysure-os
+
+services:
+  # ── 1. PostgreSQL Database ──────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: supplysure-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-supplysure}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-supplysure}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── 2. Core ERP Web Application (Next.js 16) ────────────────────────────────
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: supplysure-web
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: "0.0.0.0"
+      DB_HOST: db
+      DB_PORT: 5432
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-supplysure}?schema=public"
+      ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:-supplysure-admin-dev-secret-key-for-local-testing-12345}
+      DRIVER_SESSION_SECRET: ${DRIVER_SESSION_SECRET:-driver-session-dev-secret-key-for-local-testing-12345}
+      CRON_SECRET: ${CRON_SECRET:-dev-cron-secret-12345}
+      AUTH_BYPASS: ${AUTH_BYPASS:-true}
+      CUSTOMER_OTP_EXPOSE: ${CUSTOMER_OTP_EXPOSE:-true}
+      AGENT_PROVIDER: ${AGENT_PROVIDER:-openrouter}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      AGENT_MODEL: ${AGENT_MODEL:-stealth/ox-alpha}
+      AGENT_MODEL_FAST: ${AGENT_MODEL_FAST:-stealth/ox-alpha}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # ── 3. Driver Mobile PWA (Port 3001) ─────────────────────────────────────────
+  driver-app:
+    build:
+      context: .
+      dockerfile: Dockerfile.driver
+    container_name: supplysure-driver-app
+    restart: unless-stopped
+    ports:
+      - "${DRIVER_PORT:-3001}:3001"
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      HOSTNAME: "0.0.0.0"
+      CORE_APP_URL: "http://web:3000"
+      DRIVER_SESSION_SECRET: ${DRIVER_SESSION_SECRET:-driver-session-dev-secret-key-for-local-testing-12345}
+      AUTH_BYPASS: ${AUTH_BYPASS:-true}
+    depends_on:
+      - web
+
+volumes:
+  postgres_data:
+    driver: local
