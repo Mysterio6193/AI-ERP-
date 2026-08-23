@@ -1,6 +1,6 @@
 import type { Prisma, PrismaClient } from "@prisma/client"
 
-import { ensureDefaultChartOfAccounts } from "@/lib/accounting"
+import { ensureDefaultChartOfAccounts, resolveLedgerCompanyId } from "@/lib/accounting"
 
 type DbClient = PrismaClient | Prisma.TransactionClient
 
@@ -117,7 +117,12 @@ export async function postJournal(db: DbClient, input: PostJournalInput): Promis
   // `ensureDefaultChartOfAccounts` comes back untyped (accounting.ts casts the
   // client), so pin the shape here rather than letting `{}` leak into the
   // create call.
-  const accounts = (await ensureDefaultChartOfAccounts(input.companyId)) as Array<{
+  // An unattributed posting files against the default entity rather than
+  // failing: the accounts below belong to that company, so the entry must name
+  // the same one or it would reference a chart it does not claim to be on.
+  const ledgerCompanyId = await resolveLedgerCompanyId(input.companyId)
+
+  const accounts = (await ensureDefaultChartOfAccounts(ledgerCompanyId)) as Array<{
     id: string
     code: string
     normalSide: string
@@ -143,7 +148,7 @@ export async function postJournal(db: DbClient, input: PostJournalInput): Promis
         totalCredit,
         postedBy: input.postedBy || null,
         postedAt: new Date(),
-        companyId: input.companyId,
+        companyId: ledgerCompanyId,
         lines: {
           create: lines.map((line) => ({
             accountId: byCode.get(line.accountCode)!,

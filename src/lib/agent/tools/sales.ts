@@ -6,6 +6,7 @@ import { createSalesOrder, priceSalesOrder } from "@/lib/sales-orders"
 import type { AgentPrincipal } from "../context"
 import { defineTool } from "./define"
 import { customerScope, isStaff, money } from "./shared"
+import { applyOrderStatus } from "@/lib/order-status"
 
 /** Orders and quoting. Customers get a scoped subset of the same tools. */
 
@@ -202,28 +203,50 @@ export function buildSalesTools(principal: AgentPrincipal, channel?: string) {
       description: "Move an order to a new status and record why.",
       inputSchema: z.object({
         orderId: z.string(),
+        // "confirmed" is gone: it renders as a status but is absent from every
+        // fulfilment eligibility set, so an order parked there got no pick
+        // list, no reservation and no invoice — invisible to fulfilment
+        // forever. "packed" and "invoiced" were missing and are real.
         status: z.enum([
           "draft",
-          "confirmed",
+          "pending_approval",
           "approved",
           "picking",
+          "packed",
           "dispatched",
           "delivered",
+          "invoiced",
           "cancelled",
         ]),
         note: z.string().optional(),
       }),
       execute: async ({ orderId, status, note }) => {
-        const order = await db.salesOrder.update({
+        // Was a bare `salesOrder.update`, which fired none of the side effects
+        // a status carries: an agent moving an order to "dispatched" wrote the
+        // word and nothing else — stock never left, no invoice was raised, and
+        // the reservation stayed held. Same path as the API now.
+        const result = await applyOrderStatus(db, orderId, status, {
+          userId: principal.kind === "staff" ? principal.userId : null,
+          note: note || "Updated by agent",
+        })
+
+        if (!result.ok) {
+          return { ok: false as const, error: result.error || "Could not change the status" }
+        }
+
+        const order = await db.salesOrder.findUnique({
           where: { id: orderId },
-          data: {
-            status,
-            statusLogs: { create: { status, notes: note || "Updated by agent" } },
-          },
           select: { orderNumber: true, status: true },
         })
 
-        return { ok: true as const, order }
+        return {
+          ok: true as const,
+          order,
+          previous: result.previous,
+          // Reported so the agent can say what actually happened rather than
+          // just naming the new status.
+          effects: result.effects,
+        }
       },
     }),
 
