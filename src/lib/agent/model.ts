@@ -21,8 +21,8 @@ const DEFAULT_GATEWAY_FAST_MODEL = "anthropic/claude-haiku-4.5"
 const DEFAULT_LOCAL_BASE_URL = "http://localhost:11434/v1"
 const DEFAULT_LOCAL_MODEL = "llama3.1"
 const DEFAULT_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-const DEFAULT_OPENROUTER_MODEL = "nvidia/nemotron-3-super-120b-a12b"
-const DEFAULT_OPENROUTER_FAST_MODEL = "nvidia/nemotron-3.5-lightning"
+const DEFAULT_OPENROUTER_MODEL = "stealth/ox-alpha"
+const DEFAULT_OPENROUTER_FAST_MODEL = "stealth/ox-alpha"
 const DEFAULT_GOOGLE_MODEL = "gemini-3.1-flash-lite"
 const DEFAULT_GOOGLE_FAST_MODEL = "gemini-3.1-flash-lite"
 
@@ -87,13 +87,6 @@ function openrouterProvider() {
         try {
           const parsed = JSON.parse(options.body)
           originalModel = parsed.model || ""
-          if (!parsed.max_tokens || parsed.max_tokens > 256) {
-            parsed.max_tokens = 256
-            options = {
-              ...options,
-              body: JSON.stringify(parsed),
-            }
-          }
         } catch {
           // ignore JSON parse errors
         }

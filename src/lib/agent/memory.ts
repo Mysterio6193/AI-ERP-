@@ -70,10 +70,19 @@ function terms(text: string) {
  * into the prompt together.
  */
 export async function remember(input: MemoryInput) {
-  const content = input.content.trim()
+  let content = input.content.trim()
 
   if (!content) {
     return { ok: false as const, error: "Nothing to remember" }
+  }
+
+  if (input.scope === "company" || input.scope === "user" || input.scope === "entity") {
+    const suspicious = /ignore previous instructions|system prompt|forget all|you are now|bypass/i
+    if (suspicious.test(content)) {
+      console.warn(`[AUDIT] Potential prompt injection detected in memory (scope: ${input.scope}): ${content}`)
+      content = `[FLAGGED FOR REVIEW] ${content}`
+      input.category = "constraint"
+    }
   }
 
   if (input.scope === "user" && !input.userId) {

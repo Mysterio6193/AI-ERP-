@@ -144,11 +144,16 @@ async function buildStaffContext(principal: StaffPrincipal) {
 
   const overdueTotal = overdueInvoices.reduce((sum, invoice) => sum + invoice.outstandingAmt, 0)
 
+  const isFinance = principal.role === "admin" || principal.role === "accounts"
+  const financeMetrics = isFinance
+    ? `${overdueInvoices.length} overdue invoices totalling ${formatMoney(overdueTotal)}, `
+    : ""
+
   return [
     `You are talking to ${principal.name} (${principal.email}), role: ${principal.role}.`,
     `Today is ${now.toDateString()}.`,
     `Live figures: ${ordersToday} orders placed today, ${openOrders} orders open, ` +
-      `${overdueInvoices.length} overdue invoices totalling ${formatMoney(overdueTotal)}, ` +
+      financeMetrics +
       `${lowStock} products out of stock, ${myTasks} open tasks assigned to this user.`,
   ].join("\n")
 }

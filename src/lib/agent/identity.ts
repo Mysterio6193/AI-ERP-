@@ -47,20 +47,23 @@ export async function getAgentIdentity(): Promise<AgentIdentity> {
 
 export async function saveAgentIdentity(patch: Partial<AgentIdentity>) {
   const next = { ...(await getAgentIdentity()), ...patch }
-
-  await db.setting.upsert({
-    where: { key: SETTING_KEY },
-    create: { key: SETTING_KEY, value: JSON.stringify(next), category: "agent" },
-    update: { value: JSON.stringify(next) },
-  })
-
-  // Keep the User row in step so attribution shows the current name.
   const user = await ensureAgentUser()
-  if (user.name !== next.name || user.email !== next.email) {
-    await db.user
-      .update({ where: { id: user.id }, data: { name: next.name, email: next.email } })
-      .catch(() => undefined)
-  }
+
+  await db.$transaction(async (tx) => {
+    await tx.setting.upsert({
+      where: { key: SETTING_KEY },
+      create: { key: SETTING_KEY, value: JSON.stringify(next), category: "agent" },
+      update: { value: JSON.stringify(next) },
+    })
+
+    // Keep the User row in step so attribution shows the current name.
+    if (user.name !== next.name || user.email !== next.email) {
+      await tx.user.update({
+        where: { id: user.id },
+        data: { name: next.name, email: next.email }
+      })
+    }
+  })
 
   return next
 }
