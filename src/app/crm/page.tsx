@@ -16,6 +16,9 @@ import {
 } from "lucide-react"
 
 import { AppShell } from "@/components/layout/app-shell"
+import { PageHeader } from "@/components/ui/page-header"
+import { KpiCard } from "@/components/ui/kpi-card"
+import { EmptyState } from "@/components/ui/empty-state"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -238,68 +241,42 @@ export default function CrmPage() {
   return (
     <AppShell title="CRM">
       <div className="space-y-6">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">CRM</h1>
-            <p className="text-sm text-muted-foreground">
-              Accounts, pipeline and what needs attention today.
-            </p>
-          </div>
-          <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
-            {loading ? (
-              <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <RefreshCw className="mr-2 h-3.5 w-3.5" />
-            )}
-            Refresh
-          </Button>
-        </div>
+        <PageHeader
+          title="CRM"
+          description="Accounts, pipeline and what needs attention today."
+          actions={
+            <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
+              {loading ? (
+                <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-2 h-3.5 w-3.5" />
+              )}
+              Refresh
+            </Button>
+          }
+        />
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription className="flex items-center gap-1.5">
-                <CalendarClock className="h-3.5 w-3.5" />
-                Needs attention
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-semibold">{focus?.items.length ?? 0}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription className="flex items-center gap-1.5">
-                <AlertTriangle className="h-3.5 w-3.5" />
-                Open cases
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-semibold">{focus?.counters?.openCases ?? 0}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription className="flex items-center gap-1.5">
-                <Users className="h-3.5 w-3.5" />
-                Active leads
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-semibold">{focus?.counters?.activeLeads ?? 0}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription className="flex items-center gap-1.5">
-                <TrendingUp className="h-3.5 w-3.5" />
-                Pipeline (weighted)
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-semibold">{money(pipeline?.weightedValue ?? 0)}</p>
-            </CardContent>
-          </Card>
+          <KpiCard
+            title="Needs Attention"
+            value={focus?.items.length ?? 0}
+            icon={CalendarClock}
+          />
+          <KpiCard
+            title="Open Cases"
+            value={focus?.counters?.openCases ?? 0}
+            icon={AlertTriangle}
+          />
+          <KpiCard
+            title="Active Leads"
+            value={focus?.counters?.activeLeads ?? 0}
+            icon={Users}
+          />
+          <KpiCard
+            title="Pipeline (weighted)"
+            value={money(pipeline?.weightedValue ?? 0)}
+            icon={TrendingUp}
+          />
         </div>
 
         <Tabs value={tab} onValueChange={setTab}>

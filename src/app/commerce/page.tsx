@@ -17,6 +17,8 @@ import {
 } from "lucide-react"
 
 import { AppShell } from "@/components/layout/app-shell"
+import { PageHeader } from "@/components/ui/page-header"
+import { KpiCard } from "@/components/ui/kpi-card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -86,7 +88,7 @@ function ReadinessBadge({
   ready: boolean
 }) {
   return (
-    <Badge className={ready ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}>
+    <Badge variant={ready ? "default" : "outline"} className={ready ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/20" : "text-muted-foreground border-border"}>
       {label}: {ready ? "Ready" : "Needs setup"}
     </Badge>
   )
@@ -177,84 +179,56 @@ export default function CommercePage() {
 
   return (
     <AppShell title="Commerce" breadcrumbs={[{ label: "Commerce" }]}>
-      <div className="apple-admin-page">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="apple-hero flex-1 space-y-5">
-            <div className="flex flex-wrap gap-2">
-              <Badge className="border-white/14 bg-white/8 text-white">Customer Commerce</Badge>
-              <Badge className="border-white/14 bg-white/8 text-white/82">Website + Mobile</Badge>
+      <div className="space-y-6">
+        <PageHeader
+          title="Commerce Control Center"
+          description="Manage customer website and mobile app channels, ordering policies, and operational sync."
+          actions={
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => void loadCommerce(true)} disabled={refreshing || loading}>
+                <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+                Refresh
+              </Button>
+              <Button onClick={handleSave} disabled={saving || loading}>
+                <Save className="mr-2 h-4 w-4" />
+                {saving ? "Saving..." : "Save Commerce"}
+              </Button>
             </div>
-            <div>
-              <h1 className="text-[36px] font-semibold tracking-[-0.04em] text-white md:text-[52px]">Commerce control center</h1>
-              <p className="max-w-2xl text-[17px] text-white/70">
-                Manage the customer website and app from the admin dashboard, and keep their orders visible to ops.
-              </p>
-            </div>
-          </div>
-          <div className="flex gap-3">
-            <Button variant="outline" onClick={() => void loadCommerce(true)} disabled={refreshing || loading}>
-              <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-              Refresh
-            </Button>
-            <Button onClick={handleSave} disabled={saving || loading}>
-              <Save className="mr-2 h-4 w-4" />
-              {saving ? "Saving..." : "Save Commerce"}
-            </Button>
-          </div>
-        </div>
+          }
+        />
 
         <div className="flex flex-wrap gap-2">
           <ReadinessBadge label="Website" ready={deploymentChecks.website} />
-          <ReadinessBadge label="Mobile" ready={deploymentChecks.mobile} />
-          <ReadinessBadge label="Support" ready={deploymentChecks.support} />
-          <ReadinessBadge label="Content" ready={deploymentChecks.content} />
+          <ReadinessBadge label="Mobile App" ready={deploymentChecks.mobile} />
+          <ReadinessBadge label="Support Contact" ready={deploymentChecks.support} />
+          <ReadinessBadge label="Storefront Content" ready={deploymentChecks.content} />
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <Card className="apple-kpi bg-[#eaf3ff]">
-            <CardHeader className="pb-2">
-              <CardDescription>Total customer orders</CardDescription>
-              <CardTitle className="text-3xl">
-                {loading ? "..." : overview?.overview.totalCustomerOrders || 0}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-xs text-muted-foreground">
-              {overview?.overview.last30DaysOrders || 0} placed in the last 30 days
-            </CardContent>
-          </Card>
-          <Card className="apple-kpi">
-            <CardHeader className="pb-2">
-              <CardDescription>Commerce revenue</CardDescription>
-              <CardTitle className="text-3xl">
-                {loading ? "..." : formatCurrencyShort(overview?.overview.customerRevenue || 0)}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-xs text-muted-foreground">
-              {formatCurrencyShort(overview?.overview.last30DaysRevenue || 0)} in the last 30 days
-            </CardContent>
-          </Card>
-          <Card className="apple-kpi">
-            <CardHeader className="pb-2">
-              <CardDescription>Website orders</CardDescription>
-              <CardTitle className="text-3xl">
-                {loading ? "..." : overview?.overview.channelBreakdown.find((item) => item.channel === "customer_web")?.orders || 0}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-xs text-muted-foreground">
-              Customer website flow currently {settings.websiteEnabled ? "enabled" : "disabled"}
-            </CardContent>
-          </Card>
-          <Card className="apple-kpi">
-            <CardHeader className="pb-2">
-              <CardDescription>Mobile app orders</CardDescription>
-              <CardTitle className="text-3xl">
-                {loading ? "..." : overview?.overview.channelBreakdown.find((item) => item.channel === "customer_app")?.orders || 0}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-xs text-muted-foreground">
-              {overview?.overview.liveCustomers || 0} active customer accounts using commerce channels
-            </CardContent>
-          </Card>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <KpiCard
+            title="Total Customer Orders"
+            value={loading ? "..." : overview?.overview.totalCustomerOrders || 0}
+            description={`${overview?.overview.last30DaysOrders || 0} placed in the last 30 days`}
+            icon={ShoppingBag}
+          />
+          <KpiCard
+            title="Commerce Revenue"
+            value={loading ? "..." : formatCurrencyShort(overview?.overview.customerRevenue || 0)}
+            description={`${formatCurrencyShort(overview?.overview.last30DaysRevenue || 0)} in the last 30 days`}
+            icon={TrendingUp}
+          />
+          <KpiCard
+            title="Website Orders"
+            value={loading ? "..." : overview?.overview.channelBreakdown.find((item) => item.channel === "customer_web")?.orders || 0}
+            description={`Website flow currently ${settings.websiteEnabled ? "enabled" : "disabled"}`}
+            icon={Globe}
+          />
+          <KpiCard
+            title="Mobile App Orders"
+            value={loading ? "..." : overview?.overview.channelBreakdown.find((item) => item.channel === "customer_app")?.orders || 0}
+            description={`${overview?.overview.liveCustomers || 0} active customer accounts`}
+            icon={Smartphone}
+          />
         </div>
 
         <Tabs defaultValue="overview" className="space-y-4">
@@ -274,10 +248,10 @@ export default function CommercePage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {(overview?.overview.channelBreakdown || []).map((item) => (
-                    <div key={item.channel} className="rounded-2xl border border-slate-200 p-4">
+                    <div key={item.channel} className="rounded-xl border border-border bg-card p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="text-sm font-semibold text-slate-900">{item.label}</p>
+                          <p className="text-sm font-semibold text-foreground">{item.label}</p>
                           <p className="text-xs text-muted-foreground">
                             {item.orders} order{item.orders === 1 ? "" : "s"} tracked in OS
                           </p>
@@ -286,7 +260,7 @@ export default function CommercePage() {
                           {COMMERCE_CHANNEL_LABELS[item.channel]}
                         </Badge>
                       </div>
-                      <p className="mt-4 text-2xl font-semibold text-slate-900">
+                      <p className="mt-4 text-2xl font-semibold text-foreground">
                         {formatCurrencyShort(item.revenue)}
                       </p>
                     </div>
@@ -300,26 +274,26 @@ export default function CommercePage() {
                   <CardDescription>Deployment details that ops and growth teams usually need before go-live.</CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-4 md:grid-cols-2">
-                  <div className="rounded-2xl border border-slate-200 p-4">
+                  <div className="rounded-xl border border-border bg-card p-4">
                     <div className="flex items-center gap-2">
-                      <Globe className="h-4 w-4 text-cyan-600" />
-                      <p className="font-medium text-slate-900">Customer website</p>
+                      <Globe className="h-4 w-4 text-primary" />
+                      <p className="font-medium text-foreground">Customer website</p>
                     </div>
                     <p className="mt-2 text-sm text-muted-foreground">{settings.websiteUrl || "No production URL saved yet."}</p>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 p-4">
+                  <div className="rounded-xl border border-border bg-card p-4">
                     <div className="flex items-center gap-2">
                       <Smartphone className="h-4 w-4 text-emerald-600" />
-                      <p className="font-medium text-slate-900">Customer mobile app</p>
+                      <p className="font-medium text-foreground">Customer mobile app</p>
                     </div>
                     <p className="mt-2 text-sm text-muted-foreground">
                       {settings.playStoreUrl || settings.appStoreUrl || "No App Store / Play Store URL saved yet."}
                     </p>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 p-4">
+                  <div className="rounded-xl border border-border bg-card p-4">
                     <div className="flex items-center gap-2">
                       <Megaphone className="h-4 w-4 text-amber-600" />
-                      <p className="font-medium text-slate-900">Announcement bar</p>
+                      <p className="font-medium text-foreground">Announcement bar</p>
                     </div>
                     <p className="mt-2 text-sm text-muted-foreground">
                       {settings.announcementEnabled && settings.announcementText
@@ -327,10 +301,10 @@ export default function CommercePage() {
                         : "Announcement bar is currently off."}
                     </p>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 p-4">
+                  <div className="rounded-xl border border-border bg-card p-4">
                     <div className="flex items-center gap-2">
                       <ShieldCheck className="h-4 w-4 text-violet-600" />
-                      <p className="font-medium text-slate-900">Commerce safety</p>
+                      <p className="font-medium text-foreground">Commerce safety</p>
                     </div>
                     <p className="mt-2 text-sm text-muted-foreground">
                       {settings.maintenanceMode
@@ -338,10 +312,10 @@ export default function CommercePage() {
                         : "Channels are open for ordering."}
                     </p>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 p-4">
+                  <div className="rounded-xl border border-border bg-card p-4">
                     <div className="flex items-center gap-2">
                       <Headset className="h-4 w-4 text-emerald-600" />
-                      <p className="font-medium text-slate-900">Support handoff</p>
+                      <p className="font-medium text-foreground">Support handoff</p>
                     </div>
                     <p className="mt-2 text-sm text-muted-foreground">
                       {settings.supportEmail || settings.supportPhone
@@ -349,10 +323,10 @@ export default function CommercePage() {
                         : "No support contact saved yet."}
                     </p>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 p-4">
+                  <div className="rounded-xl border border-border bg-card p-4">
                     <div className="flex items-center gap-2">
                       <Sparkles className="h-4 w-4 text-pink-600" />
-                      <p className="font-medium text-slate-900">Storefront CTA</p>
+                      <p className="font-medium text-foreground">Storefront CTA</p>
                     </div>
                     <p className="mt-2 text-sm text-muted-foreground">
                       {settings.primaryCtaLabel
@@ -360,19 +334,19 @@ export default function CommercePage() {
                         : "No primary CTA configured yet."}
                     </p>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 p-4">
+                  <div className="rounded-xl border border-border bg-card p-4">
                     <div className="flex items-center gap-2">
-                      <ShoppingBag className="h-4 w-4 text-blue-600" />
-                      <p className="font-medium text-slate-900">Order thresholds</p>
+                      <ShoppingBag className="h-4 w-4 text-primary" />
+                      <p className="font-medium text-foreground">Order thresholds</p>
                     </div>
                     <p className="mt-2 text-sm text-muted-foreground">
                       Minimum order {formatCurrencyShort(settings.minimumOrderAmount || 0)}. Free delivery from {formatCurrencyShort(settings.freeDeliveryThreshold || 0)}.
                     </p>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 p-4">
+                  <div className="rounded-xl border border-border bg-card p-4">
                     <div className="flex items-center gap-2">
                       <Headset className="h-4 w-4 text-emerald-600" />
-                      <p className="font-medium text-slate-900">Support hours</p>
+                      <p className="font-medium text-foreground">Support hours</p>
                     </div>
                     <p className="mt-2 text-sm text-muted-foreground">
                       {settings.supportHours || "No support hours configured yet."}
@@ -389,16 +363,16 @@ export default function CommercePage() {
                   <CardDescription>Live demand and order movement across customer channels.</CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-4 md:grid-cols-3">
-                  <div className="rounded-2xl border border-slate-200 p-4">
-                    <div className="flex items-center gap-2 text-slate-900">
-                      <ShoppingBag className="h-4 w-4 text-cyan-600" />
+                  <div className="rounded-xl border border-border bg-card p-4">
+                    <div className="flex items-center gap-2 text-foreground">
+                      <ShoppingBag className="h-4 w-4 text-primary" />
                       <p className="text-sm font-medium">Live customers</p>
                     </div>
                     <p className="mt-3 text-2xl font-semibold">{overview?.overview.liveCustomers || 0}</p>
                     <p className="mt-1 text-xs text-muted-foreground">Customers with sessions or carts in OS</p>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 p-4">
-                    <div className="flex items-center gap-2 text-slate-900">
+                  <div className="rounded-xl border border-border bg-card p-4">
+                    <div className="flex items-center gap-2 text-foreground">
                       <TrendingUp className="h-4 w-4 text-emerald-600" />
                       <p className="text-sm font-medium">30-day revenue</p>
                     </div>
@@ -407,12 +381,12 @@ export default function CommercePage() {
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">Commerce revenue booked in the last 30 days</p>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 p-4">
-                    <div className="flex items-center gap-2 text-slate-900">
+                  <div className="rounded-xl border border-border bg-card p-4">
+                    <div className="flex items-center gap-2 text-foreground">
                       <Boxes className="h-4 w-4 text-amber-600" />
                       <p className="text-sm font-medium">Featured categories</p>
                     </div>
-                    <p className="mt-3 text-sm font-semibold text-slate-900">
+                    <p className="mt-3 text-sm font-semibold text-foreground">
                       {settings.featuredCategoryIds || "No featured category ids configured"}
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">Comma-separated category ids for merchandising</p>
@@ -430,27 +404,27 @@ export default function CommercePage() {
                     href={settings.websiteUrl || "#"}
                     target="_blank"
                     rel="noreferrer"
-                    className={`flex items-center justify-between rounded-2xl border border-slate-200 p-4 ${settings.websiteUrl ? "hover:bg-slate-50" : "pointer-events-none opacity-60"}`}
+                    className={`flex items-center justify-between rounded-xl border border-border bg-card p-4 transition-colors ${settings.websiteUrl ? "hover:bg-muted/50" : "pointer-events-none opacity-60"}`}
                   >
                     <div>
-                      <p className="font-medium text-slate-900">Customer website</p>
+                      <p className="font-medium text-foreground">Customer website</p>
                       <p className="text-sm text-muted-foreground">{settings.websiteUrl || "Add website URL to enable"}</p>
                     </div>
-                    <ExternalLink className="h-4 w-4 text-slate-500" />
+                    <ExternalLink className="h-4 w-4 text-muted-foreground" />
                   </a>
                   <a
                     href={settings.playStoreUrl || settings.appStoreUrl || "#"}
                     target="_blank"
                     rel="noreferrer"
-                    className={`flex items-center justify-between rounded-2xl border border-slate-200 p-4 ${(settings.playStoreUrl || settings.appStoreUrl) ? "hover:bg-slate-50" : "pointer-events-none opacity-60"}`}
+                    className={`flex items-center justify-between rounded-xl border border-border bg-card p-4 transition-colors ${(settings.playStoreUrl || settings.appStoreUrl) ? "hover:bg-muted/50" : "pointer-events-none opacity-60"}`}
                   >
                     <div>
-                      <p className="font-medium text-slate-900">Mobile app listing</p>
+                      <p className="font-medium text-foreground">Mobile app listing</p>
                       <p className="text-sm text-muted-foreground">
                         {settings.playStoreUrl || settings.appStoreUrl || "Add App Store / Play Store URL to enable"}
                       </p>
                     </div>
-                    <ExternalLink className="h-4 w-4 text-slate-500" />
+                    <ExternalLink className="h-4 w-4 text-muted-foreground" />
                   </a>
                 </CardContent>
               </Card>
@@ -458,7 +432,7 @@ export default function CommercePage() {
           </TabsContent>
 
           <TabsContent value="orders" className="space-y-4">
-            <Card>
+            <Card className="border-border shadow-sm overflow-hidden">
               <CardHeader>
                 <CardTitle className="text-base">Customer channel orders</CardTitle>
                 <CardDescription>Orders from the website and app flow here for fulfilment and finance.</CardDescription>
@@ -510,7 +484,7 @@ export default function CommercePage() {
                           </TableCell>
                           <TableCell>
                             <div className="space-y-1">
-                              <Badge variant="outline" className="border-slate-200 text-slate-700">
+                              <Badge variant="outline" className="border-border text-foreground">
                                 {order.status}
                               </Badge>
                               {order.latestStatusNote ? (
@@ -537,18 +511,18 @@ export default function CommercePage() {
                 <CardContent className="space-y-3">
                   {overview?.overview.statusBreakdown.length ? (
                     overview.overview.statusBreakdown.map((item) => (
-                      <div key={item.status} className="flex items-center justify-between rounded-2xl border border-slate-200 p-4">
+                      <div key={item.status} className="flex items-center justify-between rounded-xl border border-border bg-card p-4">
                         <div>
-                          <p className="font-medium text-slate-900">{item.status}</p>
+                          <p className="font-medium text-foreground">{item.status}</p>
                           <p className="text-xs text-muted-foreground">Customer website and app orders</p>
                         </div>
-                        <Badge variant="outline" className="border-slate-200 text-slate-700">
+                        <Badge variant="outline" className="border-border text-foreground">
                           {item.count}
                         </Badge>
                       </div>
                     ))
                   ) : (
-                    <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-muted-foreground">
+                    <div className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
                       No customer-channel orders have hit the dashboard yet.
                     </div>
                   )}
@@ -561,48 +535,48 @@ export default function CommercePage() {
                   <CardDescription>Operational toggles that shape the customer buying experience.</CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-4 md:grid-cols-2">
-                  <div className="rounded-2xl border border-slate-200 p-4">
-                    <p className="font-medium text-slate-900">Order approval</p>
+                  <div className="rounded-xl border border-border bg-card p-4">
+                    <p className="font-medium text-foreground">Order approval</p>
                     <p className="mt-2 text-sm text-muted-foreground">
                       {settings.autoApproveOrders
                         ? "Customer orders go straight into fulfilment."
                         : "Customer orders stop in pending approval before ops picks them."}
                     </p>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 p-4">
-                    <p className="font-medium text-slate-900">Inventory sync</p>
+                  <div className="rounded-xl border border-border bg-card p-4">
+                    <p className="font-medium text-foreground">Inventory sync</p>
                     <p className="mt-2 text-sm text-muted-foreground">
                       {settings.inventorySyncEnabled
                         ? "Storefront inventory stays aligned with SupplySure OS stock."
                         : "Inventory sync is disabled for storefront channels."}
                     </p>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 p-4">
-                    <p className="font-medium text-slate-900">Out-of-stock behavior</p>
+                  <div className="rounded-xl border border-border bg-card p-4">
+                    <p className="font-medium text-foreground">Out-of-stock behavior</p>
                     <p className="mt-2 text-sm text-muted-foreground">
                       {settings.showOutOfStock
                         ? "Out-of-stock items can still appear in the storefront experience."
                         : "Out-of-stock items are hidden from the storefront experience."}
                     </p>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 p-4">
-                    <p className="font-medium text-slate-900">Announcement status</p>
+                  <div className="rounded-xl border border-border bg-card p-4">
+                    <p className="font-medium text-foreground">Announcement status</p>
                     <p className="mt-2 text-sm text-muted-foreground">
                       {settings.announcementEnabled && settings.announcementText
                         ? settings.announcementText
                         : "No live storefront announcement is currently active."}
                     </p>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 p-4">
-                    <p className="font-medium text-slate-900">Guest checkout</p>
+                  <div className="rounded-xl border border-border bg-card p-4">
+                    <p className="font-medium text-foreground">Guest checkout</p>
                     <p className="mt-2 text-sm text-muted-foreground">
                       {settings.guestCheckoutEnabled
                         ? "Guests can place orders without a full account."
                         : "Customers need an account before they can order."}
                     </p>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 p-4">
-                    <p className="font-medium text-slate-900">Delivery promise</p>
+                  <div className="rounded-xl border border-border bg-card p-4">
+                    <p className="font-medium text-foreground">Delivery promise</p>
                     <p className="mt-2 text-sm text-muted-foreground">
                       {settings.estimatedDeliveryWindow || "No delivery promise saved yet."}
                     </p>
@@ -621,10 +595,10 @@ export default function CommercePage() {
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="grid gap-4 md:grid-cols-2">
-                    <div className="rounded-2xl border border-slate-200 p-4">
+                    <div className="rounded-xl border border-border bg-card p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="font-medium text-slate-900">Customer website</p>
+                          <p className="font-medium text-foreground">Customer website</p>
                           <p className="text-sm text-muted-foreground">Allow customers to browse and place orders on the web.</p>
                         </div>
                         <Switch
@@ -633,10 +607,10 @@ export default function CommercePage() {
                         />
                       </div>
                     </div>
-                    <div className="rounded-2xl border border-slate-200 p-4">
+                    <div className="rounded-xl border border-border bg-card p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="font-medium text-slate-900">Customer mobile app</p>
+                          <p className="font-medium text-foreground">Customer mobile app</p>
                           <p className="text-sm text-muted-foreground">Allow orders and account access from iOS and Android.</p>
                         </div>
                         <Switch
@@ -645,10 +619,10 @@ export default function CommercePage() {
                         />
                       </div>
                     </div>
-                    <div className="rounded-2xl border border-slate-200 p-4">
+                    <div className="rounded-xl border border-border bg-card p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="font-medium text-slate-900">Maintenance mode</p>
+                          <p className="font-medium text-foreground">Maintenance mode</p>
                           <p className="text-sm text-muted-foreground">Temporarily pause ordering while keeping admin live.</p>
                         </div>
                         <Switch
@@ -657,10 +631,10 @@ export default function CommercePage() {
                         />
                       </div>
                     </div>
-                    <div className="rounded-2xl border border-slate-200 p-4">
+                    <div className="rounded-xl border border-border bg-card p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="font-medium text-slate-900">Auto approve customer orders</p>
+                          <p className="font-medium text-foreground">Auto approve customer orders</p>
                           <p className="text-sm text-muted-foreground">Useful when website and app orders should flow straight to fulfilment.</p>
                         </div>
                         <Switch
@@ -669,10 +643,10 @@ export default function CommercePage() {
                         />
                       </div>
                     </div>
-                    <div className="rounded-2xl border border-slate-200 p-4">
+                    <div className="rounded-xl border border-border bg-card p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="font-medium text-slate-900">Inventory sync to storefront</p>
+                          <p className="font-medium text-foreground">Inventory sync to storefront</p>
                           <p className="text-sm text-muted-foreground">Use OS inventory as the live source of truth for website and app.</p>
                         </div>
                         <Switch
@@ -681,10 +655,10 @@ export default function CommercePage() {
                         />
                       </div>
                     </div>
-                    <div className="rounded-2xl border border-slate-200 p-4">
+                    <div className="rounded-xl border border-border bg-card p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="font-medium text-slate-900">Show out-of-stock items</p>
+                          <p className="font-medium text-foreground">Show out-of-stock items</p>
                           <p className="text-sm text-muted-foreground">Control whether unavailable items still appear as discoverable merch.</p>
                         </div>
                         <Switch
@@ -693,10 +667,10 @@ export default function CommercePage() {
                         />
                       </div>
                     </div>
-                    <div className="rounded-2xl border border-slate-200 p-4 md:col-span-2">
+                    <div className="rounded-xl border border-border bg-card p-4 md:col-span-2">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="font-medium text-slate-900">Guest checkout</p>
+                          <p className="font-medium text-foreground">Guest checkout</p>
                           <p className="text-sm text-muted-foreground">Allow guest ordering, or keep checkout account-only for tighter B2B control.</p>
                         </div>
                         <Switch
@@ -864,10 +838,10 @@ export default function CommercePage() {
                     />
                   </div>
 
-                  <div className="rounded-2xl border border-slate-200 p-4 space-y-4">
+                  <div className="rounded-xl border border-border bg-card p-4 space-y-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="font-medium text-slate-900">Announcement bar</p>
+                        <p className="font-medium text-foreground">Announcement bar</p>
                         <p className="text-sm text-muted-foreground">Push a temporary promo, delay notice, or service update to the storefront.</p>
                       </div>
                       <Switch
@@ -894,9 +868,9 @@ export default function CommercePage() {
                     />
                   </div>
 
-                  <div className="rounded-2xl border border-dashed border-slate-200 p-4">
-                    <div className="flex items-center gap-2 text-sm font-medium text-slate-900">
-                      <ExternalLink className="h-4 w-4 text-cyan-600" />
+                  <div className="rounded-xl border border-dashed border-border p-4">
+                    <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                      <ExternalLink className="h-4 w-4 text-primary" />
                       Deployment handoff
                     </div>
                     <p className="mt-2 text-sm text-muted-foreground">
@@ -904,19 +878,19 @@ export default function CommercePage() {
                     </p>
                   </div>
 
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <p className="text-sm font-medium text-slate-900">Content preview</p>
-                    <p className="mt-3 text-xl font-semibold text-slate-900">{settings.heroTitle || "No hero title yet"}</p>
+                  <div className="rounded-xl border border-border bg-muted/30 p-4">
+                    <p className="text-sm font-medium text-foreground">Content preview</p>
+                    <p className="mt-3 text-xl font-semibold text-foreground">{settings.heroTitle || "No hero title yet"}</p>
                     <p className="mt-2 text-sm leading-6 text-muted-foreground">
                       {settings.heroSubtitle || "No hero subtitle yet"}
                     </p>
                     <div className="mt-4 flex flex-wrap gap-2">
-                      <Badge className="bg-cyan-100 text-cyan-700">{settings.primaryCtaLabel || "No CTA label"}</Badge>
-                      <Badge className="bg-blue-100 text-blue-700">Min order {formatCurrencyShort(settings.minimumOrderAmount || 0)}</Badge>
+                      <Badge variant="secondary">{settings.primaryCtaLabel || "No CTA label"}</Badge>
+                      <Badge variant="outline">Min order {formatCurrencyShort(settings.minimumOrderAmount || 0)}</Badge>
                       {settings.announcementEnabled && settings.announcementText ? (
-                        <Badge className="bg-amber-100 text-amber-700">Announcement live</Badge>
+                        <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/20">Announcement live</Badge>
                       ) : (
-                        <Badge className="bg-slate-100 text-slate-700">Announcement off</Badge>
+                        <Badge variant="outline">Announcement off</Badge>
                       )}
                     </div>
                   </div>

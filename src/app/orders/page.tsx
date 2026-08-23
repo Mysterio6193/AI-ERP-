@@ -3,10 +3,14 @@
 import { useState, useEffect } from "react"
 import {
   Plus, Search, MoreHorizontal, Eye, FileText, Truck, CheckCircle,
-  Clock, Package, XCircle, ArrowRight, User, AlertCircle, Download, Loader2, Send, Printer
+  Clock, Package, XCircle, ArrowRight, User, AlertCircle, Download, Loader2, Send, Printer,
+  ShoppingCart
 } from "lucide-react"
 import dynamic from "next/dynamic"
 import { AppShell } from "@/components/layout/app-shell"
+import { PageHeader } from "@/components/ui/page-header"
+import { KpiCard } from "@/components/ui/kpi-card"
+import { EmptyState } from "@/components/ui/empty-state"
 import { SendDocumentModal } from "@/components/modals/SendDocumentModal"
 import { COMMERCE_CHANNEL_COLORS, COMMERCE_CHANNEL_LABELS, normalizeCommerceChannel } from "@/lib/commerce"
 import SalesOrderPDF from "@/components/documents/SalesOrderPDF"
@@ -594,257 +598,226 @@ export default function OrdersPage() {
     <AppShell title="Sales Orders" breadcrumbs={[{ label: "Orders" }]}>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Sales Orders</h1>
-            <p className="text-muted-foreground">Manage orders and fulfillment workflow</p>
-          </div>
-          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={resetForm} className="bg-emerald-600 hover:bg-emerald-700">
-                <Plus className="mr-2 h-4 w-4" />
-                New Order
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Create New Order</DialogTitle>
-                <DialogDescription>
-                  Create a sales order for a customer
-                </DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleCreateOrder}>
-                <div className="grid gap-6">
-                  {error && (
-                    <Alert variant="destructive">
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertDescription>{error}</AlertDescription>
-                    </Alert>
-                  )}
-                  {/* Customer Selection */}
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <Label>Customer *</Label>
-                      <Select
-                        value={formData.customerId}
-                        onValueChange={(value) => setFormData({ ...formData, customerId: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select customer" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {customers.map((customer) => (
-                            <SelectItem key={customer.id} value={customer.id}>
-                              {customer.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Delivery Date</Label>
-                      <Input
-                        type="date"
-                        value={formData.deliveryDate}
-                        onChange={(e) => setFormData({ ...formData, deliveryDate: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Notes</Label>
-                      <Input
-                        value={formData.notes}
-                        onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                        placeholder="Order notes..."
-                      />
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  {/* Product Selection */}
-                  <div className="space-y-3">
-                    <Label>Add Products</Label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {products.slice(0, 9).map((product) => (
-                        <Card
-                          key={product.id}
-                          className="cursor-pointer hover:bg-gray-50 p-3"
-                          onClick={() => addToCart(product)}
+        <PageHeader
+          title="Sales Orders"
+          description="Manage orders, fulfillment workflows, and commerce channels"
+          actions={
+            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+              <DialogTrigger asChild>
+                <Button onClick={resetForm}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  New Order
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Create New Order</DialogTitle>
+                  <DialogDescription>
+                    Create a sales order for a customer
+                  </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleCreateOrder}>
+                  <div className="grid gap-6">
+                    {error && (
+                      <Alert variant="destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription>{error}</AlertDescription>
+                      </Alert>
+                    )}
+                    {/* Customer Selection */}
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <Label>Customer *</Label>
+                        <Select
+                          value={formData.customerId}
+                          onValueChange={(value) => setFormData({ ...formData, customerId: value })}
                         >
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <p className="text-xs text-muted-foreground">{product.sku}</p>
-                              <p className="text-sm font-medium">{product.name}</p>
-                            </div>
-                            <Plus className="h-4 w-4 text-emerald-600" />
-                          </div>
-                          <p className="text-sm font-medium mt-1">{formatCurrency(product.wholesalePrice)}</p>
-                        </Card>
-                      ))}
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select customer" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {customers.map((customer) => (
+                              <SelectItem key={customer.id} value={customer.id}>
+                                {customer.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Delivery Date</Label>
+                        <Input
+                          type="date"
+                          value={formData.deliveryDate}
+                          onChange={(e) => setFormData({ ...formData, deliveryDate: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Notes</Label>
+                        <Input
+                          value={formData.notes}
+                          onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                          placeholder="Order notes..."
+                        />
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Cart */}
-                  {cart.length > 0 && (
-                    <>
-                      <Separator />
-                      <div className="space-y-3">
-                        <Label>Order Items</Label>
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Product</TableHead>
-                              <TableHead className="w-24">Qty</TableHead>
-                              <TableHead className="w-28">Unit Price</TableHead>
-                              <TableHead className="w-24">Disc %</TableHead>
-                              <TableHead className="text-right">Total</TableHead>
-                              <TableHead className="w-10"></TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {cart.map((item) => {
-                              const product = products.find(p => p.id === item.productId)
-                              if (!product) return null
-                              return (
-                                <TableRow key={item.productId}>
-                                  <TableCell>
-                                    <div>
-                                      <p className="font-medium text-sm">{product.name}</p>
-                                      <p className="text-xs text-muted-foreground">{product.sku}</p>
-                                    </div>
-                                  </TableCell>
-                                  <TableCell>
-                                    <Input
-                                      type="number"
-                                      value={item.quantity}
-                                      onChange={(e) => updateCartItem(item.productId, "quantity", parseInt(e.target.value) || 1)}
-                                      className="w-20 h-8"
-                                      min="1"
-                                    />
-                                  </TableCell>
-                                  <TableCell>
-                                    <Input
-                                      type="number"
-                                      step="0.01"
-                                      value={item.unitPrice}
-                                      onChange={(e) => updateCartItem(item.productId, "unitPrice", parseFloat(e.target.value) || 0)}
-                                      className="w-24 h-8"
-                                    />
-                                  </TableCell>
-                                  <TableCell>
-                                    <Input
-                                      type="number"
-                                      value={item.discount}
-                                      onChange={(e) => updateCartItem(item.productId, "discount", parseFloat(e.target.value) || 0)}
-                                      className="w-16 h-8"
-                                      min="0"
-                                      max="100"
-                                    />
-                                  </TableCell>
-                                  <TableCell className="text-right font-medium">
-                                    {formatCurrency(calculateItemTotal(item))}
-                                  </TableCell>
-                                  <TableCell>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-8 w-8"
-                                      onClick={() => removeFromCart(item.productId)}
-                                    >
-                                      <XCircle className="h-4 w-4 text-red-500" />
-                                    </Button>
-                                  </TableCell>
-                                </TableRow>
-                              )
-                            })}
-                          </TableBody>
-                        </Table>
+                    <Separator />
 
-                        {/* Totals */}
-                        <div className="flex justify-end">
-                          <div className="w-64 space-y-2">
-                            <div className="flex justify-between text-sm">
-                              <span>Subtotal:</span>
-                              <span>{formatCurrency(calculateCartTotal().subtotal)}</span>
+                    {/* Product Selection */}
+                    <div className="space-y-3">
+                      <Label>Add Products</Label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {products.slice(0, 9).map((product) => (
+                          <Card
+                            key={product.id}
+                            className="cursor-pointer transition-colors hover:bg-muted/50 p-3 shadow-none border-border"
+                            onClick={() => addToCart(product)}
+                          >
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <p className="text-xs text-muted-foreground">{product.sku}</p>
+                                <p className="text-sm font-medium">{product.name}</p>
+                              </div>
+                              <Plus className="h-4 w-4 text-primary" />
                             </div>
-                            <div className="flex justify-between text-sm">
-                              <span>GST:</span>
-                              <span>{formatCurrency(calculateCartTotal().totalTax)}</span>
-                            </div>
-                            <Separator />
-                            <div className="flex justify-between font-bold">
-                              <span>Total:</span>
-                              <span>{formatCurrency(calculateCartTotal().total)}</span>
+                            <p className="text-sm font-medium mt-1">{formatCurrency(product.wholesalePrice)}</p>
+                          </Card>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Cart */}
+                    {cart.length > 0 && (
+                      <>
+                        <Separator />
+                        <div className="space-y-3">
+                          <Label>Order Items</Label>
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Product</TableHead>
+                                <TableHead className="w-24">Qty</TableHead>
+                                <TableHead className="w-28">Unit Price</TableHead>
+                                <TableHead className="w-24">Disc %</TableHead>
+                                <TableHead className="text-right">Total</TableHead>
+                                <TableHead className="w-10"></TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {cart.map((item) => {
+                                const product = products.find(p => p.id === item.productId)
+                                if (!product) return null
+                                return (
+                                  <TableRow key={item.productId}>
+                                    <TableCell>
+                                      <div>
+                                        <p className="font-medium text-sm">{product.name}</p>
+                                        <p className="text-xs text-muted-foreground">{product.sku}</p>
+                                      </div>
+                                    </TableCell>
+                                    <TableCell>
+                                      <Input
+                                        type="number"
+                                        value={item.quantity}
+                                        onChange={(e) => updateCartItem(item.productId, "quantity", parseInt(e.target.value) || 1)}
+                                        className="w-20 h-8"
+                                        min="1"
+                                      />
+                                    </TableCell>
+                                    <TableCell>
+                                      <Input
+                                        type="number"
+                                        step="0.01"
+                                        value={item.unitPrice}
+                                        onChange={(e) => updateCartItem(item.productId, "unitPrice", parseFloat(e.target.value) || 0)}
+                                        className="w-24 h-8"
+                                      />
+                                    </TableCell>
+                                    <TableCell>
+                                      <Input
+                                        type="number"
+                                        value={item.discount}
+                                        onChange={(e) => updateCartItem(item.productId, "discount", parseFloat(e.target.value) || 0)}
+                                        className="w-16 h-8"
+                                        min="0"
+                                        max="100"
+                                      />
+                                    </TableCell>
+                                    <TableCell className="text-right font-medium">
+                                      {formatCurrency(calculateItemTotal(item))}
+                                    </TableCell>
+                                    <TableCell>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8"
+                                        onClick={() => removeFromCart(item.productId)}
+                                      >
+                                        <XCircle className="h-4 w-4 text-destructive" />
+                                      </Button>
+                                    </TableCell>
+                                  </TableRow>
+                                )
+                              })}
+                            </TableBody>
+                          </Table>
+
+                          {/* Totals */}
+                          <div className="flex justify-end">
+                            <div className="w-64 space-y-2 rounded-lg border border-border bg-muted/20 p-4">
+                              <div className="flex justify-between text-sm">
+                                <span className="text-muted-foreground">Subtotal:</span>
+                                <span>{formatCurrency(calculateCartTotal().subtotal)}</span>
+                              </div>
+                              <div className="flex justify-between text-sm">
+                                <span className="text-muted-foreground">GST:</span>
+                                <span>{formatCurrency(calculateCartTotal().totalTax)}</span>
+                              </div>
+                              <Separator />
+                              <div className="flex justify-between font-bold">
+                                <span>Total:</span>
+                                <span>{formatCurrency(calculateCartTotal().total)}</span>
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    </>
-                  )}
-                </div>
+                      </>
+                    )}
+                  </div>
 
-                <DialogFooter className="mt-6">
-                  <Button type="button" variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    className="bg-emerald-600 hover:bg-emerald-700"
-                    disabled={!formData.customerId || cart.length === 0}
-                  >
-                    Create Order
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </div>
+                  <DialogFooter className="mt-6">
+                    <Button type="button" variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button
+                      type="submit"
+                      disabled={!formData.customerId || cart.length === 0}
+                    >
+                      Create Order
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+          }
+        />
 
         {/* Stats Cards */}
-        <div className="grid gap-4 md:grid-cols-3 xl:grid-cols-6">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Total Orders</CardDescription>
-              <CardTitle className="text-2xl">{stats.total}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Draft</CardDescription>
-              <CardTitle className="text-2xl">{stats.draft}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card className="border-yellow-200 bg-yellow-50/50">
-            <CardHeader className="pb-2">
-              <CardDescription>In Progress</CardDescription>
-              <CardTitle className="text-2xl text-yellow-700">{stats.pending}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card className="border-green-200 bg-green-50/50">
-            <CardHeader className="pb-2">
-              <CardDescription>Delivered</CardDescription>
-              <CardTitle className="text-2xl text-green-700">{stats.delivered}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Sales Value</CardDescription>
-              <CardTitle className="text-2xl">{formatCurrencyShort(stats.salesValue)}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card className="border-cyan-200 bg-cyan-50/50">
-            <CardHeader className="pb-2">
-              <CardDescription>Commerce Orders</CardDescription>
-              <CardTitle className="text-2xl text-cyan-700">{stats.commerce}</CardTitle>
-            </CardHeader>
-          </Card>
+        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
+          <KpiCard title="Total Orders" value={stats.total} icon={Package} />
+          <KpiCard title="Draft" value={stats.draft} icon={FileText} />
+          <KpiCard title="In Progress" value={stats.pending} icon={Clock} />
+          <KpiCard title="Delivered" value={stats.delivered} icon={CheckCircle} />
+          <KpiCard title="Sales Value" value={formatCurrencyShort(stats.salesValue)} icon={Truck} />
+          <KpiCard title="Commerce Orders" value={stats.commerce} icon={ShoppingCart} />
         </div>
 
         {/* Filters */}
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center">
+        <Card className="border-border shadow-sm">
+          <CardContent className="p-4">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center">
               <div className="relative flex-1">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -855,7 +828,7 @@ export default function OrdersPage() {
                 />
               </div>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-48">
+                <SelectTrigger className="w-full md:w-48">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -866,7 +839,7 @@ export default function OrdersPage() {
                 </SelectContent>
               </Select>
               <Select value={sourceFilter} onValueChange={setSourceFilter}>
-                <SelectTrigger className="w-48">
+                <SelectTrigger className="w-full md:w-48">
                   <SelectValue placeholder="Source" />
                 </SelectTrigger>
                 <SelectContent>
@@ -882,21 +855,21 @@ export default function OrdersPage() {
         </Card>
 
         {selectedOrders.length > 0 && (
-          <Card>
-            <CardContent className="flex flex-col gap-3 pt-6 md:flex-row md:items-center md:justify-between">
+          <Card className="border-border shadow-sm bg-muted/20">
+            <CardContent className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="font-medium">{selectedOrders.length} sales order{selectedOrders.length === 1 ? "" : "s"} selected</p>
                 <p className="text-sm text-muted-foreground">Bulk print or download the current order selection.</p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <Button variant="outline" onClick={() => setSelectedOrderIds([])}>
+                <Button variant="outline" size="sm" onClick={() => setSelectedOrderIds([])}>
                   Clear Selection
                 </Button>
-                <Button variant="outline" onClick={() => void handleBulkPrintOrders()} disabled={!company || bulkAction !== null}>
+                <Button variant="outline" size="sm" onClick={() => void handleBulkPrintOrders()} disabled={!company || bulkAction !== null}>
                   {bulkAction === "print" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />}
                   Print Selected
                 </Button>
-                <Button className="bg-slate-900 hover:bg-slate-800" onClick={() => void handleBulkDownloadOrders()} disabled={!company || bulkAction !== null}>
+                <Button size="sm" onClick={() => void handleBulkDownloadOrders()} disabled={!company || bulkAction !== null}>
                   {bulkAction === "download" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
                   Download Selected
                 </Button>
@@ -906,7 +879,7 @@ export default function OrdersPage() {
         )}
 
         {/* Orders Table */}
-        <Card>
+        <Card className="border-border shadow-sm overflow-hidden">
           <CardContent className="p-0">
             <Table>
               <TableHeader>
@@ -930,14 +903,31 @@ export default function OrdersPage() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                      <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
                       Loading orders...
                     </TableCell>
                   </TableRow>
                 ) : filteredOrders.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                      No orders found
+                    <TableCell colSpan={8} className="p-0">
+                      <EmptyState
+                        icon={Package}
+                        title="No orders found"
+                        description={search || statusFilter !== "all" || sourceFilter !== "all" ? "No orders match your filter criteria." : "Create your first sales order to get started."}
+                        action={
+                          search || statusFilter !== "all" || sourceFilter !== "all" ? (
+                            <Button variant="outline" size="sm" onClick={() => { setSearch(""); setStatusFilter("all"); setSourceFilter("all"); }}>
+                              Clear Filters
+                            </Button>
+                          ) : (
+                            <Button size="sm" onClick={() => { resetForm(); setIsCreateDialogOpen(true); }}>
+                              <Plus className="mr-2 h-4 w-4" />
+                              New Order
+                            </Button>
+                          )
+                        }
+                      />
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -1344,7 +1334,7 @@ export default function OrdersPage() {
                       fileName={`Order-${selectedOrder.orderNumber}.pdf`}
                     >
                       {({ loading }) => (
-                        <Button className="bg-emerald-600 hover:bg-emerald-700" disabled={loading}>
+                        <Button variant="outline" disabled={loading}>
                           {loading ? (
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                           ) : (
@@ -1357,14 +1347,13 @@ export default function OrdersPage() {
                   )}
                   {getNextStatus(selectedOrder.status) && (
                     <Button
-                      className="bg-emerald-600 hover:bg-emerald-700"
+                      variant="outline"
                       onClick={() => handleStatusUpdate(selectedOrder.id, getNextStatus(selectedOrder.status)!)}
                     >
                       Mark as {STATUS_LABELS[getNextStatus(selectedOrder.status)!]}
                     </Button>
                   )}
                   <Button
-                    className="bg-slate-900 hover:bg-slate-800"
                     onClick={handleSaveOrder}
                     disabled={isUpdatingOrder || (canEditLineItems && editItems.length === 0)}
                   >

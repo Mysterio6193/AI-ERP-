@@ -20,6 +20,8 @@ import {
 
 import { AgentChat } from "@/components/agent/agent-chat"
 import { AppShell } from "@/components/layout/app-shell"
+import { PageHeader } from "@/components/ui/page-header"
+import { KpiCard } from "@/components/ui/kpi-card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -221,40 +223,44 @@ export default function AccountPage({ params }: { params: Promise<{ id: string }
   return (
     <AppShell title={customer.name}>
       <div className="space-y-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="space-y-1">
-            <Link
-              href="/crm"
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:underline"
-            >
-              <ArrowLeft className="h-3 w-3" />
-              CRM
-            </Link>
-            <h1 className="text-2xl font-semibold tracking-tight">{customer.name}</h1>
-            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              <Badge className={HEALTH_TONE[health.band] || ""}>
-                {health.band} · {health.score}
-              </Badge>
-              <span>{customer.customerType}</span>
-              {customer.industry ? <span>· {customer.industry}</span> : null}
-              <span>· net {customer.paymentTerms}</span>
-              {customer.salesRep ? <span>· rep {customer.salesRep.name}</span> : <span>· no rep</span>}
-            </div>
-          </div>
-          <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
-            {loading ? (
-              <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <RefreshCw className="mr-2 h-3.5 w-3.5" />
-            )}
-            Refresh
-          </Button>
+        <div className="space-y-2">
+          <Link
+            href="/crm"
+            className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="h-3 w-3" />
+            Back to CRM
+          </Link>
+          <PageHeader
+            title={customer.name}
+            description={
+              <div className="flex flex-wrap items-center gap-2 pt-1 text-xs text-muted-foreground">
+                <Badge className={HEALTH_TONE[health.band] || ""}>
+                  {health.band} · {health.score}
+                </Badge>
+                <span>{customer.customerType}</span>
+                {customer.industry ? <span>· {customer.industry}</span> : null}
+                <span>· net {customer.paymentTerms}</span>
+                {customer.salesRep ? <span>· rep {customer.salesRep.name}</span> : <span>· no rep</span>}
+              </div>
+            }
+            actions={
+              <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
+                {loading ? (
+                  <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <RefreshCw className="mr-2 h-3.5 w-3.5" />
+                )}
+                Refresh
+              </Button>
+            }
+          />
         </div>
 
         {health.reasons.length ? (
-          <Card className="border-l-4 border-l-amber-400">
+          <Card className="border-l-4 border-l-amber-500 bg-amber-500/5">
             <CardContent className="space-y-1 p-4">
-              <p className="text-sm font-medium">Why this account scores {health.score}</p>
+              <p className="text-sm font-medium text-foreground">Why this account scores {health.score}</p>
               <ul className="space-y-0.5 text-xs text-muted-foreground">
                 {health.reasons.map((reason) => (
                   <li key={reason}>· {reason}</li>
@@ -265,37 +271,34 @@ export default function AccountPage({ params }: { params: Promise<{ id: string }
         ) : null}
 
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-          {[
-            { label: "Lifetime spend", value: money(stats.totalSpend), hint: `${stats.orderCount} orders` },
-            { label: "Average order", value: money(stats.averageOrderValue), hint: `net ${customer.paymentTerms}` },
-            {
-              label: "Overdue",
-              value: money(stats.overdueValue),
-              hint: `${stats.openInvoices} open invoices`,
-            },
-            {
-              label: "Credit used",
-              value: customer.creditUsagePercent === null ? "No limit" : `${customer.creditUsagePercent}%`,
-              hint: `${money(customer.availableCredit)} available`,
-            },
-            {
-              label: "Ordering rhythm",
-              value: cadence ? `${cadence.typicalGapDays}d` : "—",
-              hint: cadence
-                ? `${cadence.daysSinceLastOrder}d since last${cadence.overdueBy > 0 ? " · overdue" : ""}`
-                : "needs 3+ orders",
-            },
-          ].map((card) => (
-            <Card key={card.label}>
-              <CardHeader className="pb-2">
-                <CardDescription>{card.label}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-xl font-semibold">{card.value}</p>
-                <p className="text-xs text-muted-foreground">{card.hint}</p>
-              </CardContent>
-            </Card>
-          ))}
+          <KpiCard
+            title="Lifetime Spend"
+            value={money(stats.totalSpend)}
+            description={`${stats.orderCount} orders`}
+            icon={CircleDollarSign}
+          />
+          <KpiCard
+            title="Average Order"
+            value={money(stats.averageOrderValue)}
+            description={`net ${customer.paymentTerms}`}
+          />
+          <KpiCard
+            title="Overdue"
+            value={money(stats.overdueValue)}
+            description={`${stats.openInvoices} open invoices`}
+          />
+          <KpiCard
+            title="Credit Used"
+            value={customer.creditUsagePercent === null ? "No limit" : `${customer.creditUsagePercent}%`}
+            description={`${money(customer.availableCredit)} available`}
+          />
+          <KpiCard
+            title="Ordering Rhythm"
+            value={cadence ? `${cadence.typicalGapDays}d` : "—"}
+            description={cadence
+              ? `${cadence.daysSinceLastOrder}d since last${cadence.overdueBy > 0 ? " · overdue" : ""}`
+              : "needs 3+ orders"}
+          />
         </div>
 
         <div className="grid gap-6 xl:grid-cols-[1fr_400px]">

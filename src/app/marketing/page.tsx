@@ -12,9 +12,14 @@ import {
   Target,
   TrendingUp,
   Users,
+  DollarSign,
+  Layers,
 } from "lucide-react"
 
 import { AppShell } from "@/components/layout/app-shell"
+import { PageHeader } from "@/components/ui/page-header"
+import { KpiCard } from "@/components/ui/kpi-card"
+import { EmptyState } from "@/components/ui/empty-state"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -249,74 +254,48 @@ export default function MarketingPage() {
   )
 
   return (
-    <AppShell title="Marketing">
+    <AppShell title="Marketing Hub" breadcrumbs={[{ label: "Commerce", href: "/commerce" }, { label: "Marketing" }]}>
       <div className="space-y-6">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Marketing</h1>
-            <p className="text-sm text-muted-foreground">
-              Audiences, campaigns and what they actually earned. Nothing sends without a human.
-            </p>
-          </div>
-          <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
-            {loading ? (
-              <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <RefreshCw className="mr-2 h-3.5 w-3.5" />
-            )}
-            Refresh
-          </Button>
-        </div>
+        <PageHeader
+          title="Marketing Hub"
+          description="Audiences, campaign delivery, and attributed revenue across email and messaging channels."
+          actions={
+            <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
+              {loading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-2 h-4 w-4" />
+              )}
+              Refresh
+            </Button>
+          }
+        />
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription className="flex items-center gap-1.5">
-                <Mail className="h-3.5 w-3.5" />
-                Campaigns
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-semibold">{campaigns.length}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription className="flex items-center gap-1.5">
-                <Send className="h-3.5 w-3.5" />
-                Messages sent
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-semibold">{totals.sent}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription className="flex items-center gap-1.5">
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                Conversions
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-semibold">{totals.converted}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription className="flex items-center gap-1.5">
-                <TrendingUp className="h-3.5 w-3.5" />
-                Attributed revenue
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-semibold">{money(totals.revenue)}</p>
-            </CardContent>
-          </Card>
+          <KpiCard
+            title="Total Campaigns"
+            value={campaigns.length}
+            icon={Mail}
+          />
+          <KpiCard
+            title="Messages Sent"
+            value={totals.sent}
+            icon={Send}
+          />
+          <KpiCard
+            title="Conversions"
+            value={totals.converted}
+            icon={CheckCircle2}
+          />
+          <KpiCard
+            title="Attributed Revenue"
+            value={money(totals.revenue)}
+            icon={DollarSign}
+          />
         </div>
 
         <Tabs value={tab} onValueChange={setTab}>
-          <TabsList>
+          <TabsList className="bg-muted p-1">
             <TabsTrigger value="campaigns">Campaigns</TabsTrigger>
             <TabsTrigger value="build">Build</TabsTrigger>
             <TabsTrigger value="segments">Audiences</TabsTrigger>
@@ -325,19 +304,21 @@ export default function MarketingPage() {
 
           {/* ---------------- Campaigns ---------------- */}
           <TabsContent value="campaigns" className="mt-4 space-y-4">
-            <Card>
-              <CardHeader>
+            <Card className="border-border shadow-sm">
+              <CardHeader className="p-4 sm:p-6 pb-2">
                 <CardTitle className="text-base">Campaigns</CardTitle>
                 <CardDescription>
                   Audience, delivery and attributed revenue. Attribution is conservative — first
                   order per recipient inside the window only.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-2">
+              <CardContent className="p-4 sm:p-6 pt-0 space-y-2">
                 {!campaigns.length ? (
-                  <p className="py-8 text-center text-sm text-muted-foreground">
-                    {loading ? "Loading…" : "No campaigns yet. Build one in the Build tab."}
-                  </p>
+                  <EmptyState
+                    icon={Mail}
+                    title="No campaigns yet"
+                    description="Build an audience campaign in the Build tab to start messaging customers."
+                  />
                 ) : (
                   campaigns.map((campaign) => (
                     <div key={campaign.id} className="rounded-lg border p-3">
@@ -663,24 +644,26 @@ export default function MarketingPage() {
 
           {/* ---------------- Segments ---------------- */}
           <TabsContent value="segments" className="mt-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Saved audiences</CardTitle>
+            <Card className="border-border shadow-sm">
+              <CardHeader className="p-4 sm:p-6 pb-2">
+                <CardTitle className="text-base">Saved Audiences</CardTitle>
                 <CardDescription>
                   Stored as definitions, not name lists — re-evaluated every time they&apos;re used,
                   so membership is never stale.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-2">
+              <CardContent className="p-4 sm:p-6 pt-0 space-y-2">
                 {!segments.length ? (
-                  <p className="py-8 text-center text-sm text-muted-foreground">
-                    {loading ? "Loading…" : "No saved audiences yet."}
-                  </p>
+                  <EmptyState
+                    icon={Users}
+                    title="No saved audiences"
+                    description="Create audiences by building campaigns with custom targeting rules."
+                  />
                 ) : (
                   segments.map((segment) => (
                     <div
                       key={segment.id}
-                      className="flex items-start justify-between gap-3 rounded-lg border p-3"
+                      className="flex items-start justify-between gap-3 rounded-lg border border-border bg-card p-3"
                     >
                       <div className="min-w-0">
                         <p className="text-sm font-medium">{segment.name}</p>
@@ -721,24 +704,26 @@ export default function MarketingPage() {
 
           {/* ---------------- Consent ---------------- */}
           <TabsContent value="consent" className="mt-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Suppressed addresses</CardTitle>
+            <Card className="border-border shadow-sm">
+              <CardHeader className="p-4 sm:p-6 pb-2">
+                <CardTitle className="text-base">Suppressed Addresses</CardTitle>
                 <CardDescription>
                   Opt-outs, bounces and complaints. Checked on every send — an address here is never
                   contacted, whoever builds the campaign.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-2">
+              <CardContent className="p-4 sm:p-6 pt-0 space-y-2">
                 {!consent.length ? (
-                  <p className="py-8 text-center text-sm text-muted-foreground">
-                    {loading ? "Loading…" : "Nobody has opted out."}
-                  </p>
+                  <EmptyState
+                    icon={CheckCircle2}
+                    title="No suppressed contacts"
+                    description="No email or SMS contacts have opted out or bounced."
+                  />
                 ) : (
                   consent.map((record) => (
                     <div
                       key={record.id}
-                      className="flex items-center justify-between gap-3 rounded-lg border p-3"
+                      className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-3"
                     >
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">

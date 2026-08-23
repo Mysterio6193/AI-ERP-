@@ -2,16 +2,19 @@
 
 import { useEffect, useMemo, useState } from "react"
 import dynamic from "next/dynamic"
-import { Download, FileText, Loader2, Search, Send } from "lucide-react"
+import { Download, FileText, Loader2, Search, Send, Users, AlertCircle, AlertTriangle, DollarSign } from "lucide-react"
 
 import { SendDocumentModal } from "@/components/modals/SendDocumentModal"
 import { AppShell } from "@/components/layout/app-shell"
+import { PageHeader } from "@/components/ui/page-header"
+import { KpiCard } from "@/components/ui/kpi-card"
+import { EmptyState } from "@/components/ui/empty-state"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { formatCurrency } from "@/lib/types"
+import { formatCurrency, formatCurrencyShort } from "@/lib/types"
 
 const CustomerStatementPdfDownloadLink = dynamic(
   () => import("@/components/documents/CustomerStatementPdfDownloadLink"),
@@ -58,159 +61,147 @@ type StatementDetail = {
   transactions: Array<{
     id: string
     date: string
-    reference?: string
+    type: string
     description: string
+    reference?: string | null
     amount: number
     balanceAfter: number
-    status: string
-  }>
-  invoices: Array<{
-    id: string
-    invoiceNumber: string
-    invoiceDate: string
-    dueDate: string
-    totalAmount: number
-    outstandingAmount: number
-    status: string
   }>
 }
 
 export default function CustomerStatementsPage() {
   const [summaries, setSummaries] = useState<StatementSummary[]>([])
   const [selected, setSelected] = useState<StatementDetail | null>(null)
+  const [company, setCompany] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [detailLoading, setDetailLoading] = useState(false)
   const [search, setSearch] = useState("")
   const [sendOpen, setSendOpen] = useState(false)
-  const [company, setCompany] = useState<any>(null)
+  const [isMounted, setIsMounted] = useState(false)
 
-  async function fetchSummaries() {
-    setLoading(true)
-    try {
-      const response = await fetch("/api/customer-statements")
-      const payload = await response.json()
-      if (payload.success) {
-        setSummaries(payload.data || [])
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true)
+        const [statementsRes, companyRes] = await Promise.all([
+          fetch("/api/customers/statements"),
+          fetch("/api/settings/company"),
+        ])
+
+        const statementsData = await statementsRes.json()
+        const companyData = await companyRes.json()
+
+        if (statementsData.success) {
+          const list = statementsData.data || []
+          setSummaries(list)
+          if (list.length > 0) {
+            void fetchStatement(list[0].customerId)
+          }
+        }
+
+        if (companyData.success) {
+          setCompany(companyData.data)
+        }
+      } catch (error) {
+        console.error("Failed to load customer statements:", error)
+      } finally {
+        setLoading(false)
       }
-    } catch (error) {
-      console.error("Error fetching customer statements:", error)
-    } finally {
-      setLoading(false)
     }
-  }
 
-  async function fetchStatement(customerId: string) {
-    setDetailLoading(true)
+    void loadData()
+  }, [])
+
+  const fetchStatement = async (customerId: string) => {
     try {
-      const response = await fetch(`/api/customer-statements?customerId=${customerId}`)
-      const payload = await response.json()
-      if (payload.success) {
-        setSelected(payload.data)
+      setDetailLoading(true)
+      const res = await fetch(`/api/customers/${customerId}/statement`)
+      const data = await res.json()
+      if (data.success) {
+        setSelected(data.data)
       }
     } catch (error) {
-      console.error("Error fetching statement detail:", error)
+      console.error("Failed to load statement detail:", error)
     } finally {
       setDetailLoading(false)
     }
   }
 
-  async function fetchCompany() {
-    try {
-      const response = await fetch("/api/settings/company")
-      const payload = await response.json()
-      if (payload.success) {
-        setCompany(payload.data)
-      }
-    } catch (error) {
-      console.error("Error fetching company settings:", error)
-    }
-  }
-
-  useEffect(() => {
-    void fetchSummaries()
-    void fetchCompany()
-  }, [])
-
   const filteredSummaries = useMemo(() => {
-    return summaries.filter((summary) => {
-      const query = search.toLowerCase()
-      return (
-        summary.customerName.toLowerCase().includes(query) ||
-        (summary.email || "").toLowerCase().includes(query) ||
-        summary.statementNumber.toLowerCase().includes(query)
-      )
-    })
-  }, [summaries, search])
+    const query = search.trim().toLowerCase()
+    if (!query) return summaries
+
+    return summaries.filter((summary) =>
+      summary.customerName.toLowerCase().includes(query) ||
+      summary.statementNumber.toLowerCase().includes(query)
+    )
+  }, [search, summaries])
 
   return (
-    <AppShell title="Customer Statements" breadcrumbs={[{ label: "Customers" }, { label: "Statements" }]}>
+    <AppShell title="Customer Statements" breadcrumbs={[{ label: "Customers", href: "/customers" }, { label: "Statements" }]}>
       <div className="space-y-6">
-        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Customer Statements</h1>
-            <p className="text-muted-foreground">
-              Manage statement balances, review activity, and send statements to customers over email or WhatsApp.
-            </p>
-          </div>
-          {selected && (
-            <div className="flex flex-wrap items-center gap-3">
-              {company ? (
-                <CustomerStatementPdfDownloadLink
-                  statement={selected}
-                  company={company}
-                  fileName={`${selected.summary.statementNumber}.pdf`}
-                >
-                  {({ loading: pdfLoading }: { loading: boolean }) => (
-                    <Button variant="outline" disabled={pdfLoading}>
-                      {pdfLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                      Download PDF
-                    </Button>
-                  )}
-                </CustomerStatementPdfDownloadLink>
-              ) : null}
-              <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={() => setSendOpen(true)}>
-                <Send className="mr-2 h-4 w-4" />
-                Send Statement
-              </Button>
-            </div>
-          )}
-        </div>
+        <PageHeader
+          title="Customer Statements"
+          description="Send statement summaries, view transaction histories, and download customer PDF ledgers."
+          actions={
+            selected ? (
+              <div className="flex flex-wrap items-center gap-2">
+                {isMounted && company ? (
+                  <CustomerStatementPdfDownloadLink
+                    customer={selected.customer}
+                    summary={selected.summary}
+                    transactions={selected.transactions}
+                    company={company}
+                    fileName={`${selected.summary.statementNumber}.pdf`}
+                  >
+                    {({ loading }: { loading: boolean }) => (
+                      <Button variant="outline" disabled={loading}>
+                        {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                        Download PDF
+                      </Button>
+                    )}
+                  </CustomerStatementPdfDownloadLink>
+                ) : null}
+                <Button onClick={() => setSendOpen(true)}>
+                  <Send className="mr-2 h-4 w-4" />
+                  Send Statement
+                </Button>
+              </div>
+            ) : null
+          }
+        />
 
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Customers with statements</CardDescription>
-              <CardTitle className="text-2xl">{summaries.length}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Total open invoices</CardDescription>
-              <CardTitle className="text-2xl">{summaries.reduce((sum, summary) => sum + summary.openInvoiceCount, 0)}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Outstanding receivables</CardDescription>
-              <CardTitle className="text-2xl">
-                {formatCurrency(summaries.reduce((sum, summary) => sum + summary.outstandingBalance, 0))}
-              </CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Accounts on hold</CardDescription>
-              <CardTitle className="text-2xl">
-                {summaries.filter((summary) => summary.creditStatus === "on_hold").length}
-              </CardTitle>
-            </CardHeader>
-          </Card>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <KpiCard
+            title="Customers with Statements"
+            value={summaries.length}
+            icon={Users}
+          />
+          <KpiCard
+            title="Total Open Invoices"
+            value={summaries.reduce((sum, summary) => sum + summary.openInvoiceCount, 0)}
+            icon={FileText}
+          />
+          <KpiCard
+            title="Outstanding Receivables"
+            value={formatCurrencyShort(summaries.reduce((sum, summary) => sum + summary.outstandingBalance, 0))}
+            icon={DollarSign}
+          />
+          <KpiCard
+            title="Accounts on Hold"
+            value={summaries.filter((summary) => summary.creditStatus === "on_hold").length}
+            icon={AlertTriangle}
+          />
         </div>
 
         <div className="grid gap-6 xl:grid-cols-[1.15fr,0.85fr]">
-          <Card>
-            <CardHeader>
-              <CardTitle>Statement list</CardTitle>
+          <Card className="border-border shadow-sm overflow-hidden">
+            <CardHeader className="p-4 sm:p-6 pb-2">
+              <CardTitle className="text-base">Statement List</CardTitle>
               <CardDescription>Select a customer to load the latest live statement.</CardDescription>
               <div className="relative mt-2">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -236,34 +227,39 @@ export default function CustomerStatementsPage() {
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="py-10 text-center text-muted-foreground">
+                      <TableCell colSpan={5} className="py-12 text-center text-muted-foreground">
+                        <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
                         Loading statements...
                       </TableCell>
                     </TableRow>
                   ) : filteredSummaries.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="py-10 text-center text-muted-foreground">
-                        No statements found.
+                      <TableCell colSpan={5} className="p-0">
+                        <EmptyState
+                          icon={FileText}
+                          title="No statements found"
+                          description={search ? "No customer statements match your search." : "No customer statements available."}
+                        />
                       </TableCell>
                     </TableRow>
                   ) : (
                     filteredSummaries.map((summary) => (
-                      <TableRow key={summary.customerId}>
+                      <TableRow key={summary.customerId} className={selected?.customer.id === summary.customerId ? "bg-muted/50" : ""}>
                         <TableCell>
                           <div>
                             <p className="font-medium">{summary.customerName}</p>
                             <p className="text-xs text-muted-foreground">{summary.email || summary.phone || "No contact saved"}</p>
                           </div>
                         </TableCell>
-                        <TableCell>{formatCurrency(summary.outstandingBalance)}</TableCell>
+                        <TableCell className="font-medium">{formatCurrency(summary.outstandingBalance)}</TableCell>
                         <TableCell>
-                          <Badge className={summary.creditStatus === "on_hold" ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}>
+                          <Badge variant="outline" className={summary.creditStatus === "on_hold" ? "border-amber-500/30 text-amber-600 bg-amber-500/10" : "border-emerald-500/30 text-emerald-600 bg-emerald-500/10"}>
                             {summary.creditStatus.replace(/_/g, " ")}
                           </Badge>
                         </TableCell>
-                        <TableCell>Net {summary.paymentTerms}</TableCell>
+                        <TableCell className="text-muted-foreground">Net {summary.paymentTerms}</TableCell>
                         <TableCell className="text-right">
-                          <Button variant="outline" size="sm" onClick={() => void fetchStatement(summary.customerId)}>
+                          <Button variant={selected?.customer.id === summary.customerId ? "default" : "outline"} size="sm" onClick={() => void fetchStatement(summary.customerId)}>
                             <FileText className="mr-2 h-4 w-4" />
                             View
                           </Button>
@@ -276,48 +272,50 @@ export default function CustomerStatementsPage() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Statement detail</CardTitle>
+          <Card className="border-border shadow-sm">
+            <CardHeader className="p-4 sm:p-6 pb-2">
+              <CardTitle className="text-base">Statement Detail</CardTitle>
               <CardDescription>Latest live receivables view for the selected customer.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="p-4 sm:p-6 space-y-4">
               {detailLoading ? (
-                <div className="flex items-center justify-center py-20 text-muted-foreground">
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+                  <Loader2 className="h-6 w-6 animate-spin mb-2" />
                   Loading statement...
                 </div>
               ) : !selected ? (
-                <div className="rounded-xl border border-dashed border-slate-300 px-6 py-12 text-center text-muted-foreground">
-                  Select a customer statement to inspect balances, transactions, and due dates.
-                </div>
+                <EmptyState
+                  icon={FileText}
+                  title="Select a statement"
+                  description="Select a customer statement to inspect balances, transactions, and due dates."
+                />
               ) : (
                 <>
-                  <div className="rounded-2xl bg-slate-900 p-5 text-slate-100">
-                    <p className="text-sm text-slate-400">{selected.summary.statementNumber}</p>
-                    <h2 className="mt-1 text-xl font-semibold">{selected.customer.name}</h2>
+                  <div className="rounded-xl bg-card border border-border p-5 text-card-foreground shadow-sm">
+                    <p className="text-xs font-mono text-muted-foreground">{selected.summary.statementNumber}</p>
+                    <h2 className="mt-1 text-xl font-semibold text-foreground">{selected.customer.name}</h2>
                     <div className="mt-4 grid gap-4 sm:grid-cols-2">
                       <div>
-                        <p className="text-xs uppercase tracking-wide text-slate-400">Outstanding</p>
-                        <p className="mt-1 text-2xl font-semibold">{formatCurrency(selected.summary.outstandingBalance)}</p>
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Outstanding</p>
+                        <p className="mt-1 text-2xl font-bold text-foreground">{formatCurrency(selected.summary.outstandingBalance)}</p>
                       </div>
                       <div>
-                        <p className="text-xs uppercase tracking-wide text-slate-400">Minimum due</p>
-                        <p className="mt-1 text-2xl font-semibold">{formatCurrency(selected.summary.minimumPaymentDue)}</p>
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Minimum due</p>
+                        <p className="mt-1 text-2xl font-bold text-foreground">{formatCurrency(selected.summary.minimumPaymentDue)}</p>
                       </div>
                       <div>
-                        <p className="text-xs uppercase tracking-wide text-slate-400">Charges this period</p>
-                        <p className="mt-1 text-lg font-semibold">{formatCurrency(selected.summary.totalCharges)}</p>
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Charges this period</p>
+                        <p className="mt-1 text-lg font-semibold text-foreground">{formatCurrency(selected.summary.totalCharges)}</p>
                       </div>
                       <div>
-                        <p className="text-xs uppercase tracking-wide text-slate-400">Payments this period</p>
-                        <p className="mt-1 text-lg font-semibold">{formatCurrency(selected.summary.totalPayments)}</p>
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Payments this period</p>
+                        <p className="mt-1 text-lg font-semibold text-foreground">{formatCurrency(selected.summary.totalPayments)}</p>
                       </div>
                     </div>
                   </div>
 
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <Card className="bg-slate-50">
+                    <Card className="border-border shadow-none bg-muted/30">
                       <CardContent className="pt-4">
                         <p className="text-xs uppercase tracking-wide text-muted-foreground">Due date</p>
                         <p className="mt-1 font-medium">
@@ -325,11 +323,11 @@ export default function CustomerStatementsPage() {
                         </p>
                       </CardContent>
                     </Card>
-                    <Card className="bg-slate-50">
+                    <Card className="border-border shadow-none bg-muted/30">
                       <CardContent className="pt-4">
                         <p className="text-xs uppercase tracking-wide text-muted-foreground">Credit status</p>
                         <div className="mt-2 flex items-center gap-2">
-                          <Badge className={selected.customer.creditStatus === "on_hold" ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}>
+                          <Badge variant="outline" className={selected.customer.creditStatus === "on_hold" ? "border-amber-500/30 text-amber-600 bg-amber-500/10" : "border-emerald-500/30 text-emerald-600 bg-emerald-500/10"}>
                             {selected.customer.creditStatus.replace(/_/g, " ")}
                           </Badge>
                           <span className="text-sm text-muted-foreground">Net {selected.customer.paymentTerms}</span>
@@ -340,19 +338,19 @@ export default function CustomerStatementsPage() {
 
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <h3 className="font-semibold text-slate-900">Recent transactions</h3>
+                      <h3 className="font-semibold text-foreground">Recent transactions</h3>
                       <span className="text-xs text-muted-foreground">{selected.transactions.length} entries</span>
                     </div>
                     <div className="space-y-3">
                       {selected.transactions.slice(0, 8).map((transaction) => (
-                        <div key={transaction.id} className="rounded-xl border border-slate-200 p-4">
+                        <div key={transaction.id} className="rounded-xl border border-border bg-card p-4">
                           <div className="flex items-start justify-between gap-3">
                             <div>
-                              <p className="font-medium text-slate-900">{transaction.description}</p>
+                              <p className="font-medium text-foreground">{transaction.description}</p>
                               <p className="text-xs text-muted-foreground">{new Date(transaction.date).toLocaleString()}</p>
                             </div>
                             <div className="text-right">
-                              <p className={`font-semibold ${transaction.amount >= 0 ? "text-rose-600" : "text-emerald-600"}`}>
+                              <p className={`font-semibold ${transaction.amount >= 0 ? "text-destructive" : "text-emerald-600 dark:text-emerald-400"}`}>
                                 {transaction.amount >= 0 ? "+" : "-"}
                                 {formatCurrency(Math.abs(transaction.amount))}
                               </p>

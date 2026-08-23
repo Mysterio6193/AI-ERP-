@@ -8,6 +8,9 @@ import {
   DollarSign, TrendingUp, AlertTriangle, CheckCircle, XCircle
 } from "lucide-react"
 import { AppShell } from "@/components/layout/app-shell"
+import { PageHeader } from "@/components/ui/page-header"
+import { KpiCard } from "@/components/ui/kpi-card"
+import { EmptyState } from "@/components/ui/empty-state"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -141,6 +144,7 @@ export default function CustomersPage() {
     acn: "",
     contactPerson: "",
     email: "",
+    accountsEmail: "",
     phone: "",
     alternatePhone: "",
     website: "",
@@ -246,6 +250,7 @@ export default function CustomersPage() {
       acn: "",
       contactPerson: "",
       email: "",
+      accountsEmail: "",
       phone: "",
       alternatePhone: "",
       website: "",
@@ -373,16 +378,18 @@ export default function CustomersPage() {
     <AppShell title="Customers" breadcrumbs={[{ label: "Customers" }]}>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Customers</h1>
-            <p className="text-muted-foreground">Manage B2B customer accounts, credit limits, and pricing</p>
-          </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <Button onClick={() => { resetForm(); setIsDialogOpen(true) }} className="bg-emerald-600 hover:bg-emerald-700">
+        <PageHeader
+          title="Customers"
+          description="Manage B2B customer accounts, credit limits, multi-location shipping, and pricing policies."
+          actions={
+            <Button onClick={() => { resetForm(); setIsDialogOpen(true) }}>
               <Plus className="mr-2 h-4 w-4" />
               Add Customer
             </Button>
+          }
+        />
+
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Add New Customer</DialogTitle>
@@ -481,17 +488,16 @@ export default function CustomersPage() {
                           id="contactPerson"
                           value={formData.contactPerson}
                           onChange={(e) => setFormData({ ...formData, contactPerson: e.target.value })}
-                          placeholder="Michael Brown"
+                          placeholder="John Smith"
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="phone">Phone *</Label>
+                        <Label htmlFor="phone">Phone</Label>
                         <Input
                           id="phone"
                           value={formData.phone}
                           onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                          placeholder="02 9876 5432"
-                          required
+                          placeholder="02 9000 0000"
                         />
                       </div>
                     </div>
@@ -503,16 +509,17 @@ export default function CustomersPage() {
                           type="email"
                           value={formData.email}
                           onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                          placeholder="purchasing@company.com.au"
+                          placeholder="accounts@woolworths.com.au"
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="website">Website</Label>
+                        <Label htmlFor="accountsEmail">Accounts Email</Label>
                         <Input
-                          id="website"
-                          value={formData.website}
-                          onChange={(e) => setFormData({ ...formData, website: e.target.value })}
-                          placeholder="www.company.com.au"
+                          id="accountsEmail"
+                          type="email"
+                          value={formData.accountsEmail}
+                          onChange={(e) => setFormData({ ...formData, accountsEmail: e.target.value })}
+                          placeholder="ap@woolworths.com.au"
                         />
                       </div>
                     </div>
@@ -521,17 +528,14 @@ export default function CustomersPage() {
                   <TabsContent value="credit" className="space-y-4 mt-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label>Credit Limit</Label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-2.5 text-muted-foreground">$</span>
-                          <Input
-                            type="number"
-                            value={formData.creditLimit}
-                            onChange={(e) => setFormData({ ...formData, creditLimit: e.target.value })}
-                            placeholder="100000"
-                            className="pl-8"
-                          />
-                        </div>
+                        <Label htmlFor="creditLimit">Credit Limit ($)</Label>
+                        <Input
+                          id="creditLimit"
+                          type="number"
+                          value={formData.creditLimit}
+                          onChange={(e) => setFormData({ ...formData, creditLimit: e.target.value })}
+                          placeholder="10000"
+                        />
                       </div>
                       <div className="space-y-2">
                         <Label>Payment Terms</Label>
@@ -763,49 +767,42 @@ export default function CustomersPage() {
                   <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={isSubmitting} className="bg-emerald-600 hover:bg-emerald-700">
+                  <Button type="submit" disabled={isSubmitting}>
                     {isSubmitting ? "Creating..." : "Create Customer"}
                   </Button>
                 </DialogFooter>
               </form>
             </DialogContent>
           </Dialog>
-        </div>
 
         {/* Stats Cards */}
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Total Customers</CardDescription>
-              <CardTitle className="text-2xl">{customers.length}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Active Accounts</CardDescription>
-              <CardTitle className="text-2xl">{activeCustomers}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card className="border-orange-200 bg-orange-50/50">
-            <CardHeader className="pb-2">
-              <CardDescription>Total Outstanding</CardDescription>
-              <CardTitle className="text-2xl text-orange-600">
-                {formatCurrencyShort(totalOutstanding)}
-              </CardTitle>
-            </CardHeader>
-          </Card>
-          <Card className="border-red-200 bg-red-50/50">
-            <CardHeader className="pb-2">
-              <CardDescription>Over Credit Limit</CardDescription>
-              <CardTitle className="text-2xl text-red-600">{overLimitCustomers}</CardTitle>
-            </CardHeader>
-          </Card>
+        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
+          <KpiCard
+            title="Total Customers"
+            value={customers.length}
+            icon={Users}
+          />
+          <KpiCard
+            title="Active Accounts"
+            value={activeCustomers}
+            icon={CheckCircle}
+          />
+          <KpiCard
+            title="Total Outstanding"
+            value={formatCurrencyShort(totalOutstanding)}
+            icon={DollarSign}
+          />
+          <KpiCard
+            title="Over Credit Limit"
+            value={overLimitCustomers}
+            icon={AlertTriangle}
+          />
         </div>
 
         {/* Filters */}
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center">
+        <Card className="border-border shadow-sm">
+          <CardContent className="p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <div className="relative flex-1">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -816,11 +813,11 @@ export default function CustomersPage() {
                 />
               </div>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-40">
+                <SelectTrigger className="w-full sm:w-48">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="all">All Statuses</SelectItem>
                   {CUSTOMER_STATUS_OPTIONS.map((status) => (
                     <SelectItem key={status.value} value={status.value}>{status.label}</SelectItem>
                   ))}
@@ -831,7 +828,7 @@ export default function CustomersPage() {
         </Card>
 
         {/* Customers Table */}
-        <Card>
+        <Card className="border-border shadow-sm overflow-hidden">
           <CardContent className="p-0">
             <Table>
               <TableHeader>
@@ -849,14 +846,30 @@ export default function CustomersPage() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
                       Loading customers...
                     </TableCell>
                   </TableRow>
                 ) : filteredCustomers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                      No customers found
+                    <TableCell colSpan={8} className="p-0">
+                      <EmptyState
+                        icon={Users}
+                        title="No customers found"
+                        description={search || statusFilter !== "all" ? "No customers match your filter criteria." : "Get started by adding your first B2B customer."}
+                        action={
+                          search || statusFilter !== "all" ? (
+                            <Button variant="outline" size="sm" onClick={() => { setSearch(""); setStatusFilter("all"); }}>
+                              Clear Filters
+                            </Button>
+                          ) : (
+                            <Button size="sm" onClick={() => { resetForm(); setIsDialogOpen(true); }}>
+                              <Plus className="mr-2 h-4 w-4" />
+                              Add Customer
+                            </Button>
+                          )
+                        }
+                      />
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -1309,7 +1322,7 @@ export default function CustomersPage() {
                     {isDetailSaving ? "Saving..." : "Save Customer"}
                   </Button>
                   <Link href={`/orders?customer=${selectedCustomer.id}`}>
-                    <Button className="bg-emerald-600 hover:bg-emerald-700">
+                    <Button>
                       <FileText className="h-4 w-4 mr-2" />
                       New Order
                     </Button>

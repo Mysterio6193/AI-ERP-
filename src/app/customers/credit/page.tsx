@@ -2,9 +2,12 @@
 
 import { useState, useEffect } from "react"
 import {
-    CreditCard, Search, User, Loader2
+    CreditCard, Search, User, Loader2, DollarSign, AlertCircle, TrendingUp, Users, AlertTriangle, CheckCircle2
 } from "lucide-react"
 import { AppShell } from "@/components/layout/app-shell"
+import { PageHeader } from "@/components/ui/page-header"
+import { KpiCard } from "@/components/ui/kpi-card"
+import { EmptyState } from "@/components/ui/empty-state"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -35,7 +38,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Progress } from "@/components/ui/progress"
-import { formatCurrency } from "@/lib/types"
+import { formatCurrency, formatCurrencyShort } from "@/lib/types"
 
 interface CreditSummary {
     id: string
@@ -58,100 +61,109 @@ interface CreditTransaction {
 interface CreditSummaryTotals {
     totalCreditIssued: number
     totalOutstanding: number
-    customersOnCredit: number
-    customersOnHold: number
+    availableHeadroom: number
+    accountsOverLimit: number
 }
 
-const defaultSummary: CreditSummaryTotals = {
-    totalCreditIssued: 0,
-    totalOutstanding: 0,
-    customersOnCredit: 0,
-    customersOnHold: 0,
-}
-
-export default function CreditManagementPage() {
+export default function CustomerCreditPage() {
     const [customers, setCustomers] = useState<CreditSummary[]>([])
+    const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null)
     const [transactions, setTransactions] = useState<CreditTransaction[]>([])
-    const [summary, setSummary] = useState<CreditSummaryTotals>(defaultSummary)
-    const [selectedCustomer, setSelectedCustomer] = useState<string>("all")
-    const [loading, setLoading] = useState(true)
-    const [submitting, setSubmitting] = useState(false)
-    const [search, setSearch] = useState("")
-    const [isAdjustDialogOpen, setIsAdjustDialogOpen] = useState(false)
-    const [adjustForm, setAdjustForm] = useState({
-        type: "payment_received",
-        amount: "",
-        description: "",
-        notes: "",
+    const [totals, setTotals] = useState<CreditSummaryTotals>({
+        totalCreditIssued: 0,
+        totalOutstanding: 0,
+        availableHeadroom: 0,
+        accountsOverLimit: 0,
     })
+    const [loading, setLoading] = useState(true)
+    const [search, setSearch] = useState("")
+
+    // Adjustment Dialog State
+    const [isAdjustDialogOpen, setIsAdjustDialogOpen] = useState(false)
+    const [adjustType, setAdjustType] = useState<"credit_issued" | "credit_used" | "adjustment">("adjustment")
+    const [adjustAmount, setAdjustAmount] = useState("")
+    const [adjustRef, setAdjustRef] = useState("")
+    const [adjustNotes, setAdjustNotes] = useState("")
+    const [isSubmitting, setIsSubmitting] = useState(false)
 
     useEffect(() => {
-        void fetchCreditData()
+        fetchCustomers()
+    }, [])
+
+    useEffect(() => {
+        if (selectedCustomer) {
+            fetchTransactions(selectedCustomer)
+        } else {
+            setTransactions([])
+        }
     }, [selectedCustomer])
 
-    const fetchCreditData = async () => {
+    const fetchCustomers = async () => {
+        setLoading(true)
         try {
-            setLoading(true)
-            const custResp = await fetch("/api/credit")
-            const custData = await custResp.json()
-
-            if (custData.success) {
-                setCustomers(Array.isArray(custData.data?.customers) ? custData.data.customers : [])
-                setSummary(custData.data?.summary || defaultSummary)
-            }
-
-            if (selectedCustomer !== "all") {
-                const transResp = await fetch(`/api/credit?customerId=${selectedCustomer}`)
-                const transData = await transResp.json()
-                if (transData.success) {
-                    setTransactions(transData.data.transactions || [])
+            const res = await fetch("/api/customers/credit")
+            const data = await res.json()
+            if (data.success) {
+                setCustomers(data.data)
+                if (data.totals) {
+                    setTotals(data.totals)
                 }
-            } else {
-                setTransactions([])
+                if (data.data.length > 0 && !selectedCustomer) {
+                    setSelectedCustomer(data.data[0].id)
+                }
             }
         } catch (error) {
-            console.error("Error fetching credit data:", error)
+            console.error("Failed to fetch customer credits:", error)
         } finally {
             setLoading(false)
         }
     }
 
-    const handleAdjustCredit = async () => {
-        if (!activeCustomer || !adjustForm.amount || !adjustForm.description.trim()) {
-            return
-        }
-
+    const fetchTransactions = async (customerId: string) => {
         try {
-            setSubmitting(true)
-            const response = await fetch("/api/credit", {
+            const res = await fetch(`/api/customers/${customerId}/credit`)
+            const data = await res.json()
+            if (data.success) {
+                setTransactions(data.data)
+            }
+        } catch (error) {
+            console.error("Failed to fetch credit transactions:", error)
+        }
+    }
+
+    const handleAdjustCredit = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!selectedCustomer || !adjustAmount) return
+
+        setIsSubmitting(true)
+        try {
+            const res = await fetch(`/api/customers/${selectedCustomer}/credit`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    customerId: activeCustomer.id,
-                    type: adjustForm.type,
-                    amount: Number(adjustForm.amount),
-                    description: adjustForm.description.trim(),
-                    notes: adjustForm.notes.trim(),
+                    type: adjustType,
+                    amount: parseFloat(adjustAmount),
+                    reference: adjustRef,
+                    notes: adjustNotes,
                 }),
             })
-            const data = await response.json()
 
-            if (!data.success) {
-                throw new Error(data.error || "Failed to save credit adjustment")
+            const data = await res.json()
+            if (data.success) {
+                setIsAdjustDialogOpen(false)
+                setAdjustAmount("")
+                setAdjustRef("")
+                setAdjustNotes("")
+                fetchCustomers()
+                fetchTransactions(selectedCustomer)
+            } else {
+                alert(data.error || "Failed to process credit adjustment")
             }
-
-            setIsAdjustDialogOpen(false)
-            setAdjustForm({
-                type: "payment_received",
-                amount: "",
-                description: "",
-                notes: "",
-            })
-            await fetchCreditData()
         } catch (error) {
-            console.error("Error saving credit adjustment:", error)
+            console.error("Error adjusting credit:", error)
+            alert("An error occurred. Please try again.")
         } finally {
-            setSubmitting(false)
+            setIsSubmitting(false)
         }
     }
 
@@ -164,35 +176,40 @@ export default function CreditManagementPage() {
         ? (activeCustomer.creditBalance / activeCustomer.creditLimit) * 100
         : 0
 
-    const summaryCards = [
-        { label: "Credit Issued", value: formatCurrency(summary.totalCreditIssued), tone: "text-emerald-900 bg-emerald-50/70 border-emerald-100" },
-        { label: "Outstanding", value: formatCurrency(summary.totalOutstanding), tone: "text-blue-900 bg-blue-50/70 border-blue-100" },
-        { label: "Active Credit Accounts", value: String(summary.customersOnCredit), tone: "text-slate-900 bg-slate-50/70 border-slate-200" },
-        { label: "Accounts On Hold", value: String(summary.customersOnHold), tone: "text-amber-900 bg-amber-50/70 border-amber-100" },
-    ]
-
     return (
-        <AppShell title="Credit Management" breadcrumbs={[{ label: "Customers" }, { label: "Credit Management" }]}>
+        <AppShell title="Customer Credit Ledger" breadcrumbs={[{ label: "Customers", href: "/customers" }, { label: "Credit" }]}>
             <div className="space-y-6">
-                <div>
-                    <h1 className="text-2xl font-bold tracking-tight">Customer Credit</h1>
-                    <p className="text-muted-foreground">Manage customer credit limits, balances, and history</p>
+                <PageHeader
+                    title="Customer Credit Ledger"
+                    description="Monitor B2B customer credit limits, track balances, and adjust ledger entries."
+                />
+
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <KpiCard
+                        title="Total Credit Issued"
+                        value={formatCurrencyShort(totals.totalCreditIssued)}
+                        icon={CreditCard}
+                    />
+                    <KpiCard
+                        title="Total Outstanding"
+                        value={formatCurrencyShort(totals.totalOutstanding)}
+                        icon={DollarSign}
+                    />
+                    <KpiCard
+                        title="Available Headroom"
+                        value={formatCurrencyShort(totals.availableHeadroom)}
+                        icon={CheckCircle2}
+                    />
+                    <KpiCard
+                        title="Accounts Over Limit"
+                        value={totals.accountsOverLimit}
+                        icon={AlertTriangle}
+                    />
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                    {summaryCards.map((card) => (
-                        <Card key={card.label} className={card.tone}>
-                            <CardHeader className="pb-2">
-                                <CardDescription className="text-current/70">{card.label}</CardDescription>
-                                <CardTitle className="text-2xl text-current">{card.value}</CardTitle>
-                            </CardHeader>
-                        </Card>
-                    ))}
-                </div>
-
-                <div className="grid gap-6 md:grid-cols-3">
-                    <Card className="md:col-span-1 border-r h-full min-h-[500px]">
-                        <CardHeader className="pb-3 border-b">
+                <div className="grid gap-6 lg:grid-cols-3">
+                    <Card className="lg:col-span-1 border-border shadow-sm h-full min-h-[500px] overflow-hidden">
+                        <CardHeader className="p-4 border-b border-border">
                             <div className="flex items-center justify-between mb-2">
                                 <CardTitle className="text-base">Customers</CardTitle>
                                 <Badge variant="outline">{filteredCustomers.length}</Badge>
@@ -209,33 +226,40 @@ export default function CreditManagementPage() {
                         </CardHeader>
                         <CardContent className="p-0 overflow-y-auto max-h-[600px]">
                             {loading && customers.length === 0 ? (
-                                <div className="p-4 text-center text-muted-foreground">Loading...</div>
+                                <div className="p-8 text-center text-muted-foreground">
+                                    <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
+                                    Loading customers...
+                                </div>
+                            ) : filteredCustomers.length === 0 ? (
+                                <div className="p-6 text-center text-muted-foreground text-sm">
+                                    No customers found.
+                                </div>
                             ) : filteredCustomers.map(customer => (
                                 <div
                                     key={customer.id}
-                                    className={`p-4 border-b cursor-pointer hover:bg-gray-50 transition-colors ${selectedCustomer === customer.id ? 'bg-emerald-50 border-l-4 border-l-emerald-500' : ''}`}
+                                    className={`p-4 border-b border-border cursor-pointer transition-colors ${selectedCustomer === customer.id ? 'bg-muted/60 border-l-4 border-l-primary' : 'hover:bg-muted/30'}`}
                                     onClick={() => setSelectedCustomer(customer.id)}
                                 >
                                     <div className="flex justify-between items-start mb-1">
-                                        <p className="font-semibold">{customer.name}</p>
-                                        <Badge className={
-                                            customer.creditStatus === "active" ? "bg-green-100 text-green-700" :
-                                                customer.creditStatus === "on_hold" ? "bg-red-100 text-red-700" :
-                                                    "bg-gray-100 text-gray-700"
+                                        <p className="font-semibold text-sm text-foreground">{customer.name}</p>
+                                        <Badge variant="outline" className={
+                                            customer.creditStatus === "active" ? "border-emerald-500/30 text-emerald-600 bg-emerald-500/10" :
+                                                customer.creditStatus === "on_hold" ? "border-amber-500/30 text-amber-600 bg-amber-500/10" :
+                                                    "border-border text-muted-foreground"
                                         }>
                                             {customer.creditStatus.replace("_", " ")}
                                         </Badge>
                                     </div>
-                                    <div className="flex justify-between text-sm mt-2">
+                                    <div className="flex justify-between text-xs mt-2">
                                         <span className="text-muted-foreground">Limit: {formatCurrency(customer.creditLimit)}</span>
-                                        <span className={customer.creditBalance > customer.creditLimit ? "text-red-600 font-medium" : "font-medium"}>
+                                        <span className={customer.creditBalance > customer.creditLimit ? "text-destructive font-medium" : "font-medium text-foreground"}>
                                             Used: {formatCurrency(customer.creditBalance)}
                                         </span>
                                     </div>
                                     {customer.creditLimit > 0 && (
                                         <Progress
                                             value={(customer.creditBalance / customer.creditLimit) * 100}
-                                            className={`h-1 mt-2.5 ${customer.creditBalance > customer.creditLimit ? '[&>div]:bg-red-500' : '[&>div]:bg-emerald-500'}`}
+                                            className="h-1 mt-2.5"
                                         />
                                     )}
                                 </div>
@@ -243,38 +267,38 @@ export default function CreditManagementPage() {
                         </CardContent>
                     </Card>
 
-                    <div className="md:col-span-2 space-y-6">
+                    <div className="lg:col-span-2 space-y-6">
                         {activeCustomer ? (
                             <>
-                                <div className="grid grid-cols-3 gap-4">
-                                    <Card className="bg-emerald-50/50 border-emerald-100">
-                                        <CardHeader className="pb-2">
-                                            <CardDescription className="text-emerald-800">Credit Limit</CardDescription>
-                                            <CardTitle className="text-3xl text-emerald-900">{formatCurrency(activeCustomer.creditLimit)}</CardTitle>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                    <Card className="border-border shadow-sm bg-muted/20">
+                                        <CardHeader className="p-4 pb-2">
+                                            <CardDescription>Credit Limit</CardDescription>
+                                            <CardTitle className="text-2xl">{formatCurrency(activeCustomer.creditLimit)}</CardTitle>
                                         </CardHeader>
                                     </Card>
-                                    <Card className={`${utilization > 90 ? 'bg-red-50/50 border-red-100' : 'bg-blue-50/50 border-blue-100'}`}>
-                                        <CardHeader className="pb-2">
-                                            <CardDescription className={utilization > 90 ? 'text-red-800' : 'text-blue-800'}>Current Balance</CardDescription>
-                                            <CardTitle className={`text-3xl ${utilization > 90 ? 'text-red-900' : 'text-blue-900'}`}>
+                                    <Card className={`border-border shadow-sm ${utilization > 90 ? 'bg-rose-500/5 border-rose-500/20' : 'bg-muted/20'}`}>
+                                        <CardHeader className="p-4 pb-2">
+                                            <CardDescription>Current Balance</CardDescription>
+                                            <CardTitle className={`text-2xl ${utilization > 90 ? 'text-destructive' : 'text-foreground'}`}>
                                                 {formatCurrency(activeCustomer.creditBalance)}
                                             </CardTitle>
                                         </CardHeader>
                                     </Card>
-                                    <Card>
-                                        <CardHeader className="pb-2">
+                                    <Card className="border-border shadow-sm bg-muted/20">
+                                        <CardHeader className="p-4 pb-2">
                                             <CardDescription>Available Credit</CardDescription>
-                                            <CardTitle className="text-3xl">
+                                            <CardTitle className="text-2xl">
                                                 {formatCurrency(Math.max(0, activeCustomer.creditLimit - activeCustomer.creditBalance))}
                                             </CardTitle>
                                         </CardHeader>
                                     </Card>
                                 </div>
 
-                                <Card>
-                                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                                <Card className="border-border shadow-sm overflow-hidden">
+                                    <CardHeader className="p-4 sm:p-6 flex flex-row items-center justify-between border-b border-border">
                                         <div>
-                                            <CardTitle>Credit Transactions</CardTitle>
+                                            <CardTitle className="text-base">Credit Transactions</CardTitle>
                                             <CardDescription>Ledger history for {activeCustomer.name}</CardDescription>
                                         </div>
                                         <Button variant="outline" size="sm" onClick={() => setIsAdjustDialogOpen(true)}>
@@ -282,7 +306,7 @@ export default function CreditManagementPage() {
                                             Adjust Balance
                                         </Button>
                                     </CardHeader>
-                                    <CardContent>
+                                    <CardContent className="p-0">
                                         <Table>
                                             <TableHeader>
                                                 <TableRow>
@@ -294,25 +318,37 @@ export default function CreditManagementPage() {
                                             </TableHeader>
                                             <TableBody>
                                                 {loading && transactions.length === 0 ? (
-                                                    <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">Loading transactions...</TableCell></TableRow>
+                                                    <TableRow>
+                                                        <TableCell colSpan={4} className="text-center py-12 text-muted-foreground">
+                                                            <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
+                                                            Loading transactions...
+                                                        </TableCell>
+                                                    </TableRow>
                                                 ) : transactions.length === 0 ? (
-                                                    <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">No credit transactions found</TableCell></TableRow>
+                                                    <TableRow>
+                                                        <TableCell colSpan={4} className="p-0">
+                                                            <EmptyState
+                                                                icon={CreditCard}
+                                                                title="No transactions"
+                                                                description="No credit ledger transactions found for this customer."
+                                                            />
+                                                        </TableCell>
+                                                    </TableRow>
                                                 ) : transactions.map(t => (
                                                     <TableRow key={t.id}>
-                                                        <TableCell>{new Date(t.createdAt).toLocaleDateString()}</TableCell>
+                                                        <TableCell className="text-muted-foreground text-sm">
+                                                            {new Date(t.createdAt).toLocaleDateString()}
+                                                        </TableCell>
                                                         <TableCell>
                                                             <Badge variant="outline" className="capitalize">
-                                                                {t.type.replace('_', ' ')}
+                                                                {t.type.replace("_", " ")}
                                                             </Badge>
                                                         </TableCell>
-                                                        <TableCell>
-                                                            <div className="font-medium">{t.reference || "-"}</div>
-                                                            <div className="text-xs text-muted-foreground">{t.notes}</div>
+                                                        <TableCell className="font-mono text-xs">
+                                                            {t.reference || "-"}
                                                         </TableCell>
-                                                        <TableCell className={`text-right font-medium ${["invoice_charge", "adjustment"].includes(t.type) && t.amount > 0 ? "text-red-600" : "text-green-600"
-                                                            }`}>
-                                                            {["invoice_charge", "adjustment"].includes(t.type) && t.amount > 0 ? "+" : "-"}
-                                                            {formatCurrency(Math.abs(t.amount))}
+                                                        <TableCell className={`text-right font-medium ${t.type === 'credit_used' ? 'text-destructive' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                                                            {t.type === 'credit_used' ? '-' : '+'}{formatCurrency(t.amount)}
                                                         </TableCell>
                                                     </TableRow>
                                                 ))}
@@ -322,12 +358,12 @@ export default function CreditManagementPage() {
                                 </Card>
                             </>
                         ) : (
-                            <Card className="h-full flex flex-col items-center justify-center min-h-[400px] bg-gray-50/50 border-dashed">
-                                <User className="h-12 w-12 text-muted-foreground/30 mb-4" />
-                                <h3 className="text-lg font-medium text-gray-900">No Customer Selected</h3>
-                                <p className="text-sm text-muted-foreground max-w-sm text-center mt-1">
-                                    Select a customer from the left sidebar to view their credit utilization and transaction history.
-                                </p>
+                            <Card className="border-border shadow-sm p-12">
+                                <EmptyState
+                                    icon={User}
+                                    title="No customer selected"
+                                    description="Select a customer from the left list to view their credit ledger and transactions."
+                                />
                             </Card>
                         )}
                     </div>
@@ -341,22 +377,20 @@ export default function CreditManagementPage() {
                                 Record a credit event for {activeCustomer?.name || "the selected customer"} and refresh the ledger automatically.
                             </DialogDescription>
                         </DialogHeader>
-                        <div className="space-y-4">
+                        <form onSubmit={handleAdjustCredit} className="space-y-4">
                             <div className="space-y-2">
                                 <Label htmlFor="credit-type">Adjustment type</Label>
                                 <Select
-                                    value={adjustForm.type}
-                                    onValueChange={(value) => setAdjustForm((current) => ({ ...current, type: value }))}
+                                    value={adjustType}
+                                    onValueChange={(value: any) => setAdjustType(value)}
                                 >
                                     <SelectTrigger id="credit-type">
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="payment_received">Payment Received</SelectItem>
-                                        <SelectItem value="invoice_charge">Invoice Charge</SelectItem>
+                                        <SelectItem value="credit_issued">Credit Issued</SelectItem>
+                                        <SelectItem value="credit_used">Credit Used / Invoice</SelectItem>
                                         <SelectItem value="adjustment">Manual Adjustment</SelectItem>
-                                        <SelectItem value="refund">Refund</SelectItem>
-                                        <SelectItem value="credit_grant">Increase Credit Limit</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -367,43 +401,45 @@ export default function CreditManagementPage() {
                                     type="number"
                                     min="0"
                                     step="0.01"
-                                    value={adjustForm.amount}
-                                    onChange={(event) => setAdjustForm((current) => ({ ...current, amount: event.target.value }))}
+                                    value={adjustAmount}
+                                    onChange={(event) => setAdjustAmount(event.target.value)}
                                     placeholder="0.00"
+                                    required
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="credit-description">Description</Label>
+                                <Label htmlFor="credit-ref">Reference</Label>
                                 <Input
-                                    id="credit-description"
-                                    value={adjustForm.description}
-                                    onChange={(event) => setAdjustForm((current) => ({ ...current, description: event.target.value }))}
-                                    placeholder="Settlement from bank transfer"
+                                    id="credit-ref"
+                                    value={adjustRef}
+                                    onChange={(event) => setAdjustRef(event.target.value)}
+                                    placeholder="INV-1001 / Bank Ref"
                                 />
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="credit-notes">Internal notes</Label>
                                 <Textarea
                                     id="credit-notes"
-                                    value={adjustForm.notes}
-                                    onChange={(event) => setAdjustForm((current) => ({ ...current, notes: event.target.value }))}
+                                    value={adjustNotes}
+                                    onChange={(event) => setAdjustNotes(event.target.value)}
                                     placeholder="Optional reference for the finance team"
                                 />
                             </div>
-                        </div>
-                        <DialogFooter>
-                            <Button
-                                variant="outline"
-                                onClick={() => setIsAdjustDialogOpen(false)}
-                                disabled={submitting}
-                            >
-                                Cancel
-                            </Button>
-                            <Button onClick={() => void handleAdjustCredit()} disabled={submitting || !adjustForm.amount || !adjustForm.description.trim()}>
-                                {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
-                                Save Adjustment
-                            </Button>
-                        </DialogFooter>
+                            <DialogFooter>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => setIsAdjustDialogOpen(false)}
+                                    disabled={isSubmitting}
+                                >
+                                    Cancel
+                                </Button>
+                                <Button type="submit" disabled={isSubmitting || !adjustAmount}>
+                                    {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
+                                    Save Adjustment
+                                </Button>
+                            </DialogFooter>
+                        </form>
                     </DialogContent>
                 </Dialog>
             </div>

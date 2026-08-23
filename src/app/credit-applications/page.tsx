@@ -1,9 +1,12 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { CheckCircle2, FileSearch, Loader2, Search, XCircle } from "lucide-react"
+import { CheckCircle2, Clock, FileSearch, FileText, Loader2, Search, XCircle, DollarSign, AlertCircle } from "lucide-react"
 
 import { AppShell } from "@/components/layout/app-shell"
+import { PageHeader } from "@/components/ui/page-header"
+import { KpiCard } from "@/components/ui/kpi-card"
+import { EmptyState } from "@/components/ui/empty-state"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -20,7 +23,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
-import { formatCurrency } from "@/lib/types"
+import { formatCurrency, formatCurrencyShort } from "@/lib/types"
 
 type CreditApplication = {
   id: string
@@ -50,142 +53,140 @@ type CreditApplication = {
 }
 
 const statusTone: Record<string, string> = {
-  submitted: "bg-blue-100 text-blue-700",
-  under_review: "bg-amber-100 text-amber-700",
-  approved: "bg-emerald-100 text-emerald-700",
-  rejected: "bg-red-100 text-red-700",
+  submitted: "bg-blue-500/10 text-blue-600 border-blue-500/20",
+  under_review: "bg-amber-500/10 text-amber-600 border-amber-500/20",
+  approved: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
+  rejected: "bg-rose-500/10 text-destructive border-rose-500/20",
 }
 
 export default function CreditApplicationsPage() {
   const [applications, setApplications] = useState<CreditApplication[]>([])
   const [loading, setLoading] = useState(true)
-  const [submitting, setSubmitting] = useState(false)
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [selected, setSelected] = useState<CreditApplication | null>(null)
   const [reviewOpen, setReviewOpen] = useState(false)
-  const [reviewForm, setReviewForm] = useState({
-    status: "under_review",
-    approvedLimit: "",
-    approvedTerms: "30",
-    reviewNotes: "",
-  })
+  const [saving, setSaving] = useState(false)
 
-  async function fetchApplications() {
-    setLoading(true)
+  const [reviewStatus, setReviewStatus] = useState("approved")
+  const [approvedLimit, setApprovedLimit] = useState("")
+  const [approvedTerms, setApprovedTerms] = useState("30")
+  const [reviewNotes, setReviewNotes] = useState("")
+
+  const loadApplications = async () => {
     try {
-      const response = await fetch("/api/credit-applications")
-      const payload = await response.json()
-      if (payload.success) {
-        setApplications(payload.data || [])
+      setLoading(true)
+      const res = await fetch("/api/credit-applications")
+      const data = await res.json()
+      if (data.success) {
+        setApplications(data.data || [])
       }
     } catch (error) {
-      console.error("Error fetching credit applications:", error)
+      console.error("Failed to load credit applications:", error)
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    void fetchApplications()
+    void loadApplications()
   }, [])
 
   const filteredApplications = useMemo(() => {
-    return applications.filter((application) => {
+    return applications.filter((app) => {
       const matchesSearch =
-        application.businessName.toLowerCase().includes(search.toLowerCase()) ||
-        application.customer.name.toLowerCase().includes(search.toLowerCase()) ||
-        (application.contactEmail || "").toLowerCase().includes(search.toLowerCase())
-      const matchesStatus = statusFilter === "all" || application.status === statusFilter
+        !search ||
+        app.businessName.toLowerCase().includes(search.toLowerCase()) ||
+        app.customer.name.toLowerCase().includes(search.toLowerCase()) ||
+        (app.contactEmail || "").toLowerCase().includes(search.toLowerCase())
+
+      const matchesStatus = statusFilter === "all" || app.status === statusFilter
       return matchesSearch && matchesStatus
     })
   }, [applications, search, statusFilter])
 
-  function openReview(application: CreditApplication) {
+  const openReview = (application: CreditApplication) => {
     setSelected(application)
-    setReviewForm({
-      status: application.status === "submitted" ? "under_review" : application.status,
-      approvedLimit: String(application.approvedLimit ?? application.requestedLimit ?? ""),
-      approvedTerms: String(application.approvedTerms ?? 30),
-      reviewNotes: application.reviewNotes || "",
-    })
+    setReviewStatus(application.status === "submitted" ? "under_review" : application.status)
+    setApprovedLimit(String(application.approvedLimit ?? application.requestedLimit ?? 0))
+    setApprovedTerms(String(application.approvedTerms ?? 30))
+    setReviewNotes(application.reviewNotes || "")
     setReviewOpen(true)
   }
 
-  async function submitReview() {
+  const handleSaveReview = async () => {
     if (!selected) return
+
     try {
-      setSubmitting(true)
-      const response = await fetch(`/api/credit-applications/${selected.id}`, {
-        method: "PATCH",
+      setSaving(true)
+      const res = await fetch(`/api/credit-applications/${selected.id}`, {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          status: reviewForm.status,
-          approvedLimit: Number(reviewForm.approvedLimit) || 0,
-          approvedTerms: Number(reviewForm.approvedTerms) || 30,
-          reviewNotes: reviewForm.reviewNotes,
-          reviewedBy: "admin",
+          status: reviewStatus,
+          approvedLimit: reviewStatus === "approved" ? Number(approvedLimit) : null,
+          approvedTerms: reviewStatus === "approved" ? Number(approvedTerms) : null,
+          reviewNotes,
         }),
       })
-      const payload = await response.json()
-      if (!payload.success) {
-        throw new Error(payload.error || "Failed to update application")
+      const data = await res.json()
+      if (!data.success) {
+        throw new Error(data.error || "Failed to update application review")
       }
+
       setReviewOpen(false)
-      await fetchApplications()
+      setSelected(null)
+      void loadApplications()
     } catch (error) {
-      console.error("Error reviewing credit application:", error)
+      console.error("Error saving credit application review:", error)
     } finally {
-      setSubmitting(false)
+      setSaving(false)
     }
   }
 
+  const parsedPayload = useMemo(() => {
+    if (!selected?.payloadJson) return null
+    try {
+      return JSON.parse(selected.payloadJson)
+    } catch {
+      return null
+    }
+  }, [selected])
+
   return (
-    <AppShell title="Credit Applications" breadcrumbs={[{ label: "Credit Applications" }]}>
+    <AppShell title="Credit Applications" breadcrumbs={[{ label: "Customers", href: "/customers" }, { label: "Credit Applications" }]}>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Credit Applications</h1>
-          <p className="text-muted-foreground">
-            Review credit requests submitted from the customer website and convert them into live account terms.
-          </p>
+        <PageHeader
+          title="Credit Applications"
+          description="Review, approve, and track digital credit applications submitted by trade customers."
+        />
+
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <KpiCard
+            title="Total Applications"
+            value={applications.length}
+            icon={FileText}
+          />
+          <KpiCard
+            title="Pending Review"
+            value={applications.filter((application) => ["submitted", "under_review"].includes(application.status)).length}
+            icon={Clock}
+          />
+          <KpiCard
+            title="Approved"
+            value={applications.filter((application) => application.status === "approved").length}
+            icon={CheckCircle2}
+          />
+          <KpiCard
+            title="Requested Exposure"
+            value={formatCurrencyShort(applications.reduce((sum, application) => sum + application.requestedLimit, 0))}
+            icon={DollarSign}
+          />
         </div>
 
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Total applications</CardDescription>
-              <CardTitle className="text-2xl">{applications.length}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Pending review</CardDescription>
-              <CardTitle className="text-2xl">
-                {applications.filter((application) => ["submitted", "under_review"].includes(application.status)).length}
-              </CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Approved</CardDescription>
-              <CardTitle className="text-2xl">
-                {applications.filter((application) => application.status === "approved").length}
-              </CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Requested exposure</CardDescription>
-              <CardTitle className="text-2xl">
-                {formatCurrency(applications.reduce((sum, application) => sum + application.requestedLimit, 0))}
-              </CardTitle>
-            </CardHeader>
-          </Card>
-        </div>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex flex-col gap-4 md:flex-row">
+        <Card className="border-border shadow-sm">
+          <CardContent className="p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <div className="relative flex-1">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -196,13 +197,13 @@ export default function CreditApplicationsPage() {
                 />
               </div>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full md:w-56">
+                <SelectTrigger className="w-full sm:w-56">
                   <SelectValue placeholder="Filter status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All statuses</SelectItem>
+                  <SelectItem value="all">All Statuses</SelectItem>
                   <SelectItem value="submitted">Submitted</SelectItem>
-                  <SelectItem value="under_review">Under review</SelectItem>
+                  <SelectItem value="under_review">Under Review</SelectItem>
                   <SelectItem value="approved">Approved</SelectItem>
                   <SelectItem value="rejected">Rejected</SelectItem>
                 </SelectContent>
@@ -211,9 +212,9 @@ export default function CreditApplicationsPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Applications</CardTitle>
+        <Card className="border-border shadow-sm overflow-hidden">
+          <CardHeader className="p-4 sm:p-6 pb-2">
+            <CardTitle className="text-base">Applications</CardTitle>
             <CardDescription>Each record is submitted live from the customer website credit form.</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
@@ -232,14 +233,19 @@ export default function CreditApplicationsPage() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="py-10 text-center text-muted-foreground">
+                    <TableCell colSpan={7} className="py-12 text-center text-muted-foreground">
+                      <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
                       Loading credit applications...
                     </TableCell>
                   </TableRow>
                 ) : filteredApplications.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="py-10 text-center text-muted-foreground">
-                      No credit applications found.
+                    <TableCell colSpan={7} className="p-0">
+                      <EmptyState
+                        icon={FileSearch}
+                        title="No credit applications found"
+                        description={search || statusFilter !== "all" ? "No applications match your filter criteria." : "No credit applications submitted yet."}
+                      />
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -247,24 +253,24 @@ export default function CreditApplicationsPage() {
                     <TableRow key={application.id}>
                       <TableCell>
                         <div>
-                          <p className="font-medium text-slate-900">{application.businessName}</p>
+                          <p className="font-medium text-foreground">{application.businessName}</p>
                           <p className="text-xs text-muted-foreground">{application.contactEmail || application.contactPhone || "No contact saved"}</p>
                         </div>
                       </TableCell>
                       <TableCell>
                         <div>
-                          <p className="font-medium">{application.customer.name}</p>
+                          <p className="font-medium text-foreground">{application.customer.name}</p>
                           <p className="text-xs text-muted-foreground">{application.customer.email || application.customer.phone || "No contact saved"}</p>
                         </div>
                       </TableCell>
-                      <TableCell>{formatCurrency(application.requestedLimit)}</TableCell>
-                      <TableCell>{formatCurrency(application.averageMonthlySpend)}</TableCell>
+                      <TableCell className="font-medium">{formatCurrency(application.requestedLimit)}</TableCell>
+                      <TableCell className="text-muted-foreground">{formatCurrency(application.averageMonthlySpend)}</TableCell>
                       <TableCell>
-                        <Badge className={statusTone[application.status] || "bg-slate-100 text-slate-700"}>
+                        <Badge variant="outline" className={statusTone[application.status] || "border-border text-foreground"}>
                           {application.status.replace(/_/g, " ")}
                         </Badge>
                       </TableCell>
-                      <TableCell>{new Date(application.createdAt).toLocaleDateString()}</TableCell>
+                      <TableCell className="text-muted-foreground">{new Date(application.createdAt).toLocaleDateString()}</TableCell>
                       <TableCell className="text-right">
                         <Button variant="outline" size="sm" onClick={() => openReview(application)}>
                           <FileSearch className="mr-2 h-4 w-4" />
@@ -323,7 +329,7 @@ export default function CreditApplicationsPage() {
                     </CardContent>
                   </Card>
 
-                  <Card>
+                  <Card className="border-border shadow-sm">
                     <CardHeader>
                       <CardTitle className="text-base">Decision</CardTitle>
                     </CardHeader>
@@ -331,8 +337,8 @@ export default function CreditApplicationsPage() {
                       <div className="space-y-2">
                         <Label>Status</Label>
                         <Select
-                          value={reviewForm.status}
-                          onValueChange={(value) => setReviewForm((current) => ({ ...current, status: value }))}
+                          value={reviewStatus}
+                          onValueChange={(value) => setReviewStatus(value)}
                         >
                           <SelectTrigger>
                             <SelectValue />
@@ -348,9 +354,9 @@ export default function CreditApplicationsPage() {
                         <Label>Approved credit limit</Label>
                         <Input
                           type="number"
-                          value={reviewForm.approvedLimit}
+                          value={approvedLimit}
                           onChange={(event) =>
-                            setReviewForm((current) => ({ ...current, approvedLimit: event.target.value }))
+                            setApprovedLimit(event.target.value)
                           }
                         />
                       </div>
@@ -358,9 +364,9 @@ export default function CreditApplicationsPage() {
                         <Label>Approved payment terms</Label>
                         <Input
                           type="number"
-                          value={reviewForm.approvedTerms}
+                          value={approvedTerms}
                           onChange={(event) =>
-                            setReviewForm((current) => ({ ...current, approvedTerms: event.target.value }))
+                            setApprovedTerms(event.target.value)
                           }
                         />
                       </div>
@@ -368,14 +374,14 @@ export default function CreditApplicationsPage() {
                         <Label>Review notes</Label>
                         <Textarea
                           rows={5}
-                          value={reviewForm.reviewNotes}
+                          value={reviewNotes}
                           onChange={(event) =>
-                            setReviewForm((current) => ({ ...current, reviewNotes: event.target.value }))
+                            setReviewNotes(event.target.value)
                           }
                           placeholder="Summarize the decision, required follow-up, or why the application was rejected."
                         />
                       </div>
-                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                      <div className="rounded-xl border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
                         Current live account: {formatCurrency(selected.customer.creditLimit)} credit limit,{" "}
                         {selected.customer.creditStatus.replace(/_/g, " ")} credit status.
                       </div>
@@ -390,14 +396,14 @@ export default function CreditApplicationsPage() {
                   <Button
                     variant="outline"
                     onClick={() =>
-                      setReviewForm((current) => ({ ...current, status: "rejected" }))
+                      setReviewStatus("rejected")
                     }
                   >
-                    <XCircle className="mr-2 h-4 w-4" />
+                    <XCircle className="mr-2 h-4 w-4 text-destructive" />
                     Mark Rejected
                   </Button>
-                  <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={submitReview} disabled={submitting}>
-                    {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                  <Button onClick={handleSaveReview} disabled={saving}>
+                    {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
                     Save Decision
                   </Button>
                 </DialogFooter>
