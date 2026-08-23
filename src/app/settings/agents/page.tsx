@@ -1,13 +1,14 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Bot, Clock, Loader2, Lock, Play, Plus, Radio, RefreshCw, Shield, ShieldCheck, Wrench } from "lucide-react"
+import { Bot, Clock, Loader2, Lock, Play, Plus, Radio, RefreshCw, Shield, ShieldCheck, Wrench, Sparkles, AlertCircle } from "lucide-react"
 
 import { AppShell } from "@/components/layout/app-shell"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { PageHeader } from "@/components/ui/page-header"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
 
@@ -35,7 +36,7 @@ interface AgentDefinition {
 }
 
 const MODEL_PRESETS = [
-  { label: "Default for Role / Purpose", value: "" },
+  { label: "Default for Role", value: "" },
   { label: "DeepSeek Chat (V3)", value: "deepseek/deepseek-chat" },
   { label: "Meta Llama 3.3 70B", value: "meta-llama/llama-3.3-70b-instruct" },
   { label: "Claude 3.5 Sonnet", value: "anthropic/claude-3.5-sonnet" },
@@ -73,7 +74,6 @@ interface WatchState {
   }>
 }
 
-/** Schedules people actually want, so nobody has to write cron from memory. */
 const SCHEDULE_PRESETS = [
   { label: "Off", value: "" },
   { label: "Every 15 min", value: "*/15 * * * *" },
@@ -93,9 +93,9 @@ interface CatalogueTool {
 
 const RISK_TONE: Record<string, string> = {
   read: "text-muted-foreground",
-  low: "text-emerald-600",
-  medium: "text-amber-600",
-  high: "text-red-600",
+  low: "text-emerald-600 dark:text-emerald-400",
+  medium: "text-amber-600 dark:text-amber-400",
+  high: "text-rose-600 dark:text-rose-400",
 }
 
 const RISK_ORDER = ["read", "low", "medium", "high"]
@@ -154,8 +154,6 @@ export default function AgentStudioPage() {
 
   const active = agents.find((agent) => agent.id === selected) || null
 
-  // Grouped by risk so the consequence of granting a tool is visible while
-  // choosing it, rather than buried in a flat alphabetical list.
   const byRisk = useMemo(() => {
     const groups: Record<string, CatalogueTool[]> = {}
     for (const tool of catalogue) {
@@ -195,11 +193,10 @@ export default function AgentStudioPage() {
         setSaving(null)
       }
     },
-    [load]
+    [load, toast]
   )
 
   function toggleTool(agent: AgentDefinition, toolName: string) {
-    // null means "everything"; materialise it before removing one.
     const current = agent.tools ?? catalogue.map((tool) => tool.name)
     const next = current.includes(toolName)
       ? current.filter((name) => name !== toolName)
@@ -209,49 +206,50 @@ export default function AgentStudioPage() {
   }
 
   return (
-    <AppShell title="Agents">
+    <AppShell title="Agents" breadcrumbs={[{ label: "Settings", href: "/settings" }, { label: "Agents" }]}>
       <div className="space-y-6">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Agents</h1>
-            <p className="text-sm text-muted-foreground">
-              Build an agent by choosing what it is told and which tools it can reach.
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
-              {loading ? (
-                <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <RefreshCw className="mr-2 h-3.5 w-3.5" />
-              )}
-              Refresh
-            </Button>
-            <Button size="sm" onClick={() => setCreating(true)}>
-              <Plus className="mr-2 h-3.5 w-3.5" />
-              New agent
-            </Button>
-          </div>
-        </div>
+        <PageHeader
+          title="Autonomous Agents & Copilots"
+          description="Configure system personas, tool permissions, autonomy thresholds, and continuous heartbeat monitoring."
+          actions={
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
+                {loading ? (
+                  <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <RefreshCw className="mr-2 h-3.5 w-3.5" />
+                )}
+                Refresh
+              </Button>
+              <Button size="sm" onClick={() => setCreating(true)}>
+                <Plus className="mr-2 h-3.5 w-3.5" />
+                New Agent
+              </Button>
+            </div>
+          }
+        />
 
-        {/* ---- Autonomy ---- */}
+        {/* Autonomy Card */}
         {autonomy ? (
-          <Card>
+          <Card className="border border-border">
             <CardHeader className="pb-3">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <CardTitle className="flex items-center gap-2 text-base">
-                    <ShieldCheck className="h-4 w-4" />
-                    Autonomy
+                    <ShieldCheck className="h-4 w-4 text-primary" />
+                    Autonomy & Guardrail Thresholds
                     {autonomy.thresholds.readOnly ? (
                       <Badge variant="secondary" className="text-[10px]">
-                        read-only
+                        read-only mode
                       </Badge>
-                    ) : null}
+                    ) : (
+                      <Badge variant="default" className="text-[10px] bg-emerald-600 hover:bg-emerald-700">
+                        active autonomy
+                      </Badge>
+                    )}
                   </CardTitle>
-                  <CardDescription>
-                    How much the agent may do on its own. Anything over a limit stops and waits for
-                    a person.
+                  <CardDescription className="text-xs text-muted-foreground mt-0.5">
+                    Defines financial ceilings and modification limits before the agent halts and requests supervisor approval.
                   </CardDescription>
                 </div>
                 <div className="flex gap-2">
@@ -273,7 +271,7 @@ export default function AgentStudioPage() {
                       }
                     }}
                   >
-                    Reset
+                    Reset Defaults
                   </Button>
                   <Button
                     size="sm"
@@ -293,22 +291,21 @@ export default function AgentStudioPage() {
                       }
                     }}
                   >
-                    {autonomy.thresholds.readOnly ? "Allow changes" : "Read-only mode"}
+                    {autonomy.thresholds.readOnly ? "Enable Write Autonomy" : "Lock to Read-Only"}
                   </Button>
                 </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Plain English first. A number in a box does not tell you what
-                  you have agreed to. */}
-              <div className="rounded-lg border bg-muted/40 p-3">
-                <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                  What this means
+              <div className="rounded-lg border border-border bg-muted/30 p-3.5">
+                <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Policy Summary
                 </p>
                 <ul className="space-y-1">
                   {autonomy.summary.map((line) => (
-                    <li key={line} className="text-xs text-muted-foreground">
-                      {line}
+                    <li key={line} className="text-xs text-muted-foreground flex items-center gap-1.5">
+                      <Sparkles className="h-3 w-3 text-primary shrink-0" />
+                      <span>{line}</span>
                     </li>
                   ))}
                 </ul>
@@ -327,12 +324,12 @@ export default function AgentStudioPage() {
                   ).map(([field, label, unit]) => (
                     <label
                       key={field}
-                      className="flex items-center justify-between gap-3 rounded-md border p-2.5"
+                      className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-2.5 hover:bg-muted/20 transition-colors"
                     >
-                      <span className="text-xs">
+                      <span className="text-xs font-medium text-foreground">
                         {label}
-                        <span className="ml-1 text-[10px] text-muted-foreground">
-                          {unit === "$" ? "dollars" : unit}
+                        <span className="ml-1 text-[10px] text-muted-foreground font-normal">
+                          ({unit === "$" ? "dollars" : unit})
                         </span>
                       </span>
                       <Input
@@ -341,7 +338,7 @@ export default function AgentStudioPage() {
                         max={autonomy.limits[field]}
                         defaultValue={autonomy.thresholds[field]}
                         disabled={saving === "policy"}
-                        className="h-7 w-28 text-xs"
+                        className="h-8 w-28 text-xs font-mono"
                         onBlur={async (event) => {
                           const next = Number(event.target.value)
                           if (next === autonomy.thresholds[field]) return
@@ -362,12 +359,13 @@ export default function AgentStudioPage() {
                     </label>
                   ))}
 
-                  <label className="flex items-center justify-between gap-3 rounded-md border p-2.5">
-                    <span className="text-xs">Send customer messages directly</span>
+                  <label className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-2.5 hover:bg-muted/20 transition-colors">
+                    <span className="text-xs font-medium text-foreground">Send customer messages directly</span>
                     <input
                       type="checkbox"
                       checked={autonomy.thresholds.allowOutboundMessages}
                       disabled={saving === "policy"}
+                      className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
                       onChange={async (event) => {
                         setSaving("policy")
                         try {
@@ -386,23 +384,22 @@ export default function AgentStudioPage() {
                 </div>
               ) : (
                 <p className="text-xs text-muted-foreground">
-                  Limits are hidden while the agent is read-only, because none of them apply.
+                  Limits are bypassed while the agent is locked in read-only mode.
                 </p>
               )}
 
-              <label className="flex items-start justify-between gap-3 rounded-md border p-2.5">
-                <span className="text-xs">
-                  Let the agent propose settings changes
-                  <span className="mt-0.5 block text-[11px] font-normal text-muted-foreground">
-                    Tax rates, due dates, numbering, pricing. Every change still needs your
-                    approval, and you see exactly which values would move. The agent can never
-                    change its own limits.
+              <label className="flex items-start justify-between gap-3 rounded-lg border border-border bg-card p-3 hover:bg-muted/20 transition-colors">
+                <span className="text-xs font-medium text-foreground">
+                  Allow agent to propose business configuration updates
+                  <span className="mt-0.5 block text-[11px] font-normal text-muted-foreground leading-relaxed">
+                    Tax rates, due dates, numbering, and pricing rules. Every proposal requires explicit human sign-off with clear parameter diffs.
                   </span>
                 </span>
                 <input
                   type="checkbox"
                   checked={autonomy.allowSettingWrites}
                   disabled={saving === "policy"}
+                  className="h-4 w-4 rounded border-border text-primary focus:ring-primary mt-0.5"
                   onChange={async (event) => {
                     setSaving("policy")
                     try {
@@ -418,34 +415,28 @@ export default function AgentStudioPage() {
                   }}
                 />
               </label>
-
-              <p className="text-[11px] text-muted-foreground">
-                Set a limit to 0 to make the agent always ask. These limits can only be changed
-                here — the agent cannot raise its own.
-              </p>
             </CardContent>
           </Card>
         ) : null}
 
-        {/* ---- The watch loop ---- */}
+        {/* Watch Loop Card */}
         {watch ? (
-          <Card>
+          <Card className="border border-border">
             <CardHeader className="pb-3">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <CardTitle className="flex items-center gap-2 text-base">
-                    <Radio className="h-4 w-4" />
-                    Watching
+                    <Radio className="h-4 w-4 text-sky-500" />
+                    Continuous Business Watchdog (Heartbeat)
                     <Badge
                       variant={watch.config.enabled ? "default" : "secondary"}
                       className="text-[10px]"
                     >
-                      {watch.config.enabled ? "on" : "off"}
+                      {watch.config.enabled ? "monitoring active" : "disabled"}
                     </Badge>
                   </CardTitle>
-                  <CardDescription>
-                    Checks the business on every tick and messages you only when something crosses a
-                    line. Silence is the normal outcome.
+                  <CardDescription className="text-xs text-muted-foreground mt-0.5">
+                    Monitors stock depletion, invoice overdue milestones, and anomalous orders on every cron tick.
                   </CardDescription>
                 </div>
                 <div className="flex gap-2">
@@ -481,7 +472,7 @@ export default function AgentStudioPage() {
                       }
                     }}
                   >
-                    Dry run
+                    Dry Run
                   </Button>
                   <Button
                     size="sm"
@@ -502,7 +493,7 @@ export default function AgentStudioPage() {
                       }
                     }}
                   >
-                    {watch.config.enabled ? "Turn off" : "Turn on"}
+                    {watch.config.enabled ? "Turn Off" : "Turn On"}
                   </Button>
                 </div>
               </div>
@@ -510,29 +501,28 @@ export default function AgentStudioPage() {
 
             <CardContent className="space-y-3">
               {!watch.recipients.length ? (
-                <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-xs">
-                  Nobody has linked a Telegram account, so there is nowhere to send alerts. Link one
-                  from the agent settings to start receiving them.
+                <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-600 dark:text-amber-400 flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  <span>No Telegram accounts linked. Connect staff Telegram under Agent Settings to receive live heartbeat alerts.</span>
                 </div>
               ) : (
                 <p className="text-xs text-muted-foreground">
-                  Alerting {watch.recipients.map((person) => person.name).join(", ")} · at most{" "}
-                  {watch.config.maxPerTick} per tick
+                  Alerting {watch.recipients.map((person) => person.name).join(", ")} · max {watch.config.maxPerTick} alerts/tick
                 </p>
               )}
 
               <div>
-                <p className="mb-1.5 text-xs font-medium">
-                  Visible right now ({watch.signals.length})
+                <p className="mb-1.5 text-xs font-semibold text-foreground">
+                  Active Signals ({watch.signals.length})
                 </p>
                 {!watch.signals.length ? (
-                  <p className="rounded-md border p-3 text-xs text-muted-foreground">
-                    Nothing needs attention. This is the intended state.
+                  <p className="rounded-lg border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
+                    All clear. No operational anomalies detected.
                   </p>
                 ) : (
                   <div className="space-y-1.5">
                     {watch.signals.map((signal, index) => (
-                      <div key={index} className="rounded-md border p-2 text-xs">
+                      <div key={index} className="rounded-lg border border-border bg-card p-3 text-xs">
                         <div className="flex flex-wrap items-center gap-2">
                           <Badge
                             variant={signal.severity === "urgent" ? "destructive" : "outline"}
@@ -540,9 +530,9 @@ export default function AgentStudioPage() {
                           >
                             {signal.severity}
                           </Badge>
-                          <span className="font-medium">{signal.title}</span>
+                          <span className="font-medium text-foreground">{signal.title}</span>
                         </div>
-                        <p className="mt-0.5 text-muted-foreground">{signal.body}</p>
+                        <p className="mt-1 text-muted-foreground">{signal.body}</p>
                       </div>
                     ))}
                   </div>
@@ -551,15 +541,15 @@ export default function AgentStudioPage() {
 
               {watch.recent.length ? (
                 <div>
-                  <p className="mb-1.5 text-xs font-medium">Recently sent</p>
+                  <p className="mb-1.5 text-xs font-semibold text-foreground">Recently Dispatched</p>
                   <div className="space-y-1">
-                    {watch.recent.slice(0, 6).map((row) => (
+                    {watch.recent.slice(0, 5).map((row) => (
                       <div
                         key={row.id}
-                        className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground"
+                        className="flex items-center justify-between gap-2 text-xs text-muted-foreground rounded border border-border/60 p-2"
                       >
-                        <span className="truncate">{row.title}</span>
-                        <span className="shrink-0">
+                        <span className="truncate font-medium">{row.title}</span>
+                        <span className="shrink-0 text-[11px]">
                           {new Date(row.sentAt).toLocaleString()}
                           {row.status !== "sent" ? ` · ${row.status}` : ""}
                         </span>
@@ -572,13 +562,13 @@ export default function AgentStudioPage() {
           </Card>
         ) : null}
 
+        {/* Create Agent Form */}
         {creating ? (
-          <Card>
+          <Card className="border border-border">
             <CardHeader>
-              <CardTitle className="text-base">New agent</CardTitle>
-              <CardDescription>
-                A narrow agent is usually a better agent. Give it one job and only the tools that
-                job needs.
+              <CardTitle className="text-base">Create Custom Agent</CardTitle>
+              <CardDescription className="text-xs">
+                Configure a purpose-specific copilot with custom system instructions, model routing, and restricted tool privileges.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -592,7 +582,7 @@ export default function AgentStudioPage() {
                 <Input
                   value={draft.name}
                   onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))}
-                  placeholder="Agent name"
+                  placeholder="Agent Name (e.g. Lead Qualifier)"
                   className="h-8 text-xs"
                 />
                 <Input
@@ -600,13 +590,13 @@ export default function AgentStudioPage() {
                   onChange={(event) =>
                     setDraft((current) => ({ ...current, description: event.target.value }))
                   }
-                  placeholder="What it does"
+                  placeholder="Short purpose description"
                   className="h-8 text-xs"
                 />
               </div>
 
-              <div className="space-y-1">
-                <label className="text-[11px] font-medium text-muted-foreground">AI Model</label>
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-medium text-muted-foreground">AI Model Engine</label>
                 <div className="flex flex-wrap gap-1">
                   {MODEL_PRESETS.map((preset) => (
                     <button
@@ -615,8 +605,8 @@ export default function AgentStudioPage() {
                       onClick={() => setDraft((current) => ({ ...current, model: preset.value }))}
                       className={`rounded border px-2 py-0.5 text-[10px] transition-colors ${
                         draft.model === preset.value
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : "hover:bg-accent"
+                          ? "border-primary bg-primary text-primary-foreground font-medium"
+                          : "border-border bg-background hover:bg-muted text-muted-foreground"
                       }`}
                     >
                       {preset.label}
@@ -628,7 +618,7 @@ export default function AgentStudioPage() {
                   onChange={(event) =>
                     setDraft((current) => ({ ...current, model: event.target.value.trim() }))
                   }
-                  placeholder="Or custom model ID: vendor/model-name (e.g. anthropic/claude-3.5-sonnet)"
+                  placeholder="Or custom OpenRouter model: e.g. anthropic/claude-3.5-sonnet"
                   className="h-8 font-mono text-xs"
                 />
               </div>
@@ -638,25 +628,25 @@ export default function AgentStudioPage() {
                 onChange={(event) =>
                   setDraft((current) => ({ ...current, instructions: event.target.value }))
                 }
-                placeholder="You qualify inbound leads for a pizza-base manufacturer. Ask about venue type, weekly volume and current supplier. Log everything. Never discuss pricing."
-                rows={5}
+                placeholder="You qualify inbound food wholesale leads. Ask about venue type, weekly carton volume and delivery schedule. Log everything. Never discuss special discounts."
+                rows={4}
                 className="text-xs"
               />
 
-              <div className="space-y-2 rounded-lg border p-3">
-                <p className="text-xs font-medium">
-                  Tools ({draft.tools.length} of {catalogue.length})
+              <div className="space-y-2 rounded-lg border border-border bg-card p-3">
+                <p className="text-xs font-semibold text-foreground">
+                  Allowed Tools ({draft.tools.length} of {catalogue.length})
                 </p>
                 {RISK_ORDER.map((risk) => (
                   <div key={risk}>
-                    <p className={`mb-1 text-[10px] uppercase tracking-wide ${RISK_TONE[risk]}`}>
-                      {risk}
-                      {risk === "high" ? " — always needs approval" : ""}
+                    <p className={`mb-1 text-[10px] font-semibold uppercase tracking-wider ${RISK_TONE[risk]}`}>
+                      {risk} {risk === "high" ? " — requires manual sign-off" : ""}
                     </p>
                     <div className="flex flex-wrap gap-1">
                       {(byRisk[risk] || []).map((tool) => (
                         <button
                           key={tool.name}
+                          type="button"
                           onClick={() =>
                             setDraft((current) => ({
                               ...current,
@@ -665,10 +655,10 @@ export default function AgentStudioPage() {
                                 : [...current.tools, tool.name],
                             }))
                           }
-                          className={`rounded border px-1.5 py-0.5 text-[10px] transition-colors ${
+                          className={`rounded border px-2 py-0.5 text-[10px] transition-colors ${
                             draft.tools.includes(tool.name)
-                              ? "border-primary bg-primary text-primary-foreground"
-                              : "hover:bg-accent"
+                              ? "border-primary bg-primary text-primary-foreground font-medium"
+                              : "border-border bg-background hover:bg-muted text-muted-foreground"
                           }`}
                         >
                           {tool.name}
@@ -679,7 +669,7 @@ export default function AgentStudioPage() {
                 ))}
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex gap-2 pt-2">
                 <Button
                   size="sm"
                   disabled={!draft.name.trim() || !draft.instructions.trim() || saving === "new"}
@@ -715,7 +705,7 @@ export default function AgentStudioPage() {
                     }
                   }}
                 >
-                  Create agent
+                  Create Agent
                 </Button>
                 <Button size="sm" variant="ghost" onClick={() => setCreating(false)}>
                   Cancel
@@ -725,28 +715,31 @@ export default function AgentStudioPage() {
           </Card>
         ) : null}
 
+        {/* Agent Cards Grid */}
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {agents.map((agent) => (
             <Card
               key={agent.id}
-              className={`cursor-pointer transition-colors ${selected === agent.id ? "border-primary" : ""}`}
+              className={`cursor-pointer transition-all border ${
+                selected === agent.id ? "border-primary ring-1 ring-primary shadow-sm" : "hover:border-border/80 hover:shadow-sm"
+              }`}
               onClick={() => setSelected(selected === agent.id ? null : agent.id)}
             >
               <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-sm">
-                  <span className="text-lg">{agent.avatar || "🤖"}</span>
-                  {agent.name}
+                <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                  <span className="text-xl">{agent.avatar || "🤖"}</span>
+                  <span className="truncate">{agent.name}</span>
                   {agent.isSystem ? (
-                    <Lock className="h-3 w-3 text-muted-foreground" />
+                    <Lock className="h-3 w-3 text-muted-foreground ml-auto shrink-0" />
                   ) : null}
                   {!agent.enabled ? (
-                    <Badge variant="secondary" className="text-[10px]">
-                      off
+                    <Badge variant="secondary" className="text-[10px] ml-auto">
+                      inactive
                     </Badge>
                   ) : null}
                 </CardTitle>
-                <CardDescription className="text-xs">
-                  {agent.description || "No description"}
+                <CardDescription className="text-xs line-clamp-2">
+                  {agent.description || "No description provided."}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -758,29 +751,30 @@ export default function AgentStudioPage() {
                   <Badge variant="outline" className="text-[10px]">
                     {agent.audience}
                   </Badge>
-                  <span>{agent.runCount} runs</span>
+                  <span>{agent.runCount} runs executed</span>
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
 
+        {/* Active Agent Inspector Card */}
         {active ? (
-          <Card>
+          <Card className="border border-border">
             <CardHeader>
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <span className="text-lg">{active.avatar || "🤖"}</span>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <span className="text-2xl">{active.avatar || "🤖"}</span>
                     {active.name}
                     <Badge variant="outline" className="font-mono text-[10px]">
                       {active.slug}
                     </Badge>
                   </CardTitle>
-                  <CardDescription>
+                  <CardDescription className="text-xs text-muted-foreground mt-1">
                     {active.isSystem
-                      ? "Built in. Editable, but cannot be deleted — it backs a default surface."
-                      : "Custom agent."}
+                      ? "System agent. Core to SupplySure OS operational flow."
+                      : "Custom workspace agent."}
                   </CardDescription>
                 </div>
                 <div className="flex gap-2">
@@ -820,8 +814,8 @@ export default function AgentStudioPage() {
                       }
                     }}
                   >
-                    <Play className="mr-1.5 h-3 w-3" />
-                    Run now
+                    <Play className="mr-1.5 h-3.5 w-3.5" />
+                    Run Now
                   </Button>
                   <Button
                     size="sm"
@@ -840,10 +834,10 @@ export default function AgentStudioPage() {
 
             <CardContent className="space-y-4">
               <div>
-                <p className="mb-1 text-xs font-medium">Instructions</p>
+                <p className="mb-1 text-xs font-semibold text-foreground">System Directives & Instructions</p>
                 <Textarea
                   defaultValue={active.instructions}
-                  rows={8}
+                  rows={6}
                   className="text-xs"
                   onBlur={(event) => {
                     if (event.target.value !== active.instructions) {
@@ -852,16 +846,16 @@ export default function AgentStudioPage() {
                   }}
                 />
                 <p className="mt-1 text-[11px] text-muted-foreground">
-                  Saved when you click away. Business context is appended automatically.
+                  Saved automatically on blur. Real-time ERP context and company metadata are injected at runtime.
                 </p>
               </div>
 
-              {/* ---- AI Model ---- */}
-              <div className="space-y-2 rounded-lg border p-3">
+              {/* AI Model Settings */}
+              <div className="space-y-2 rounded-lg border border-border bg-card p-3.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Bot className="h-3.5 w-3.5" />
-                    <p className="text-xs font-medium">Assigned AI Model</p>
+                    <Bot className="h-4 w-4 text-primary" />
+                    <p className="text-xs font-semibold text-foreground">Assigned AI Model</p>
                   </div>
                   <span className="font-mono text-[10px] text-muted-foreground">
                     {active.model || "Default for Purpose"}
@@ -882,8 +876,8 @@ export default function AgentStudioPage() {
                         }
                         className={`rounded border px-2 py-0.5 text-[10px] transition-colors disabled:opacity-50 ${
                           isSelected
-                            ? "border-primary bg-primary text-primary-foreground"
-                            : "hover:bg-accent"
+                            ? "border-primary bg-primary text-primary-foreground font-medium"
+                            : "border-border bg-background hover:bg-muted text-muted-foreground"
                         }`}
                       >
                         {preset.label}
@@ -894,7 +888,7 @@ export default function AgentStudioPage() {
 
                 <Input
                   defaultValue={active.model || ""}
-                  placeholder="Or custom OpenRouter model: e.g. deepseek/deepseek-chat"
+                  placeholder="Or custom model ID: e.g. deepseek/deepseek-chat"
                   className="h-8 font-mono text-xs"
                   onBlur={(event) => {
                     const value = event.target.value.trim()
@@ -907,11 +901,11 @@ export default function AgentStudioPage() {
                 />
               </div>
 
-              {/* ---- Schedule ---- */}
-              <div className="space-y-2 rounded-lg border p-3">
+              {/* Schedule Settings */}
+              <div className="space-y-2 rounded-lg border border-border bg-card p-3.5">
                 <div className="flex items-center gap-2">
-                  <Clock className="h-3.5 w-3.5" />
-                  <p className="text-xs font-medium">Schedule</p>
+                  <Clock className="h-4 w-4 text-primary" />
+                  <p className="text-xs font-semibold text-foreground">Automated Trigger Schedule</p>
                   {active.lastRunStatus === "failed" ? (
                     <Badge variant="destructive" className="text-[10px]">
                       last run failed
@@ -936,8 +930,8 @@ export default function AgentStudioPage() {
                         }
                         className={`rounded border px-2 py-0.5 text-[10px] transition-colors disabled:opacity-50 ${
                           selectedPreset
-                            ? "border-primary bg-primary text-primary-foreground"
-                            : "hover:bg-accent"
+                            ? "border-primary bg-primary text-primary-foreground font-medium"
+                            : "border-border bg-background hover:bg-muted text-muted-foreground"
                         }`}
                       >
                         {preset.label}
@@ -948,7 +942,7 @@ export default function AgentStudioPage() {
 
                 <Input
                   defaultValue={active.schedule || ""}
-                  placeholder="Or a cron expression: 0 7 * * 1-5"
+                  placeholder="Or standard cron format: 0 8 * * 1-5"
                   className="h-8 font-mono text-xs"
                   onBlur={(event) => {
                     const value = event.target.value.trim()
@@ -962,13 +956,13 @@ export default function AgentStudioPage() {
                 />
 
                 <div>
-                  <p className="mb-1 text-[11px] text-muted-foreground">
-                    What it should do on each run
+                  <p className="mb-1 text-[11px] font-medium text-muted-foreground">
+                    Scheduled Routine Prompt
                   </p>
                   <Textarea
                     defaultValue={active.runPrompt || ""}
                     rows={2}
-                    placeholder="Review leads that have had no contact for 7 days and draft a follow-up task for each."
+                    placeholder="Audit leads with no contact for 7 days and draft follow-up CRM reminders."
                     className="text-xs"
                     onBlur={(event) => {
                       if (event.target.value !== (active.runPrompt || "")) {
@@ -978,44 +972,37 @@ export default function AgentStudioPage() {
                   />
                 </div>
 
-                <div className="flex flex-wrap gap-3 text-[11px] text-muted-foreground">
+                <div className="flex flex-wrap gap-3 text-[11px] text-muted-foreground pt-1">
                   <span>
-                    Next:{" "}
-                    {active.nextRunAt ? new Date(active.nextRunAt).toLocaleString() : "not scheduled"}
+                    Next: {active.nextRunAt ? new Date(active.nextRunAt).toLocaleString() : "not scheduled"}
                   </span>
                   <span>
-                    Last:{" "}
-                    {active.lastRunAt ? new Date(active.lastRunAt).toLocaleString() : "never"}
+                    Last: {active.lastRunAt ? new Date(active.lastRunAt).toLocaleString() : "never"}
                   </span>
                 </div>
 
                 {active.lastRunError ? (
-                  <p className="text-[11px] text-destructive">{active.lastRunError}</p>
-                ) : null}
-
-                {active.trigger === "schedule" && !active.runPrompt ? (
-                  <p className="text-[11px] text-amber-600">
-                    Scheduled but no run prompt — it will be skipped until you give it something to do.
-                  </p>
+                  <p className="text-xs text-destructive">{active.lastRunError}</p>
                 ) : null}
               </div>
 
+              {/* Tools Allowlist */}
               <div>
                 <div className="mb-2 flex items-center gap-2">
-                  <Shield className="h-3.5 w-3.5" />
-                  <p className="text-xs font-medium">
-                    Tools —{" "}
+                  <Shield className="h-4 w-4 text-primary" />
+                  <p className="text-xs font-semibold text-foreground">
+                    Allowed Capabilities & Tools (
                     {active.tools === null
                       ? `all ${catalogue.length}`
                       : `${active.tools.length} of ${catalogue.length}`}
+                    )
                   </p>
                 </div>
 
                 {RISK_ORDER.map((risk) => (
                   <div key={risk} className="mb-2">
-                    <p className={`mb-1 text-[10px] uppercase tracking-wide ${RISK_TONE[risk]}`}>
-                      {risk}
-                      {risk === "high" ? " — always needs approval" : ""}
+                    <p className={`mb-1 text-[10px] font-semibold uppercase tracking-wider ${RISK_TONE[risk]}`}>
+                      {risk} {risk === "high" ? " — always requires approval" : ""}
                     </p>
                     <div className="flex flex-wrap gap-1">
                       {(byRisk[risk] || []).map((tool) => {
@@ -1026,10 +1013,10 @@ export default function AgentStudioPage() {
                             key={tool.name}
                             disabled={saving === active.id}
                             onClick={() => toggleTool(active, tool.name)}
-                            className={`rounded border px-1.5 py-0.5 text-[10px] transition-colors disabled:opacity-50 ${
+                            className={`rounded border px-2 py-0.5 text-[10px] transition-colors disabled:opacity-50 ${
                               granted
-                                ? "border-primary bg-primary text-primary-foreground"
-                                : "hover:bg-accent"
+                                ? "border-primary bg-primary text-primary-foreground font-medium"
+                                : "border-border bg-background hover:bg-muted text-muted-foreground"
                             }`}
                           >
                             {tool.name}
@@ -1040,12 +1027,6 @@ export default function AgentStudioPage() {
                   </div>
                 ))}
               </div>
-
-              <div className="flex items-center gap-2 rounded-md border bg-muted/40 p-2.5 text-[11px] text-muted-foreground">
-                <Bot className="h-3.5 w-3.5 shrink-0" />
-                An allowlist can only ever remove reach. Role limits and approval thresholds still
-                apply on top, so granting a tool here does not bypass them.
-              </div>
             </CardContent>
           </Card>
         ) : null}
@@ -1053,3 +1034,4 @@ export default function AgentStudioPage() {
     </AppShell>
   )
 }
+

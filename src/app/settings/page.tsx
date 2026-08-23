@@ -5,11 +5,15 @@ import { useEffect, useMemo, useState } from "react"
 import {
   Bell,
   Building2,
+  CheckCircle2,
   Database,
   Globe,
+  Loader2,
   Save,
   Settings2,
   Shield,
+  ShoppingBag,
+  Users,
 } from "lucide-react"
 
 import { AppShell } from "@/components/layout/app-shell"
@@ -17,7 +21,9 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { KpiCard } from "@/components/ui/kpi-card"
 import { Label } from "@/components/ui/label"
+import { PageHeader } from "@/components/ui/page-header"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -275,80 +281,78 @@ export default function SettingsPage() {
   return (
     <AppShell title="Settings" breadcrumbs={[{ label: "Settings" }]}>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
-          <p className="text-muted-foreground">
-            Manage company, finance, commerce, and deployment settings from one admin surface.
-          </p>
-        </div>
+        <PageHeader
+          title="Organization Settings"
+          description="Manage company profile, tax compliance, storefront channels, and ERP deployment parameters."
+        />
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Company profile coverage</CardDescription>
-              <CardTitle className="text-3xl">{companyCompletion}%</CardTitle>
-            </CardHeader>
-            <CardContent className="text-xs text-muted-foreground">
-              Identity, contact, banking, and document defaults
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Commerce setup coverage</CardDescription>
-              <CardTitle className="text-3xl">{commerceCompletion}%</CardTitle>
-            </CardHeader>
-            <CardContent className="text-xs text-muted-foreground">
-              Website, app, support, merchandising, and SEO
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Commerce orders</CardDescription>
-              <CardTitle className="text-3xl">{operationalSummary.commerceOrders}</CardTitle>
-            </CardHeader>
-            <CardContent className="text-xs text-muted-foreground">
-              Customer website and app orders visible in the OS dashboard
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Outstanding receivables</CardDescription>
-              <CardTitle className="text-3xl">{formatCurrencyShort(operationalSummary.outstandingReceivables)}</CardTitle>
-            </CardHeader>
-            <CardContent className="text-xs text-muted-foreground">
-              Live unpaid or partially paid invoice balance
-            </CardContent>
-          </Card>
+          <KpiCard
+            title="Company Profile"
+            value={`${companyCompletion}%`}
+            description="Identity, tax, banking & document defaults"
+            icon={Building2}
+          />
+          <KpiCard
+            title="Commerce Setup"
+            value={`${commerceCompletion}%`}
+            description="Website, app, support, merchandising & SEO"
+            icon={Globe}
+          />
+          <KpiCard
+            title="Commerce Orders"
+            value={operationalSummary.commerceOrders}
+            description="Live website & mobile app order stream"
+            icon={ShoppingBag}
+          />
+          <KpiCard
+            title="Outstanding AR"
+            value={formatCurrencyShort(operationalSummary.outstandingReceivables)}
+            description="Live unpaid or partially paid receivables"
+            icon={Shield}
+          />
         </div>
 
         <Tabs defaultValue="company" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="company"><Building2 className="mr-2 h-4 w-4" />Company</TabsTrigger>
-            <TabsTrigger value="commerce"><Globe className="mr-2 h-4 w-4" />Commerce</TabsTrigger>
-            <TabsTrigger value="operations"><Bell className="mr-2 h-4 w-4" />Operations</TabsTrigger>
-            <TabsTrigger value="data"><Database className="mr-2 h-4 w-4" />System</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-4 bg-muted p-1">
+            <TabsTrigger value="company" className="gap-2">
+              <Building2 className="h-4 w-4" />
+              Company
+            </TabsTrigger>
+            <TabsTrigger value="commerce" className="gap-2">
+              <Globe className="h-4 w-4" />
+              Commerce
+            </TabsTrigger>
+            <TabsTrigger value="operations" className="gap-2">
+              <Bell className="h-4 w-4" />
+              Operations
+            </TabsTrigger>
+            <TabsTrigger value="data" className="gap-2">
+              <Database className="h-4 w-4" />
+              System
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="company" className="space-y-4">
-            <Card>
+            <Card className="border border-border">
               <CardHeader>
-                <CardTitle>Company profile and branding</CardTitle>
-                <CardDescription>Everything used across invoices, documents, storefront touchpoints, and onboarding.</CardDescription>
+                <CardTitle className="text-lg">Company Profile & Legal Identity</CardTitle>
+                <CardDescription>Legal entity details used across invoices, tax filings, and document headers.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 {loading ? <div className="text-sm text-muted-foreground">Loading company settings...</div> : null}
 
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                   <div className="space-y-2">
-                    <Label htmlFor="companyName">Company name</Label>
+                    <Label htmlFor="companyName" className="text-xs font-medium">Company name</Label>
                     <Input id="companyName" value={companyData.name} onChange={(e) => setCompanyData({ ...companyData, name: e.target.value })} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="tradingName">Trading name</Label>
+                    <Label htmlFor="tradingName" className="text-xs font-medium">Trading name</Label>
                     <Input id="tradingName" value={companyData.tradingName} onChange={(e) => setCompanyData({ ...companyData, tradingName: e.target.value })} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="country">Country</Label>
+                    <Label htmlFor="country" className="text-xs font-medium">Country</Label>
                     <Select value={companyData.country} onValueChange={(value) => setCompanyData({ ...companyData, country: value })}>
                       <SelectTrigger id="country">
                         <SelectValue />
@@ -360,86 +364,86 @@ export default function SettingsPage() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="logoUrl">Logo URL</Label>
+                    <Label htmlFor="logoUrl" className="text-xs font-medium">Logo URL</Label>
                     <Input id="logoUrl" value={companyData.logoUrl} onChange={(e) => setCompanyData({ ...companyData, logoUrl: e.target.value })} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="phone">Phone</Label>
+                    <Label htmlFor="phone" className="text-xs font-medium">Phone</Label>
                     <Input id="phone" value={companyData.phone} onChange={(e) => setCompanyData({ ...companyData, phone: e.target.value })} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
+                    <Label htmlFor="email" className="text-xs font-medium">Email</Label>
                     <Input id="email" type="email" value={companyData.email} onChange={(e) => setCompanyData({ ...companyData, email: e.target.value })} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="website">Website</Label>
+                    <Label htmlFor="website" className="text-xs font-medium">Website</Label>
                     <Input id="website" value={companyData.website} onChange={(e) => setCompanyData({ ...companyData, website: e.target.value })} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="baseCurrency">Base currency</Label>
+                    <Label htmlFor="baseCurrency" className="text-xs font-medium">Base currency</Label>
                     <Select value={companyData.baseCurrency} onValueChange={(value) => setCompanyData({ ...companyData, baseCurrency: value })}>
                       <SelectTrigger id="baseCurrency">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="AUD">AUD</SelectItem>
-                        <SelectItem value="INR">INR</SelectItem>
+                        <SelectItem value="AUD">AUD ($)</SelectItem>
+                        <SelectItem value="INR">INR (₹)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2 md:col-span-2 xl:col-span-4">
-                    <Label htmlFor="address">Address</Label>
+                    <Label htmlFor="address" className="text-xs font-medium">Street address</Label>
                     <Textarea id="address" rows={2} value={companyData.address} onChange={(e) => setCompanyData({ ...companyData, address: e.target.value })} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="city">City</Label>
+                    <Label htmlFor="city" className="text-xs font-medium">City</Label>
                     <Input id="city" value={companyData.city} onChange={(e) => setCompanyData({ ...companyData, city: e.target.value })} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="state">State</Label>
+                    <Label htmlFor="state" className="text-xs font-medium">State / Province</Label>
                     <Input id="state" value={companyData.state} onChange={(e) => setCompanyData({ ...companyData, state: e.target.value })} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="postcode">Postcode</Label>
+                    <Label htmlFor="postcode" className="text-xs font-medium">Postal / ZIP code</Label>
                     <Input id="postcode" value={companyData.postcode} onChange={(e) => setCompanyData({ ...companyData, postcode: e.target.value })} />
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border border-border">
               <CardHeader>
-                <CardTitle>Tax, compliance, and banking</CardTitle>
-                <CardDescription>Expose the legal, tax, and payout settings already supported by SupplySure OS.</CardDescription>
+                <CardTitle className="text-lg">Tax, Compliance & Bank Settlement</CardTitle>
+                <CardDescription>Tax registration numbers, banking details, and fiscal calendars.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                   <div className="space-y-2">
-                    <Label htmlFor="abn">ABN</Label>
+                    <Label htmlFor="abn" className="text-xs font-medium">ABN (Australia)</Label>
                     <Input id="abn" value={companyData.abn} onChange={(e) => setCompanyData({ ...companyData, abn: e.target.value })} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="acn">ACN</Label>
+                    <Label htmlFor="acn" className="text-xs font-medium">ACN (Australia)</Label>
                     <Input id="acn" value={companyData.acn} onChange={(e) => setCompanyData({ ...companyData, acn: e.target.value })} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="gstin">GSTIN</Label>
+                    <Label htmlFor="gstin" className="text-xs font-medium">GSTIN (India)</Label>
                     <Input id="gstin" value={companyData.gstin} onChange={(e) => setCompanyData({ ...companyData, gstin: e.target.value })} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="pan">PAN</Label>
+                    <Label htmlFor="pan" className="text-xs font-medium">PAN (India)</Label>
                     <Input id="pan" value={companyData.pan} onChange={(e) => setCompanyData({ ...companyData, pan: e.target.value })} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="tanNumber">TAN</Label>
+                    <Label htmlFor="tanNumber" className="text-xs font-medium">TAN</Label>
                     <Input id="tanNumber" value={companyData.tanNumber} onChange={(e) => setCompanyData({ ...companyData, tanNumber: e.target.value })} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="cinNumber">CIN</Label>
+                    <Label htmlFor="cinNumber" className="text-xs font-medium">CIN</Label>
                     <Input id="cinNumber" value={companyData.cinNumber} onChange={(e) => setCompanyData({ ...companyData, cinNumber: e.target.value })} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="gstRate">Default GST rate (%)</Label>
+                    <Label htmlFor="gstRate" className="text-xs font-medium">Default GST rate (%)</Label>
                     <Input
                       id="gstRate"
                       type="number"
@@ -449,7 +453,7 @@ export default function SettingsPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="fiscalYearStart">Fiscal year start</Label>
+                    <Label htmlFor="fiscalYearStart" className="text-xs font-medium">Fiscal year start</Label>
                     <Select
                       value={String(companyData.fiscalYearStart)}
                       onValueChange={(value) => setCompanyData({ ...companyData, fiscalYearStart: Number(value) })}
@@ -467,11 +471,11 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                  <div className="rounded-2xl border border-slate-200 p-4">
+                  <div className="rounded-lg border border-border bg-card p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="font-medium text-slate-900">GST registered</p>
-                        <p className="mt-1 text-sm text-muted-foreground">Use GST-ready invoice and tax behavior.</p>
+                        <p className="text-sm font-medium text-foreground">GST registered</p>
+                        <p className="mt-1 text-xs text-muted-foreground">Enables automated GST calculation and tax invoice formatting.</p>
                       </div>
                       <Switch
                         checked={companyData.gstRegistered}
@@ -479,11 +483,11 @@ export default function SettingsPage() {
                       />
                     </div>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 p-4">
+                  <div className="rounded-lg border border-border bg-card p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="font-medium text-slate-900">Show ABN on invoices</p>
-                        <p className="mt-1 text-sm text-muted-foreground">Keep tax identifiers visible on customer documents.</p>
+                        <p className="text-sm font-medium text-foreground">Display ABN / Tax ID on invoices</p>
+                        <p className="mt-1 text-xs text-muted-foreground">Keep official tax registration visible on customer receipts.</p>
                       </div>
                       <Switch
                         checked={companyData.abnOnInvoices}
@@ -491,11 +495,11 @@ export default function SettingsPage() {
                       />
                     </div>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 p-4">
+                  <div className="rounded-lg border border-border bg-card p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="font-medium text-slate-900">Setup complete</p>
-                        <p className="mt-1 text-sm text-muted-foreground">Mark onboarding as complete for live operations.</p>
+                        <p className="text-sm font-medium text-foreground">Organization onboarding complete</p>
+                        <p className="mt-1 text-xs text-muted-foreground">Unlocks live multi-user operating status.</p>
                       </div>
                       <Switch
                         checked={companyData.setupComplete}
@@ -507,31 +511,31 @@ export default function SettingsPage() {
 
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                   <div className="space-y-2">
-                    <Label htmlFor="bankName">Bank name</Label>
+                    <Label htmlFor="bankName" className="text-xs font-medium">Bank name</Label>
                     <Input id="bankName" value={companyData.bankName} onChange={(e) => setCompanyData({ ...companyData, bankName: e.target.value })} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="accountName">Account name</Label>
+                    <Label htmlFor="accountName" className="text-xs font-medium">Account name</Label>
                     <Input id="accountName" value={companyData.accountName} onChange={(e) => setCompanyData({ ...companyData, accountName: e.target.value })} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="accountNumber">Account number</Label>
+                    <Label htmlFor="accountNumber" className="text-xs font-medium">Account number</Label>
                     <Input id="accountNumber" value={companyData.accountNumber} onChange={(e) => setCompanyData({ ...companyData, accountNumber: e.target.value })} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="bsb">BSB / routing</Label>
+                    <Label htmlFor="bsb" className="text-xs font-medium">BSB / Routing code</Label>
                     <Input id="bsb" value={companyData.bsb} onChange={(e) => setCompanyData({ ...companyData, bsb: e.target.value })} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="ifscCode">IFSC code</Label>
+                    <Label htmlFor="ifscCode" className="text-xs font-medium">IFSC code (India)</Label>
                     <Input id="ifscCode" value={companyData.ifscCode} onChange={(e) => setCompanyData({ ...companyData, ifscCode: e.target.value })} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="upiId">UPI ID</Label>
+                    <Label htmlFor="upiId" className="text-xs font-medium">UPI ID (India)</Label>
                     <Input id="upiId" value={companyData.upiId} onChange={(e) => setCompanyData({ ...companyData, upiId: e.target.value })} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="onboardingStep">Onboarding step</Label>
+                    <Label htmlFor="onboardingStep" className="text-xs font-medium">Onboarding step index</Label>
                     <Input
                       id="onboardingStep"
                       type="number"
@@ -544,14 +548,14 @@ export default function SettingsPage() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border border-border">
               <CardHeader>
-                <CardTitle>Document defaults</CardTitle>
-                <CardDescription>Control what goes out on quotes, invoices, and customer-facing paperwork.</CardDescription>
+                <CardTitle className="text-lg">Document Terms & Footers</CardTitle>
+                <CardDescription>Default terms and payment instructions printed on invoices, quotes, and packing slips.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="defaultTerms">Default terms and conditions</Label>
+                  <Label htmlFor="defaultTerms" className="text-xs font-medium">Standard terms & conditions</Label>
                   <Textarea
                     id="defaultTerms"
                     rows={4}
@@ -560,7 +564,7 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="invoiceFooter">Invoice footer</Label>
+                  <Label htmlFor="invoiceFooter" className="text-xs font-medium">Invoice footer & payment remittance notes</Label>
                   <Textarea
                     id="invoiceFooter"
                     rows={4}
@@ -569,81 +573,87 @@ export default function SettingsPage() {
                   />
                 </div>
 
-                <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleSaveCompany} disabled={savingCompany}>
-                  <Save className="mr-2 h-4 w-4" />
-                  {savingCompany ? "Saving..." : "Save Company Settings"}
-                </Button>
+                <div className="pt-2">
+                  <Button onClick={handleSaveCompany} disabled={savingCompany}>
+                    {savingCompany ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="mr-2 h-4 w-4" />
+                    )}
+                    {savingCompany ? "Saving..." : "Save Company Settings"}
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
 
           <TabsContent value="commerce" className="space-y-4">
-            <Card>
+            <Card className="border border-border">
               <CardHeader>
-                <CardTitle>Channel, support, and policy controls</CardTitle>
-                <CardDescription>Keep the customer website and app fully manageable from admin without leaving settings.</CardDescription>
+                <CardTitle className="text-lg">Channel, Merchandising & Storefront Controls</CardTitle>
+                <CardDescription>Configure customer website, iOS/Android mobile ordering, and inventory sync parameters.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                  <div className="rounded-2xl border border-slate-200 p-4">
+                  <div className="rounded-lg border border-border bg-card p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="font-medium text-slate-900">Website live</p>
-                        <p className="mt-1 text-sm text-muted-foreground">Allow customers to browse and order on the website.</p>
+                        <p className="text-sm font-medium text-foreground">Customer website</p>
+                        <p className="mt-1 text-xs text-muted-foreground">Allow customers to browse catalogue and place orders online.</p>
                       </div>
                       <Switch checked={commerce.websiteEnabled} onCheckedChange={(checked) => setCommerce({ ...commerce, websiteEnabled: checked })} />
                     </div>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 p-4">
+                  <div className="rounded-lg border border-border bg-card p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="font-medium text-slate-900">Mobile app live</p>
-                        <p className="mt-1 text-sm text-muted-foreground">Allow customer ordering from iOS and Android.</p>
+                        <p className="text-sm font-medium text-foreground">Customer mobile apps</p>
+                        <p className="mt-1 text-xs text-muted-foreground">Allow ordering via iOS and Android native client apps.</p>
                       </div>
                       <Switch checked={commerce.mobileAppEnabled} onCheckedChange={(checked) => setCommerce({ ...commerce, mobileAppEnabled: checked })} />
                     </div>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 p-4">
+                  <div className="rounded-lg border border-border bg-card p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="font-medium text-slate-900">Maintenance mode</p>
-                        <p className="mt-1 text-sm text-muted-foreground">Pause ordering while keeping the admin dashboard live.</p>
+                        <p className="text-sm font-medium text-foreground">Maintenance mode</p>
+                        <p className="mt-1 text-xs text-muted-foreground">Temporarily pause storefront ordering while preserving admin access.</p>
                       </div>
                       <Switch checked={commerce.maintenanceMode} onCheckedChange={(checked) => setCommerce({ ...commerce, maintenanceMode: checked })} />
                     </div>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 p-4">
+                  <div className="rounded-lg border border-border bg-card p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="font-medium text-slate-900">Auto-approve orders</p>
-                        <p className="mt-1 text-sm text-muted-foreground">Push customer orders straight into fulfilment.</p>
+                        <p className="text-sm font-medium text-foreground">Auto-approve orders</p>
+                        <p className="mt-1 text-xs text-muted-foreground">Instantly allocate stock and forward web orders to warehouse fulfillment.</p>
                       </div>
                       <Switch checked={commerce.autoApproveOrders} onCheckedChange={(checked) => setCommerce({ ...commerce, autoApproveOrders: checked })} />
                     </div>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 p-4">
+                  <div className="rounded-lg border border-border bg-card p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="font-medium text-slate-900">Inventory sync</p>
-                        <p className="mt-1 text-sm text-muted-foreground">Use OS inventory as the storefront source of truth.</p>
+                        <p className="text-sm font-medium text-foreground">Real-time inventory sync</p>
+                        <p className="mt-1 text-xs text-muted-foreground">Use live warehouse stock levels as storefront source of truth.</p>
                       </div>
                       <Switch checked={commerce.inventorySyncEnabled} onCheckedChange={(checked) => setCommerce({ ...commerce, inventorySyncEnabled: checked })} />
                     </div>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 p-4">
+                  <div className="rounded-lg border border-border bg-card p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="font-medium text-slate-900">Show out-of-stock items</p>
-                        <p className="mt-1 text-sm text-muted-foreground">Let customers discover unavailable items without ordering them.</p>
+                        <p className="text-sm font-medium text-foreground">Show out-of-stock items</p>
+                        <p className="mt-1 text-xs text-muted-foreground">Allow catalog discovery of unavailable items with backorder badges.</p>
                       </div>
                       <Switch checked={commerce.showOutOfStock} onCheckedChange={(checked) => setCommerce({ ...commerce, showOutOfStock: checked })} />
                     </div>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 p-4 md:col-span-2 xl:col-span-3">
+                  <div className="rounded-lg border border-border bg-card p-4 md:col-span-2 xl:col-span-3">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="font-medium text-slate-900">Guest checkout</p>
-                        <p className="mt-1 text-sm text-muted-foreground">Allow ordering without a full account, or keep checkout account-only for B2B control.</p>
+                        <p className="text-sm font-medium text-foreground">Guest checkout</p>
+                        <p className="mt-1 text-xs text-muted-foreground">Allow orders without permanent account registration, or require authenticated B2B accounts.</p>
                       </div>
                       <Switch checked={commerce.guestCheckoutEnabled} onCheckedChange={(checked) => setCommerce({ ...commerce, guestCheckoutEnabled: checked })} />
                     </div>
@@ -652,46 +662,46 @@ export default function SettingsPage() {
 
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                   <div className="space-y-2">
-                    <Label htmlFor="websiteUrl">Website URL</Label>
+                    <Label htmlFor="websiteUrl" className="text-xs font-medium">Storefront domain URL</Label>
                     <Input id="websiteUrl" value={commerce.websiteUrl || ""} onChange={(e) => setCommerce({ ...commerce, websiteUrl: e.target.value })} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="playStoreUrl">Play Store URL</Label>
+                    <Label htmlFor="playStoreUrl" className="text-xs font-medium">Google Play Store URL</Label>
                     <Input id="playStoreUrl" value={commerce.playStoreUrl || ""} onChange={(e) => setCommerce({ ...commerce, playStoreUrl: e.target.value })} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="appStoreUrl">App Store URL</Label>
+                    <Label htmlFor="appStoreUrl" className="text-xs font-medium">Apple App Store URL</Label>
                     <Input id="appStoreUrl" value={commerce.appStoreUrl || ""} onChange={(e) => setCommerce({ ...commerce, appStoreUrl: e.target.value })} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="supportEmail">Support email</Label>
+                    <Label htmlFor="supportEmail" className="text-xs font-medium">Support email</Label>
                     <Input id="supportEmail" value={commerce.supportEmail || ""} onChange={(e) => setCommerce({ ...commerce, supportEmail: e.target.value })} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="supportPhone">Support phone</Label>
+                    <Label htmlFor="supportPhone" className="text-xs font-medium">Support phone</Label>
                     <Input id="supportPhone" value={commerce.supportPhone || ""} onChange={(e) => setCommerce({ ...commerce, supportPhone: e.target.value })} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="supportHours">Support hours</Label>
+                    <Label htmlFor="supportHours" className="text-xs font-medium">Support operating hours</Label>
                     <Input id="supportHours" value={commerce.supportHours || ""} onChange={(e) => setCommerce({ ...commerce, supportHours: e.target.value })} />
                   </div>
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                   <div className="space-y-2">
-                    <Label htmlFor="heroTitle">Hero title</Label>
+                    <Label htmlFor="heroTitle" className="text-xs font-medium">Storefront hero title</Label>
                     <Input id="heroTitle" value={commerce.heroTitle || ""} onChange={(e) => setCommerce({ ...commerce, heroTitle: e.target.value })} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="primaryCtaLabel">Primary CTA label</Label>
+                    <Label htmlFor="primaryCtaLabel" className="text-xs font-medium">Primary CTA button label</Label>
                     <Input id="primaryCtaLabel" value={commerce.primaryCtaLabel || ""} onChange={(e) => setCommerce({ ...commerce, primaryCtaLabel: e.target.value })} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="primaryCtaHref">Primary CTA link</Label>
+                    <Label htmlFor="primaryCtaHref" className="text-xs font-medium">Primary CTA target link</Label>
                     <Input id="primaryCtaHref" value={commerce.primaryCtaHref || ""} onChange={(e) => setCommerce({ ...commerce, primaryCtaHref: e.target.value })} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="minimumOrderAmount">Minimum order amount</Label>
+                    <Label htmlFor="minimumOrderAmount" className="text-xs font-medium">Minimum order amount ($)</Label>
                     <Input
                       id="minimumOrderAmount"
                       type="number"
@@ -702,7 +712,7 @@ export default function SettingsPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="freeDeliveryThreshold">Free delivery threshold</Label>
+                    <Label htmlFor="freeDeliveryThreshold" className="text-xs font-medium">Free delivery threshold ($)</Label>
                     <Input
                       id="freeDeliveryThreshold"
                       type="number"
@@ -713,7 +723,7 @@ export default function SettingsPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="featuredCategoryIds">Featured category ids</Label>
+                    <Label htmlFor="featuredCategoryIds" className="text-xs font-medium">Featured category IDs (comma-separated)</Label>
                     <Input
                       id="featuredCategoryIds"
                       value={commerce.featuredCategoryIds || ""}
@@ -721,7 +731,7 @@ export default function SettingsPage() {
                     />
                   </div>
                   <div className="space-y-2 md:col-span-2 xl:col-span-3">
-                    <Label htmlFor="heroSubtitle">Hero subtitle</Label>
+                    <Label htmlFor="heroSubtitle" className="text-xs font-medium">Storefront hero subtitle</Label>
                     <Textarea
                       id="heroSubtitle"
                       rows={3}
@@ -730,7 +740,7 @@ export default function SettingsPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="estimatedDeliveryWindow">Delivery promise</Label>
+                    <Label htmlFor="estimatedDeliveryWindow" className="text-xs font-medium">Delivery promise window</Label>
                     <Input
                       id="estimatedDeliveryWindow"
                       value={commerce.estimatedDeliveryWindow || ""}
@@ -738,7 +748,7 @@ export default function SettingsPage() {
                     />
                   </div>
                   <div className="space-y-2 md:col-span-2 xl:col-span-3">
-                    <Label htmlFor="returnsPolicySummary">Returns policy summary</Label>
+                    <Label htmlFor="returnsPolicySummary" className="text-xs font-medium">Returns policy summary</Label>
                     <Textarea
                       id="returnsPolicySummary"
                       rows={3}
@@ -747,11 +757,11 @@ export default function SettingsPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="seoTitle">SEO title</Label>
+                    <Label htmlFor="seoTitle" className="text-xs font-medium">SEO meta title</Label>
                     <Input id="seoTitle" value={commerce.seoTitle || ""} onChange={(e) => setCommerce({ ...commerce, seoTitle: e.target.value })} />
                   </div>
                   <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="seoDescription">SEO description</Label>
+                    <Label htmlFor="seoDescription" className="text-xs font-medium">SEO meta description</Label>
                     <Textarea
                       id="seoDescription"
                       rows={3}
@@ -761,31 +771,35 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 p-4 space-y-4">
+                <div className="rounded-lg border border-border bg-card p-4 space-y-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="font-medium text-slate-900">Announcement bar</p>
-                      <p className="text-sm text-muted-foreground">Push a promo, delivery update, or service notice to the customer storefront.</p>
+                      <p className="text-sm font-medium text-foreground">Announcement banner bar</p>
+                      <p className="text-xs text-muted-foreground">Broadcast an urgent promotion, delivery update, or holiday hours to customer storefronts.</p>
                     </div>
                     <Switch checked={commerce.announcementEnabled} onCheckedChange={(checked) => setCommerce({ ...commerce, announcementEnabled: checked })} />
                   </div>
                   <Textarea
-                    rows={3}
+                    rows={2}
                     value={commerce.announcementText || ""}
                     onChange={(e) => setCommerce({ ...commerce, announcementText: e.target.value })}
-                    placeholder="Free delivery on orders over $100 this week."
+                    placeholder="Free delivery on orders over $150 this week. Order by 2pm for same-day dispatch."
                   />
                 </div>
 
-                <div className="flex flex-wrap gap-3">
-                  <Button className="bg-cyan-600 hover:bg-cyan-700" onClick={handleSaveCommerce} disabled={savingCommerce}>
-                    <Save className="mr-2 h-4 w-4" />
+                <div className="flex flex-wrap gap-3 pt-2">
+                  <Button onClick={handleSaveCommerce} disabled={savingCommerce}>
+                    {savingCommerce ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="mr-2 h-4 w-4" />
+                    )}
                     {savingCommerce ? "Saving..." : "Save Commerce Settings"}
                   </Button>
                   <Button variant="outline" asChild>
                     <Link href="/commerce">
                       <Settings2 className="mr-2 h-4 w-4" />
-                      Open Full Commerce Page
+                      Open Full Commerce Workspace
                     </Link>
                   </Button>
                 </div>
@@ -795,72 +809,52 @@ export default function SettingsPage() {
 
           <TabsContent value="operations" className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardDescription>Active customers</CardDescription>
-                  <CardTitle className="text-2xl">{operationalSummary.activeCustomers}</CardTitle>
-                </CardHeader>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardDescription>Open orders</CardDescription>
-                  <CardTitle className="text-2xl">{operationalSummary.openOrders}</CardTitle>
-                </CardHeader>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardDescription>Commerce orders</CardDescription>
-                  <CardTitle className="text-2xl">{operationalSummary.commerceOrders}</CardTitle>
-                </CardHeader>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardDescription>Outstanding AR</CardDescription>
-                  <CardTitle className="text-2xl">{formatCurrencyShort(operationalSummary.outstandingReceivables)}</CardTitle>
-                </CardHeader>
-              </Card>
+              <KpiCard title="Active Customers" value={operationalSummary.activeCustomers} description="Accounts with recent trade" icon={Users} />
+              <KpiCard title="Open Orders" value={operationalSummary.openOrders} description="Orders active in fulfillment" icon={ShoppingBag} />
+              <KpiCard title="Commerce Orders" value={operationalSummary.commerceOrders} description="Placed through website or mobile" icon={Globe} />
+              <KpiCard title="Outstanding AR" value={formatCurrencyShort(operationalSummary.outstandingReceivables)} description="Unpaid invoice balance" icon={Shield} />
             </div>
 
-            <Card>
+            <Card className="border border-border">
               <CardHeader>
-                <CardTitle>Operational readiness</CardTitle>
-                <CardDescription>Keep the admin stack live, channel-aware, and ready for a deployment handoff.</CardDescription>
+                <CardTitle className="text-lg">Operational Readiness & Health Check</CardTitle>
+                <CardDescription>Unified status across internal ERP channels and customer-facing storefronts.</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4 md:grid-cols-2">
-                <div className="rounded-xl border border-slate-200 p-4">
+                <div className="rounded-lg border border-border bg-card p-4">
                   <div className="flex items-center gap-2">
-                    <Shield className="h-4 w-4 text-emerald-600" />
-                    <p className="font-medium text-slate-900">Admin environment</p>
+                    <Shield className="h-4 w-4 text-emerald-500" />
+                    <p className="text-sm font-medium text-foreground">Admin Environment</p>
                   </div>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    SupplySure OS is now tracking internal orders plus customer website and app orders in the same operating flow.
+                  <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
+                    SupplySure OS is actively orchestrating ERP data, tracking multi-channel sales orders, and automating inventory ledger reservations.
                   </p>
                 </div>
-                <div className="rounded-xl border border-slate-200 p-4">
+                <div className="rounded-lg border border-border bg-card p-4">
                   <div className="flex items-center gap-2">
-                    <Globe className="h-4 w-4 text-cyan-600" />
-                    <p className="font-medium text-slate-900">Commerce posture</p>
+                    <Globe className="h-4 w-4 text-sky-500" />
+                    <p className="text-sm font-medium text-foreground">Commerce Posture</p>
                   </div>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Website is {commerce.websiteEnabled ? "enabled" : "disabled"}, mobile is {commerce.mobileAppEnabled ? "enabled" : "disabled"}, and maintenance mode is {commerce.maintenanceMode ? "on" : "off"}.
+                  <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
+                    Website is {commerce.websiteEnabled ? "live" : "disabled"}, mobile apps are {commerce.mobileAppEnabled ? "live" : "disabled"}, and maintenance mode is {commerce.maintenanceMode ? "active" : "inactive"}.
                   </p>
                 </div>
-                <div className="rounded-xl border border-slate-200 p-4">
+                <div className="rounded-lg border border-border bg-card p-4">
                   <div className="flex items-center gap-2">
-                    <Bell className="h-4 w-4 text-blue-600" />
-                    <p className="font-medium text-slate-900">Support and escalation</p>
+                    <Bell className="h-4 w-4 text-amber-500" />
+                    <p className="text-sm font-medium text-foreground">Support & Escalations</p>
                   </div>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Support handoff is currently {commerce.supportEmail || commerce.supportPhone ? "configured" : "missing"} for customer-facing channels.
+                  <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
+                    Customer support contact is currently {commerce.supportEmail || commerce.supportPhone ? "configured and operational" : "unconfigured"} for customer-facing channels.
                   </p>
                 </div>
-                <div className="rounded-xl border border-slate-200 p-4">
+                <div className="rounded-lg border border-border bg-card p-4">
                   <div className="flex items-center gap-2">
-                    <Building2 className="h-4 w-4 text-violet-600" />
-                    <p className="font-medium text-slate-900">Company readiness</p>
+                    <Building2 className="h-4 w-4 text-violet-500" />
+                    <p className="text-sm font-medium text-foreground">Company Entity Readiness</p>
                   </div>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Company profile is {companyCompletion}% complete, with onboarding step {companyData.onboardingStep} and setup marked {companyData.setupComplete ? "complete" : "in progress"}.
+                  <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
+                    Company profile is {companyCompletion}% complete with onboarding step {companyData.onboardingStep} and status marked {companyData.setupComplete ? "completed" : "in progress"}.
                   </p>
                 </div>
               </CardContent>
@@ -868,35 +862,37 @@ export default function SettingsPage() {
           </TabsContent>
 
           <TabsContent value="data" className="space-y-4">
-            <Card>
+            <Card className="border border-border">
               <CardHeader>
-                <CardTitle>System and deployment notes</CardTitle>
-                <CardDescription>Keep the operational, data, and deployment state honest inside the dashboard.</CardDescription>
+                <CardTitle className="text-lg">System & Database Architecture</CardTitle>
+                <CardDescription>Core persistence topology, multi-channel order reconciliation, and deployment flags.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="rounded-xl border border-slate-200 p-4">
-                  <p className="font-medium text-slate-900">Database coverage</p>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Company, commerce, customer sessions, carts, and channel-aware orders are persisted in the live schema instead of browser-only state.
+                <div className="rounded-lg border border-border bg-card p-4">
+                  <p className="text-sm font-medium text-foreground">Prisma & SQLite/PostgreSQL Database Coverage</p>
+                  <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+                    All entity configurations, commerce parameters, customer auth tokens, shopping carts, and order ledgers are ACID-compliant and stored in the unified database schema.
                   </p>
                 </div>
-                <div className="rounded-xl border border-slate-200 p-4">
-                  <p className="font-medium text-slate-900">Deployment handoff</p>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Final production launch still depends on real payment credentials, production domains, and store-console accounts, but the settings surface now captures the main operational fields.
+                <div className="rounded-lg border border-border bg-card p-4">
+                  <p className="text-sm font-medium text-foreground">Production Deployment Readiness</p>
+                  <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+                    Production launch parameters, HMAC session verification, Stripe webhooks, and telegram bot connections are managed securely through environment variables and the integrations console.
                   </p>
                 </div>
-                <div className="rounded-xl border border-slate-200 p-4">
-                  <p className="font-medium text-slate-900">Commerce SEO and policy coverage</p>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    SEO title, SEO description, returns summary, support hours, delivery promise, and order thresholds can now be managed directly from admin settings.
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Badge className={commerce.websiteEnabled ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-700"}>Website {commerce.websiteEnabled ? "enabled" : "disabled"}</Badge>
-                  <Badge className={commerce.mobileAppEnabled ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-700"}>Mobile {commerce.mobileAppEnabled ? "enabled" : "disabled"}</Badge>
-                  <Badge className={commerce.guestCheckoutEnabled ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-700"}>Guest checkout {commerce.guestCheckoutEnabled ? "on" : "off"}</Badge>
-                  <Badge className={companyData.gstRegistered ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-700"}>GST {companyData.gstRegistered ? "registered" : "not registered"}</Badge>
+                <div className="flex flex-wrap gap-2 pt-2">
+                  <Badge variant={commerce.websiteEnabled ? "default" : "secondary"}>
+                    Website {commerce.websiteEnabled ? "Enabled" : "Disabled"}
+                  </Badge>
+                  <Badge variant={commerce.mobileAppEnabled ? "default" : "secondary"}>
+                    Mobile {commerce.mobileAppEnabled ? "Enabled" : "Disabled"}
+                  </Badge>
+                  <Badge variant={commerce.guestCheckoutEnabled ? "secondary" : "outline"}>
+                    Guest Checkout {commerce.guestCheckoutEnabled ? "Active" : "Account-only"}
+                  </Badge>
+                  <Badge variant={companyData.gstRegistered ? "default" : "secondary"}>
+                    GST {companyData.gstRegistered ? "Registered" : "Not Registered"}
+                  </Badge>
                 </div>
               </CardContent>
             </Card>
@@ -906,3 +902,4 @@ export default function SettingsPage() {
     </AppShell>
   )
 }
+

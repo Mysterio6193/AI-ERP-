@@ -34,16 +34,17 @@ import {
   Zap,
 } from "lucide-react"
 
+import { TelegramQrConnect } from "@/components/integrations/telegram-qr-connect"
 import { AppShell } from "@/components/layout/app-shell"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { PageHeader } from "@/components/ui/page-header"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { TelegramQrConnect } from "@/components/integrations/telegram-qr-connect"
 import { useToast } from "@/hooks/use-toast"
 
 interface CommerceSettings {
@@ -217,8 +218,7 @@ export default function IntegrationsPage() {
       category: "Accounting",
       desc: "Automatic 2-way sync for sales invoices, credit notes, COGS journals, and chart of accounts.",
       icon: RefreshCcw,
-      color: "from-blue-500/10 to-cyan-500/10 border-blue-200",
-      accent: "text-blue-600 bg-blue-50",
+      accent: "text-blue-600 dark:text-blue-400 bg-blue-500/10",
     },
     {
       id: "stripe",
@@ -226,8 +226,7 @@ export default function IntegrationsPage() {
       category: "Payments",
       desc: "B2B customer checkout, payment links, stored cards, auto-debit, and instant webhooks.",
       icon: CreditCard,
-      color: "from-indigo-500/10 to-purple-500/10 border-indigo-200",
-      accent: "text-indigo-600 bg-indigo-50",
+      accent: "text-indigo-600 dark:text-indigo-400 bg-indigo-500/10",
     },
     {
       id: "bank_feed",
@@ -235,8 +234,7 @@ export default function IntegrationsPage() {
       category: "Banking",
       desc: "Live bank transaction ingestion (CBA, NAB, Westpac, ANZ) for automatic AI invoice reconciliation.",
       icon: Activity,
-      color: "from-emerald-500/10 to-teal-500/10 border-emerald-200",
-      accent: "text-emerald-600 bg-emerald-50",
+      accent: "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10",
     },
     {
       id: "myob",
@@ -244,8 +242,7 @@ export default function IntegrationsPage() {
       category: "Accounting",
       desc: "Seamless ledger export and sync for Australian GST, payroll reporting, and BAS compliance.",
       icon: Layers,
-      color: "from-purple-500/10 to-pink-500/10 border-purple-200",
-      accent: "text-purple-600 bg-purple-50",
+      accent: "text-purple-600 dark:text-purple-400 bg-purple-500/10",
     },
     {
       id: "auspost",
@@ -253,8 +250,7 @@ export default function IntegrationsPage() {
       category: "Shipping",
       desc: "Generate eParcel shipping labels, manifest creation, and live consignment tracking numbers.",
       icon: Truck,
-      color: "from-red-500/10 to-amber-500/10 border-red-200",
-      accent: "text-red-600 bg-red-50",
+      accent: "text-rose-600 dark:text-rose-400 bg-rose-500/10",
     },
     {
       id: "smtp",
@@ -262,57 +258,49 @@ export default function IntegrationsPage() {
       category: "Communications",
       desc: "Send branded PDF invoices and dispatch notes; ingest POs directly into the AI agent.",
       icon: Mail,
-      color: "from-amber-500/10 to-yellow-500/10 border-amber-200",
-      accent: "text-amber-600 bg-amber-50",
+      accent: "text-amber-600 dark:text-amber-400 bg-amber-500/10",
     },
   ]
 
   return (
-    <AppShell title="API & Integrations" breadcrumbs={[{ label: "Integrations" }]}>
-      <div className="space-y-8 pb-12">
-        {/* Header */}
-        <div className="flex flex-wrap items-center justify-between gap-4 border-b pb-6">
-          <div>
-            <div className="flex items-center gap-2.5">
-              <h1 className="text-2xl font-bold tracking-tight">Integrations & Connectors</h1>
-              <Badge className="bg-emerald-100 text-emerald-800 font-medium">Production Ready</Badge>
+    <AppShell title="Integrations" breadcrumbs={[{ label: "Settings", href: "/settings" }, { label: "Integrations & API" }]}>
+      <div className="space-y-6">
+        <PageHeader
+          title="Integrations & Connectors"
+          description="Connect external accounting systems, payment gateways, freight carriers, staff Telegram, and developer webhooks."
+          actions={
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={handleCopyBaseUrl} className="gap-1.5 text-xs">
+                <Copy className="h-3.5 w-3.5" />
+                {copied ? "Copied" : "Copy API Base"}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => void loadData()} className="text-xs">
+                <RefreshCcw className="h-3.5 w-3.5 mr-1" /> Refresh
+              </Button>
             </div>
-            <p className="text-sm text-muted-foreground mt-1">
-              Connect Telegram agents, Stripe payments, Xero accounting, carriers, and webhooks in seconds.
-            </p>
-          </div>
+          }
+        />
 
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handleCopyBaseUrl} className="gap-2">
-              <Copy className="h-4 w-4" />
-              {copied ? "Copied Base URL" : "Copy API URL"}
-            </Button>
-            <Button size="sm" onClick={() => void loadData()} variant="ghost">
-              <RefreshCcw className="h-4 w-4 mr-1.5" /> Refresh
-            </Button>
-          </div>
-        </div>
-
-        {/* Hero Section: 1-Click Telegram QR Connect */}
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-            <Sparkles className="h-4 w-4 text-sky-500" />
-            <span>Featured Autonomous Channel</span>
+        {/* Telegram Section */}
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
+            <Sparkles className="h-4 w-4 text-primary" />
+            <span>Featured Autonomous Assistant Channel</span>
           </div>
           <TelegramQrConnect onSuccess={loadData} />
         </div>
 
-        {/* Main Tabbed Integration Hub */}
-        <Tabs defaultValue="all" onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full max-w-2xl grid-cols-4 bg-slate-100 p-1">
-            <TabsTrigger value="all">All Connectors</TabsTrigger>
-            <TabsTrigger value="accounting">Finance & Bank</TabsTrigger>
-            <TabsTrigger value="webhooks">Webhooks</TabsTrigger>
-            <TabsTrigger value="api">REST API</TabsTrigger>
+        {/* Tabbed Connector Hub */}
+        <Tabs defaultValue="all" onValueChange={setActiveTab} className="space-y-4">
+          <TabsList className="bg-muted p-1">
+            <TabsTrigger value="all" className="text-xs">All Connectors</TabsTrigger>
+            <TabsTrigger value="accounting" className="text-xs">Finance & Banking</TabsTrigger>
+            <TabsTrigger value="webhooks" className="text-xs">Outgoing Webhooks</TabsTrigger>
+            <TabsTrigger value="api" className="text-xs">REST API Keys</TabsTrigger>
           </TabsList>
 
-          {/* All / Accounting Tab */}
-          <TabsContent value="all" className="space-y-6">
+          {/* All Connectors Tab */}
+          <TabsContent value="all" className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {accountingCards.map((card) => {
                 const liveStatus = integrations.find((i) => i.provider.toLowerCase() === card.id.toLowerCase())
@@ -322,28 +310,28 @@ export default function IntegrationsPage() {
                 return (
                   <Card
                     key={card.id}
-                    className="flex flex-col justify-between overflow-hidden border transition-all duration-200 hover:shadow-md hover:border-slate-300"
+                    className="flex flex-col justify-between border border-border hover:border-border/80 transition-all hover:shadow-sm"
                   >
                     <CardHeader className="pb-3">
                       <div className="flex items-start justify-between gap-2">
-                        <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${card.accent}`}>
+                        <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${card.accent}`}>
                           <Icon className="h-5 w-5" />
                         </div>
                         <Badge
                           variant={isConnected ? "default" : "outline"}
-                          className={isConnected ? "bg-emerald-600 hover:bg-emerald-700 text-white" : "text-slate-600 bg-slate-50"}
+                          className={isConnected ? "bg-emerald-600 hover:bg-emerald-700 text-white text-[10px]" : "text-[10px]"}
                         >
                           {isConnected ? "Connected" : "Available"}
                         </Badge>
                       </div>
-                      <CardTitle className="text-base font-bold pt-2">{card.name}</CardTitle>
-                      <CardDescription className="text-xs leading-relaxed text-slate-500">
+                      <CardTitle className="text-sm font-semibold pt-2 text-foreground">{card.name}</CardTitle>
+                      <CardDescription className="text-xs leading-relaxed text-muted-foreground mt-1">
                         {card.desc}
                       </CardDescription>
                     </CardHeader>
 
                     <CardContent className="pt-0">
-                      <div className="border-t pt-3 flex items-center justify-between">
+                      <div className="border-t border-border pt-3 flex items-center justify-between">
                         <span className="text-[11px] font-mono text-muted-foreground">
                           {liveStatus?.lastSyncAt
                             ? `Synced ${new Date(liveStatus.lastSyncAt).toLocaleDateString()}`
@@ -378,7 +366,8 @@ export default function IntegrationsPage() {
             </div>
           </TabsContent>
 
-          <TabsContent value="accounting" className="space-y-6">
+          {/* Finance and Banking Tab */}
+          <TabsContent value="accounting" className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {accountingCards
                 .filter((c) => c.category === "Accounting" || c.category === "Payments" || c.category === "Banking")
@@ -388,21 +377,24 @@ export default function IntegrationsPage() {
                   const Icon = card.icon
 
                   return (
-                    <Card key={card.id} className="flex flex-col justify-between border hover:shadow-md transition-all">
+                    <Card key={card.id} className="flex flex-col justify-between border border-border hover:border-border/80 transition-all">
                       <CardHeader className="pb-3">
                         <div className="flex items-start justify-between gap-2">
-                          <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${card.accent}`}>
+                          <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${card.accent}`}>
                             <Icon className="h-5 w-5" />
                           </div>
-                          <Badge variant={isConnected ? "default" : "outline"}>
+                          <Badge
+                            variant={isConnected ? "default" : "outline"}
+                            className={isConnected ? "bg-emerald-600 text-white text-[10px]" : "text-[10px]"}
+                          >
                             {isConnected ? "Connected" : "Available"}
                           </Badge>
                         </div>
-                        <CardTitle className="text-base font-bold pt-2">{card.name}</CardTitle>
-                        <CardDescription className="text-xs text-slate-500">{card.desc}</CardDescription>
+                        <CardTitle className="text-sm font-semibold pt-2 text-foreground">{card.name}</CardTitle>
+                        <CardDescription className="text-xs text-muted-foreground mt-1">{card.desc}</CardDescription>
                       </CardHeader>
                       <CardContent className="pt-0">
-                        <div className="border-t pt-3 flex items-center justify-between">
+                        <div className="border-t border-border pt-3 flex items-center justify-between">
                           <span className="text-[11px] font-mono text-muted-foreground">
                             {liveStatus?.lastSyncAt ? `Synced ${new Date(liveStatus.lastSyncAt).toLocaleDateString()}` : "Ready"}
                           </span>
@@ -435,41 +427,41 @@ export default function IntegrationsPage() {
           </TabsContent>
 
           {/* Webhooks Tab */}
-          <TabsContent value="webhooks" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
+          <TabsContent value="webhooks" className="space-y-4">
+            <Card className="border border-border">
+              <CardHeader className="pb-3">
+                <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <CardTitle className="text-lg">Event Subscriptions & Webhooks</CardTitle>
-                    <CardDescription>
+                    <CardTitle className="text-base">Event Subscriptions & Webhooks</CardTitle>
+                    <CardDescription className="text-xs">
                       Listen for real-time order creations, payment captures, low stock triggers, and AI proposals.
                     </CardDescription>
                   </div>
-                  <Badge variant="outline" className="bg-slate-50 font-mono text-xs">
+                  <Badge variant="outline" className="font-mono text-xs">
                     HMAC-SHA256 Signed
                   </Badge>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-3">
                 {testResult && (
-                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3.5 text-sm text-emerald-800 flex items-center justify-between animate-in fade-in">
+                  <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-600 dark:text-emerald-400 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
                       <span>{testResult.message}</span>
                     </div>
-                    <Button size="sm" variant="ghost" className="h-7 text-xs text-emerald-800" onClick={() => setTestResult(null)}>
+                    <Button size="sm" variant="ghost" className="h-6 text-xs text-emerald-700 dark:text-emerald-300" onClick={() => setTestResult(null)}>
                       Dismiss
                     </Button>
                   </div>
                 )}
 
-                <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white">
+                <div className="divide-y divide-border rounded-lg border border-border bg-card">
                   {webhookTopics.map((item) => (
-                    <div key={item.topic} className="flex flex-wrap items-center justify-between gap-4 p-4">
+                    <div key={item.topic} className="flex flex-wrap items-center justify-between gap-4 p-3.5">
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
-                          <p className="font-mono text-sm font-semibold text-slate-900">{item.topic}</p>
-                          <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px]">
+                          <p className="font-mono text-xs font-semibold text-foreground">{item.topic}</p>
+                          <Badge variant="default" className="text-[10px] bg-emerald-600 text-white">
                             Live
                           </Badge>
                         </div>
@@ -496,7 +488,7 @@ export default function IntegrationsPage() {
                           {testPingBusy === item.topic ? (
                             <Loader2 className="h-3 w-3 animate-spin" />
                           ) : (
-                            <Play className="h-3 w-3" />
+                            <Play className="h-3 w-3 text-primary" />
                           )}
                           Test Ping
                         </Button>
@@ -509,56 +501,59 @@ export default function IntegrationsPage() {
           </TabsContent>
 
           {/* REST API Tab */}
-          <TabsContent value="api" className="space-y-6">
-            <div className="grid gap-6 md:grid-cols-2">
-              <Card>
-                <CardHeader>
+          <TabsContent value="api" className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <Card className="border border-border">
+                <CardHeader className="pb-3">
                   <CardTitle className="text-base">Tenant API Endpoint</CardTitle>
-                  <CardDescription>
+                  <CardDescription className="text-xs">
                     All endpoints use standard JSON payloads and support Bearer Token or Session Cookie authentication.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="rounded-xl border border-slate-200 bg-slate-950 p-4 font-mono text-xs text-emerald-400">
-                    <p className="text-slate-400"># Production API Base</p>
-                    <p className="mt-1 select-all">{apiBaseUrl}</p>
+                <CardContent className="space-y-3">
+                  <div className="rounded-lg border border-border bg-muted/40 p-3 font-mono text-xs text-foreground">
+                    <p className="text-muted-foreground text-[10px] uppercase font-semibold"># Production API Base</p>
+                    <p className="mt-1 select-all font-mono">{apiBaseUrl}</p>
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={handleCopyBaseUrl} className="gap-2">
-                      <Copy className="h-4 w-4" />
+                    <Button variant="outline" size="sm" onClick={handleCopyBaseUrl} className="gap-1.5 text-xs">
+                      <Copy className="h-3.5 w-3.5" />
                       {copied ? "Copied!" : "Copy URL"}
                     </Button>
-                    <Button variant="outline" size="sm" asChild>
+                    <Button variant="outline" size="sm" asChild className="text-xs">
                       <a href={`${apiBaseUrl}/health`} target="_blank" rel="noopener noreferrer" className="gap-1.5">
-                        <ExternalLink className="h-3.5 w-3.5" /> Health Ping
+                        <ExternalLink className="h-3.5 w-3.5" /> Health Check
                       </a>
                     </Button>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="bg-slate-900 text-slate-100">
-                <CardHeader>
-                  <CardTitle className="text-slate-100 text-base">Security & Authentication</CardTitle>
-                  <CardDescription className="text-slate-400">
-                    Role-Based Access Control (RBAC) enforced on every route.
+              <Card className="border border-border">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <ShieldCheck className="h-4 w-4 text-primary" />
+                    Security & Authentication
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Role-Based Access Control (RBAC) enforced on every API route.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-3 text-xs text-slate-300">
+                <CardContent className="space-y-2.5 text-xs text-muted-foreground">
                   <div className="flex items-center gap-2">
-                    <ShieldCheck className="h-4 w-4 text-emerald-400" />
+                    <ShieldCheck className="h-4 w-4 text-emerald-500 shrink-0" />
                     <span>HMAC-signed admin and driver session cookies</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <ShieldCheck className="h-4 w-4 text-emerald-400" />
+                    <ShieldCheck className="h-4 w-4 text-emerald-500 shrink-0" />
                     <span>Customer JWT bearer token with auto-refresh</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <ShieldCheck className="h-4 w-4 text-emerald-400" />
+                    <ShieldCheck className="h-4 w-4 text-emerald-500 shrink-0" />
                     <span>Signed Telegram webhook secret tokens</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <ShieldCheck className="h-4 w-4 text-emerald-400" />
+                    <ShieldCheck className="h-4 w-4 text-emerald-500 shrink-0" />
                     <span>Automated sliding-window IP & user rate limiters</span>
                   </div>
                 </CardContent>
@@ -569,20 +564,20 @@ export default function IntegrationsPage() {
 
         {/* Modal for Managing Single Integration */}
         <Dialog open={configModalOpen} onOpenChange={setConfigModalOpen}>
-          <DialogContent className="sm:max-w-lg">
+          <DialogContent className="sm:max-w-lg border-border">
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-lg font-bold">
-                <RefreshCcw className="h-5 w-5 text-primary" />
+              <DialogTitle className="flex items-center gap-2 text-base font-semibold">
+                <RefreshCcw className="h-4 w-4 text-primary" />
                 Configure {selectedIntegration?.displayName || selectedIntegration?.provider}
               </DialogTitle>
-              <DialogDescription>
+              <DialogDescription className="text-xs">
                 Set up connection credentials, API keys, or sync reference for this provider.
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4 py-3">
-              <div className="space-y-2">
-                <Label className="text-xs font-medium">Connection Reference / API Key</Label>
+            <div className="space-y-3 py-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-foreground">Connection Reference / API Key</Label>
                 <Input
                   placeholder="e.g. org_xero_live_94819"
                   value={
@@ -605,14 +600,14 @@ export default function IntegrationsPage() {
                 </p>
               </div>
 
-              <div className="rounded-xl border bg-slate-50 p-3.5 text-xs text-slate-600 space-y-1">
-                <p className="font-semibold text-slate-800">Connection Policy:</p>
+              <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
+                <p className="font-semibold text-foreground">Connection Policy:</p>
                 <p>• Data syncs automatically in the background on every invoice, order, and bank line.</p>
                 <p>• Retries with exponential backoff on network failures.</p>
               </div>
             </div>
 
-            <DialogFooter className="flex gap-2 sm:justify-between">
+            <DialogFooter className="flex gap-2 sm:justify-between pt-2">
               {selectedIntegration?.status === "connected" ? (
                 <Button
                   variant="destructive"
@@ -642,7 +637,7 @@ export default function IntegrationsPage() {
                     )
                   }
                 >
-                  {savingProvider ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
+                  {savingProvider ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
                   Save & Connect
                 </Button>
               </div>
@@ -653,3 +648,4 @@ export default function IntegrationsPage() {
     </AppShell>
   )
 }
+

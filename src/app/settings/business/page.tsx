@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { PageHeader } from "@/components/ui/page-header"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/hooks/use-toast"
 
@@ -33,10 +34,7 @@ const money = (value: number) =>
 
 /**
  * Renders what a setting will actually do.
- *
- * Abstract configuration is the kind people get wrong — "pad 5, reset yearly"
- * means nothing until you see `SO-2026-01042`. Every preview here is computed
- * from the values currently in the form, not from saved state.
+ * Every preview here is computed from the values currently in the form.
  */
 function Preview({ namespace, settings }: { namespace: string; settings: Record<string, any> }) {
   const lines = useMemo(() => {
@@ -186,13 +184,13 @@ function Preview({ namespace, settings }: { namespace: string; settings: Record<
   }
 
   return (
-    <div className="rounded-md border bg-muted/40 p-3">
-      <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-        What this means
+    <div className="rounded-lg border border-border bg-muted/40 p-3.5">
+      <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        Live Evaluation Preview
       </p>
-      <div className="space-y-0.5">
+      <div className="space-y-1">
         {lines.map((line, index) => (
-          <p key={index} className="font-mono text-[11px]">
+          <p key={index} className="font-mono text-xs text-foreground">
             {line}
           </p>
         ))}
@@ -221,13 +219,14 @@ function Field({
 
   if (typeof value === "boolean") {
     return (
-      <label className="flex items-center justify-between gap-3 rounded-md border p-2.5">
-        <span className="text-xs">{label}</span>
+      <label className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-3 hover:bg-muted/20 transition-colors">
+        <span className="text-xs font-medium text-foreground">{label}</span>
         <input
           type="checkbox"
           checked={value}
           disabled={disabled}
           onChange={(event) => onChange(event.target.checked)}
+          className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
         />
       </label>
     )
@@ -235,13 +234,13 @@ function Field({
 
   if (typeof value === "number") {
     return (
-      <label className="flex items-center justify-between gap-3 rounded-md border p-2.5">
-        <span className="text-xs">{label}</span>
+      <label className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-3 hover:bg-muted/20 transition-colors">
+        <span className="text-xs font-medium text-foreground">{label}</span>
         <Input
           type="number"
           value={value}
           disabled={disabled}
-          className="h-7 w-28 text-xs"
+          className="h-8 w-28 text-xs font-mono"
           onChange={(event) => onChange(event.target.value === "" ? 0 : Number(event.target.value))}
         />
       </label>
@@ -250,12 +249,12 @@ function Field({
 
   if (typeof value === "string") {
     return (
-      <label className="flex items-center justify-between gap-3 rounded-md border p-2.5">
-        <span className="text-xs">{label}</span>
+      <label className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-3 hover:bg-muted/20 transition-colors">
+        <span className="text-xs font-medium text-foreground">{label}</span>
         <Input
           value={value}
           disabled={disabled}
-          className="h-7 w-44 text-xs"
+          className="h-8 w-44 text-xs"
           onChange={(event) => onChange(event.target.value)}
         />
       </label>
@@ -264,15 +263,15 @@ function Field({
 
   if (value === null) {
     return (
-      <label className="flex items-center justify-between gap-3 rounded-md border p-2.5">
-        <span className="text-xs">
+      <label className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-3 hover:bg-muted/20 transition-colors">
+        <span className="text-xs font-medium text-foreground">
           {label}
-          <span className="ml-2 text-[10px] text-muted-foreground">inherits</span>
+          <span className="ml-1.5 text-[10px] text-muted-foreground font-normal">(inherits)</span>
         </span>
         <Input
           placeholder="inherit"
           disabled={disabled}
-          className="h-7 w-28 text-xs"
+          className="h-8 w-28 text-xs font-mono"
           onChange={(event) =>
             onChange(event.target.value === "" ? null : Number(event.target.value))
           }
@@ -343,54 +342,54 @@ export default function BusinessSettingsPage() {
   const disabled = !payload?.canWrite || saving
 
   return (
-    <AppShell title="Business settings">
+    <AppShell title="Business Settings" breadcrumbs={[{ label: "Settings", href: "/settings" }, { label: "Business" }]}>
       <div className="space-y-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Business settings</h1>
-            <p className="text-sm text-muted-foreground">
-              How this business works — tax, due dates, numbering, pricing. Defaults match
-              current behaviour, so nothing changes until you change it.
-            </p>
-          </div>
+        <PageHeader
+          title="Business Logic & Governance"
+          description="Configure tax rates, payment due date formulas, sequence numbering, price resolution, and AI agent guardrails."
+          actions={
+            <div className="flex items-center gap-1 rounded-lg border border-border bg-muted/50 p-1">
+              <button
+                onClick={() => setScope("global")}
+                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                  scope === "global"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Globe className="h-3.5 w-3.5" />
+                All Entities
+              </button>
+              <button
+                onClick={() => setScope("company")}
+                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                  scope === "company"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Building2 className="h-3.5 w-3.5" />
+                This Entity Only
+              </button>
+            </div>
+          }
+        />
 
-          <div className="flex items-center gap-1 rounded-md border p-0.5">
-            <button
-              onClick={() => setScope("global")}
-              className={`flex items-center gap-1.5 rounded px-2.5 py-1 text-xs transition-colors ${
-                scope === "global" ? "bg-primary text-primary-foreground" : "hover:bg-accent"
-              }`}
-            >
-              <Globe className="h-3 w-3" />
-              All entities
-            </button>
-            <button
-              onClick={() => setScope("company")}
-              className={`flex items-center gap-1.5 rounded px-2.5 py-1 text-xs transition-colors ${
-                scope === "company" ? "bg-primary text-primary-foreground" : "hover:bg-accent"
-              }`}
-            >
-              <Building2 className="h-3 w-3" />
-              This entity only
-            </button>
-          </div>
-        </div>
-
-        <Tabs value={active} onValueChange={setActive}>
-          <TabsList>
+        <Tabs value={active} onValueChange={setActive} className="space-y-4">
+          <TabsList className="flex flex-wrap h-auto gap-1 bg-muted p-1">
             {namespaces.map((entry) => (
-              <TabsTrigger key={entry.namespace} value={entry.namespace}>
+              <TabsTrigger key={entry.namespace} value={entry.namespace} className="text-xs">
                 {entry.label}
               </TabsTrigger>
             ))}
           </TabsList>
 
           <TabsContent value={active} className="mt-4">
-            <Card>
-              <CardHeader className="pb-3">
+            <Card className="border border-border">
+              <CardHeader className="pb-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <CardTitle className="flex items-center gap-2 text-base">
+                    <CardTitle className="flex items-center gap-2 text-lg">
                       {payload?.label || "Loading…"}
                       {payload && !payload.customised.global && !payload.customised.company ? (
                         <Badge variant="outline" className="text-[10px]">
@@ -403,7 +402,9 @@ export default function BusinessSettingsPage() {
                         </Badge>
                       ) : null}
                     </CardTitle>
-                    <CardDescription>{payload?.description}</CardDescription>
+                    <CardDescription className="text-xs text-muted-foreground mt-1">
+                      {payload?.description}
+                    </CardDescription>
                   </div>
 
                   <div className="flex gap-2">
@@ -423,8 +424,8 @@ export default function BusinessSettingsPage() {
                         }
                       }}
                     >
-                      <RotateCcw className="mr-1.5 h-3 w-3" />
-                      Reset
+                      <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+                      Reset to Defaults
                     </Button>
                     <Button
                       size="sm"
@@ -459,11 +460,11 @@ export default function BusinessSettingsPage() {
                       }}
                     >
                       {saving ? (
-                        <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                       ) : (
-                        <Save className="mr-1.5 h-3 w-3" />
+                        <Save className="mr-1.5 h-3.5 w-3.5" />
                       )}
-                      Save
+                      Save Changes
                     </Button>
                   </div>
                 </div>
@@ -471,43 +472,37 @@ export default function BusinessSettingsPage() {
 
               <CardContent className="space-y-4">
                 {!payload?.canWrite && payload ? (
-                  <p className="rounded-md border border-amber-500/40 bg-amber-500/5 p-2.5 text-xs">
-                    You can view these but not change them.
+                  <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-600 dark:text-amber-400">
+                    Read-only view. You do not have permissions to modify this namespace.
                   </p>
                 ) : null}
 
                 <Preview namespace={active} settings={draft} />
 
                 {loading ? (
-                  <p className="py-6 text-center text-sm text-muted-foreground">Loading…</p>
+                  <div className="flex items-center justify-center py-10">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     {Object.entries(draft).map(([key, value]) => {
-                      // Nested groups (numbering's per-document formats) get
-                      // their own block rather than being flattened.
                       if (value && typeof value === "object" && !Array.isArray(value)) {
                         const group = value as Record<string, any>
-
-                        // The legacy generator continues a sequence by parsing
-                        // the previous number, so changing prefix, padding or
-                        // reset before the counter is live breaks continuation
-                        // and starts issuing duplicates. Format fields stay
-                        // locked until `useCounter` is on for this kind.
                         const onLegacy = "useCounter" in group && !group.useCounter
 
                         return (
-                          <div key={key} className="rounded-lg border p-3">
-                            <div className="mb-2 flex items-center justify-between gap-2">
-                              <p className="text-xs font-medium capitalize">
+                          <div key={key} className="rounded-lg border border-border bg-card p-4 space-y-3">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-xs font-semibold uppercase tracking-wider text-foreground">
                                 {key.replace(/([A-Z])/g, " $1")}
                               </p>
                               {onLegacy && (
-                                <span className="rounded-full border px-2 py-0.5 text-[10px] text-muted-foreground">
-                                  legacy generator — turn on Use Counter to edit the format
-                                </span>
+                                <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                                  legacy generator — enable Use Counter to customize format
+                                </Badge>
                               )}
                             </div>
-                            <div className="grid gap-1.5 sm:grid-cols-2">
+                            <div className="grid gap-2 sm:grid-cols-2">
                               {Object.entries(group).map(([field, inner]) => (
                                 <Field
                                   key={field}
@@ -524,12 +519,12 @@ export default function BusinessSettingsPage() {
 
                       if (Array.isArray(value)) {
                         return (
-                          <div key={key} className="rounded-lg border p-3">
-                            <p className="mb-1 text-xs font-medium capitalize">
+                          <div key={key} className="rounded-lg border border-border bg-card p-4">
+                            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-foreground">
                               {key.replace(/([A-Z])/g, " $1")}
                             </p>
-                            <p className="font-mono text-[11px] text-muted-foreground">
-                              {JSON.stringify(value)}
+                            <p className="font-mono text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+                              {JSON.stringify(value, null, 2)}
                             </p>
                           </div>
                         )
@@ -555,3 +550,4 @@ export default function BusinessSettingsPage() {
     </AppShell>
   )
 }
+

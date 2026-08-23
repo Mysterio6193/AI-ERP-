@@ -3,14 +3,18 @@
 import { useCallback, useEffect, useState } from "react"
 import {
   AlertTriangle,
+  Bot,
   Check,
+  CheckCircle2,
   Copy,
   Cpu,
   Link2,
   Loader2,
   RefreshCw,
   Send,
+  Sparkles,
   Trash2,
+  UserCheck,
 } from "lucide-react"
 
 import { AppShell } from "@/components/layout/app-shell"
@@ -18,6 +22,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { PageHeader } from "@/components/ui/page-header"
 import { Textarea } from "@/components/ui/textarea"
 import { TelegramQrConnect } from "@/components/integrations/telegram-qr-connect"
 
@@ -229,57 +234,56 @@ export default function AgentSettingsPage() {
   }
 
   return (
-    <AppShell title="Agent">
-      <div className="mx-auto max-w-3xl space-y-6">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Agent</h1>
-            <p className="text-sm text-muted-foreground">
-              Connect Telegram so staff can run the business from their phone.
-            </p>
-          </div>
-          <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
-            {loading ? (
-              <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <RefreshCw className="mr-2 h-3.5 w-3.5" />
-            )}
-            Refresh
-          </Button>
-        </div>
+    <AppShell title="Agent" breadcrumbs={[{ label: "Settings", href: "/settings" }, { label: "Agent Identity & Channels" }]}>
+      <div className="mx-auto max-w-4xl space-y-6">
+        <PageHeader
+          title="Agent Identity & Mobile Channels"
+          description="Configure the outbound assistant persona, multi-model runtime, and mobile Telegram integration."
+          actions={
+            <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
+              {loading ? (
+                <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-2 h-3.5 w-3.5" />
+              )}
+              Refresh
+            </Button>
+          }
+        />
 
-        <Card>
+        <Card className="border border-border">
           <CardHeader>
-            <CardTitle className="text-base">Identity</CardTitle>
-            <CardDescription>
-              How the agent presents itself. It never poses as a person - every outbound message
-              carries this disclosure.
+            <CardTitle className="text-base">Identity & Disclosures</CardTitle>
+            <CardDescription className="text-xs">
+              How the assistant identifies itself across email, customer portals, and Telegram. Outbound messages always append this disclosure.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-4">
             {identityDraft ? (
               <>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">Name</label>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-foreground">Assistant Name</label>
                     <Input
                       value={identityDraft.name}
                       onChange={(event) =>
                         setIdentityDraft((current) => current && { ...current, name: event.target.value })
                       }
+                      className="text-sm"
                     />
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">Email</label>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-foreground">Inbound / Outbound Email</label>
                     <Input
                       value={identityDraft.email}
                       onChange={(event) =>
                         setIdentityDraft((current) => current && { ...current, email: event.target.value })
                       }
+                      className="text-sm"
                     />
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">Phone (optional)</label>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-foreground">Phone Number (Optional)</label>
                     <Input
                       value={identityDraft.phone || ""}
                       onChange={(event) =>
@@ -287,10 +291,11 @@ export default function AgentSettingsPage() {
                           (current) => current && { ...current, phone: event.target.value || null }
                         )
                       }
+                      className="text-sm"
                     />
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">Signature</label>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-foreground">Email Signature</label>
                     <Input
                       value={identityDraft.signature}
                       onChange={(event) =>
@@ -298,11 +303,12 @@ export default function AgentSettingsPage() {
                           (current) => current && { ...current, signature: event.target.value }
                         )
                       }
+                      className="text-sm"
                     />
                   </div>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">Disclosure line</label>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-foreground">Mandatory AI Disclosure Line</label>
                   <Textarea
                     value={identityDraft.disclosure}
                     onChange={(event) =>
@@ -310,62 +316,72 @@ export default function AgentSettingsPage() {
                         (current) => current && { ...current, disclosure: event.target.value }
                       )
                     }
-                    className="min-h-[50px] text-sm"
+                    className="min-h-[50px] text-xs"
                   />
                 </div>
-                <Button
-                  size="sm"
-                  disabled={savingIdentity || JSON.stringify(identity) === JSON.stringify(identityDraft)}
-                  onClick={async () => {
-                    setSavingIdentity(true)
-                    try {
-                      const response = await fetch("/api/agent/identity", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(identityDraft),
-                      })
-                      const payload = await response.json()
-                      if (payload.success) {
-                        setIdentity(payload.data)
-                        setIdentityDraft(payload.data)
+                <div className="flex items-center justify-between pt-2">
+                  <Button
+                    size="sm"
+                    disabled={savingIdentity || JSON.stringify(identity) === JSON.stringify(identityDraft)}
+                    onClick={async () => {
+                      setSavingIdentity(true)
+                      try {
+                        const response = await fetch("/api/agent/identity", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify(identityDraft),
+                        })
+                        const payload = await response.json()
+                        if (payload.success) {
+                          setIdentity(payload.data)
+                          setIdentityDraft(payload.data)
+                        }
+                      } finally {
+                        setSavingIdentity(false)
                       }
-                    } finally {
-                      setSavingIdentity(false)
-                    }
-                  }}
-                >
-                  {savingIdentity ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : null}
-                  Save
-                </Button>
-                <p className="text-xs text-muted-foreground">
-                  Point an inbound-parsing provider (Postmark, Mailgun Routes, SendGrid Inbound Parse) at{" "}
-                  <code className="font-mono">/api/agent/email</code> so mail sent to this address reaches
-                  the agent.
-                </p>
+                    }}
+                  >
+                    {savingIdentity ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : null}
+                    Save Identity
+                  </Button>
+                  <p className="text-[11px] text-muted-foreground">
+                    Direct inbound parsing webhooks to <code className="font-mono bg-muted px-1.5 py-0.5 rounded">/api/agent/email</code>.
+                  </p>
+                </div>
               </>
             ) : null}
           </CardContent>
         </Card>
 
-        <Card>
+        {/* Model Runtime Card */}
+        <Card className="border border-border">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Cpu className="h-4 w-4" />
-              Model
-            </CardTitle>
-            <CardDescription>Which model the agent runs on, and where it runs.</CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Cpu className="h-4 w-4 text-primary" />
+                  Model Runtime Architecture
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Domain-specialized model routing across chat, vision, voice, replenishment, and finance.
+                </CardDescription>
+              </div>
+              {runtime ? (
+                <Badge variant={runtime.configured ? "default" : "destructive"} className="text-xs">
+                  {runtime.configured ? "Configured & Ready" : "Missing API Key"}
+                </Badge>
+              ) : null}
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             {runtime ? (
               <>
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3 text-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3 text-xs">
                   <div className="flex items-center gap-2">
-                    <Badge variant={runtime.configured ? "secondary" : "destructive"}>
-                      {runtime.configured ? "Ready" : "Not configured"}
+                    <span className="font-semibold text-foreground">Provider:</span>
+                    <Badge variant="outline" className="font-mono text-[10px] uppercase">
+                      {runtime.mode}
                     </Badge>
-                    <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                      Provider: {runtime.mode}
-                    </span>
                   </div>
                   <span className="font-mono text-[11px] text-muted-foreground">
                     {runtime.baseUrl}
@@ -373,88 +389,105 @@ export default function AgentSettingsPage() {
                 </div>
 
                 <div className="grid gap-2 sm:grid-cols-2">
-                  <div className="rounded-lg border p-2.5">
-                    <p className="text-[11px] font-medium text-muted-foreground">💬 Operations / Chat Copilot</p>
-                    <p className="mt-1 font-mono text-xs font-semibold">{runtime.model}</p>
-                    <p className="text-[10px] text-muted-foreground">AGENT_MODEL / AGENT_MODEL_CHAT</p>
+                  <div className="rounded-lg border border-border bg-card p-3">
+                    <p className="text-[11px] font-semibold text-foreground flex items-center gap-1.5">
+                      💬 Operations / Chat Copilot
+                    </p>
+                    <p className="mt-1 font-mono text-xs font-semibold text-primary">{runtime.model}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">AGENT_MODEL / AGENT_MODEL_CHAT</p>
                   </div>
 
-                  <div className="rounded-lg border p-2.5">
-                    <p className="text-[11px] font-medium text-muted-foreground">📱 Telegram Staff Bot</p>
-                    <p className="mt-1 font-mono text-xs font-semibold">{runtime.telegramModel || runtime.model}</p>
-                    <p className="text-[10px] text-muted-foreground">AGENT_MODEL_TELEGRAM</p>
+                  <div className="rounded-lg border border-border bg-card p-3">
+                    <p className="text-[11px] font-semibold text-foreground flex items-center gap-1.5">
+                      📱 Telegram Staff Bot
+                    </p>
+                    <p className="mt-1 font-mono text-xs font-semibold text-primary">{runtime.telegramModel || runtime.model}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">AGENT_MODEL_TELEGRAM</p>
                   </div>
 
-                  <div className="rounded-lg border p-2.5">
-                    <p className="text-[11px] font-medium text-muted-foreground">📦 Autonomous Replenishment</p>
-                    <p className="mt-1 font-mono text-xs font-semibold">{runtime.replenishmentModel || runtime.model}</p>
-                    <p className="text-[10px] text-muted-foreground">AGENT_MODEL_REPLENISHMENT</p>
+                  <div className="rounded-lg border border-border bg-card p-3">
+                    <p className="text-[11px] font-semibold text-foreground flex items-center gap-1.5">
+                      📦 Autonomous Replenishment
+                    </p>
+                    <p className="mt-1 font-mono text-xs font-semibold text-primary">{runtime.replenishmentModel || runtime.model}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">AGENT_MODEL_REPLENISHMENT</p>
                   </div>
 
-                  <div className="rounded-lg border p-2.5">
-                    <p className="text-[11px] font-medium text-muted-foreground">⚡ Fast Triage / Summaries</p>
-                    <p className="mt-1 font-mono text-xs font-semibold">{runtime.fastModel || runtime.model}</p>
-                    <p className="text-[10px] text-muted-foreground">AGENT_MODEL_FAST / AGENT_FAST_MODEL</p>
+                  <div className="rounded-lg border border-border bg-card p-3">
+                    <p className="text-[11px] font-semibold text-foreground flex items-center gap-1.5">
+                      ⚡ Fast Triage / Summaries
+                    </p>
+                    <p className="mt-1 font-mono text-xs font-semibold text-primary">{runtime.fastModel || runtime.model}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">AGENT_MODEL_FAST / AGENT_FAST_MODEL</p>
                   </div>
 
-                  <div className="rounded-lg border p-2.5">
-                    <p className="text-[11px] font-medium text-muted-foreground">✉️ Inbound Email & Leads</p>
-                    <p className="mt-1 font-mono text-xs font-semibold">{runtime.emailModel || runtime.model}</p>
-                    <p className="text-[10px] text-muted-foreground">AGENT_MODEL_EMAIL</p>
+                  <div className="rounded-lg border border-border bg-card p-3">
+                    <p className="text-[11px] font-semibold text-foreground flex items-center gap-1.5">
+                      ✉️ Inbound Email & Leads
+                    </p>
+                    <p className="mt-1 font-mono text-xs font-semibold text-primary">{runtime.emailModel || runtime.model}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">AGENT_MODEL_EMAIL</p>
                   </div>
 
-                  <div className="rounded-lg border p-2.5">
-                    <p className="text-[11px] font-medium text-muted-foreground">📊 Finance & Ledger Analysis</p>
-                    <p className="mt-1 font-mono text-xs font-semibold">{runtime.financeModel || runtime.model}</p>
-                    <p className="text-[10px] text-muted-foreground">AGENT_MODEL_FINANCE</p>
+                  <div className="rounded-lg border border-border bg-card p-3">
+                    <p className="text-[11px] font-semibold text-foreground flex items-center gap-1.5">
+                      📊 Finance & Ledger Analysis
+                    </p>
+                    <p className="mt-1 font-mono text-xs font-semibold text-primary">{runtime.financeModel || runtime.model}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">AGENT_MODEL_FINANCE</p>
                   </div>
 
-                  <div className="rounded-lg border p-2.5">
-                    <p className="text-[11px] font-medium text-muted-foreground">👁️ Vision OCR & Document Scanner</p>
-                    <p className="mt-1 font-mono text-xs font-semibold">{runtime.ocrModel || "google/gemini-2.0-flash-001"}</p>
-                    <p className="text-[10px] text-muted-foreground">AGENT_MODEL_OCR / AGENT_OCR_MODEL</p>
+                  <div className="rounded-lg border border-border bg-card p-3">
+                    <p className="text-[11px] font-semibold text-foreground flex items-center gap-1.5">
+                      👁️ Vision OCR & Document Scanner
+                    </p>
+                    <p className="mt-1 font-mono text-xs font-semibold text-primary">{runtime.ocrModel || "google/gemini-2.0-flash-001"}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">AGENT_MODEL_OCR / AGENT_OCR_MODEL</p>
                   </div>
 
-                  <div className="rounded-lg border p-2.5">
-                    <p className="text-[11px] font-medium text-muted-foreground">🎙️ Speech-to-Text & Voice Notes</p>
-                    <p className="mt-1 font-mono text-xs font-semibold">{runtime.voiceModel || "openai/whisper-large-v3"}</p>
-                    <p className="text-[10px] text-muted-foreground">AGENT_MODEL_VOICE / AGENT_VOICE_MODEL</p>
+                  <div className="rounded-lg border border-border bg-card p-3">
+                    <p className="text-[11px] font-semibold text-foreground flex items-center gap-1.5">
+                      🎙️ Speech-to-Text & Voice Notes
+                    </p>
+                    <p className="mt-1 font-mono text-xs font-semibold text-primary">{runtime.voiceModel || "openai/whisper-large-v3"}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">AGENT_MODEL_VOICE / AGENT_VOICE_MODEL</p>
                   </div>
                 </div>
               </>
             ) : null}
             {runtime && !runtime.configured ? (
               <p className="text-xs text-muted-foreground">
-                Set <code className="font-mono">OPENROUTER_API_KEY</code> or <code className="font-mono">AI_GATEWAY_API_KEY</code> in <code>.env</code>.
+                Set <code className="font-mono bg-muted px-1.5 py-0.5 rounded">OPENROUTER_API_KEY</code> or <code className="font-mono bg-muted px-1.5 py-0.5 rounded">AI_GATEWAY_API_KEY</code> in <code>.env</code>.
               </p>
             ) : null}
           </CardContent>
         </Card>
 
+        {/* Telegram QR Connect */}
         <TelegramQrConnect onSuccess={load} />
 
-        <Card>
+        {/* Interactive Simulator Card */}
+        <Card className="border border-border">
           <CardHeader>
-            <CardTitle className="text-base">Try it</CardTitle>
-            <CardDescription>
-              The same ops persona, tools, thresholds and approval flow the bot uses — replies come
-              back here instead of to Telegram, so you can see it work before a token exists.
+            <CardTitle className="text-base">Interactive Bot Simulator</CardTitle>
+            <CardDescription className="text-xs">
+              Live testing sandbox using the exact ops persona, tools, thresholds, and proposal approval loop as mobile Telegram.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="max-h-80 space-y-2 overflow-y-auto rounded-lg bg-[#e7ebf0] p-3 dark:bg-muted">
+            <div className="max-h-80 space-y-2.5 overflow-y-auto rounded-lg border border-border bg-muted/30 p-4">
               {!demoLog.length ? (
-                <p className="py-6 text-center text-xs text-muted-foreground">
-                  Try &ldquo;how are we tracking today?&rdquo; or &ldquo;who&apos;s overdue?&rdquo;
+                <p className="py-8 text-center text-xs text-muted-foreground">
+                  Try asking &ldquo;What orders need dispatch today?&rdquo; or &ldquo;Check stock on sourdough bases&rdquo;
                 </p>
               ) : (
                 demoLog.map((entry, index) => (
-                  <div key={index} className="space-y-1.5">
+                  <div key={index} className="space-y-2">
                     <div
                       className={
                         entry.from === "you"
-                          ? "ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-sm bg-[#effdde] px-3 py-2 text-sm text-black dark:bg-emerald-900 dark:text-white"
-                          : "w-fit max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-bl-sm bg-white px-3 py-2 text-sm text-black dark:bg-background dark:text-foreground"
+                          ? "ml-auto w-fit max-w-[80%] rounded-xl bg-primary px-3.5 py-2 text-xs font-medium text-primary-foreground shadow-sm"
+                          : "w-fit max-w-[85%] whitespace-pre-wrap rounded-xl border border-border bg-card px-3.5 py-2.5 text-xs text-foreground shadow-sm"
                       }
                     >
                       {entry.text}
@@ -463,27 +496,27 @@ export default function AgentSettingsPage() {
                     {entry.approvals?.map((approval) => (
                       <div
                         key={approval.proposalId}
-                        className="w-fit max-w-[85%] space-y-2 rounded-2xl bg-white p-3 dark:bg-background"
+                        className="w-fit max-w-[85%] space-y-2 rounded-xl border border-border bg-card p-3 shadow-sm"
                       >
-                        <p className="text-xs font-medium">{approval.summary}</p>
+                        <p className="text-xs font-semibold text-foreground">{approval.summary}</p>
                         <p className="text-[11px] text-muted-foreground">{approval.reason}</p>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 pt-1">
                           <Button
                             size="sm"
-                            className="h-7 text-[11px]"
+                            className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
                             disabled={demoBusy}
                             onClick={() => void decideDemo(approval.proposalId, true)}
                           >
-                            ✅ Approve
+                            <Check className="mr-1 h-3 w-3" /> Approve
                           </Button>
                           <Button
                             size="sm"
                             variant="outline"
-                            className="h-7 text-[11px]"
+                            className="h-7 text-xs"
                             disabled={demoBusy}
                             onClick={() => void decideDemo(approval.proposalId, false)}
                           >
-                            ❌ Reject
+                            Reject
                           </Button>
                         </div>
                       </div>
@@ -492,7 +525,10 @@ export default function AgentSettingsPage() {
                 ))
               )}
               {demoBusy ? (
-                <p className="text-xs text-muted-foreground">typing…</p>
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  <span>Assistant is thinking…</span>
+                </div>
               ) : null}
             </div>
 
@@ -507,17 +543,21 @@ export default function AgentSettingsPage() {
                   }
                 }}
                 rows={1}
-                placeholder="Message the bot…"
-                className="max-h-24 min-h-[40px] resize-none text-sm"
+                placeholder="Message the assistant…"
+                className="max-h-24 min-h-[40px] resize-none text-xs"
               />
               <Button
                 disabled={demoBusy || !demoInput.trim()}
                 onClick={() => void sendDemo(demoInput)}
+                size="sm"
+                className="h-10 px-3"
               >
                 <Send className="h-4 w-4" />
               </Button>
               <Button
                 variant="outline"
+                size="sm"
+                className="h-10 text-xs"
                 onClick={async () => {
                   await fetch("/api/agent/telegram/demo", { method: "DELETE" })
                   setDemoLog([])
@@ -529,38 +569,42 @@ export default function AgentSettingsPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        {/* Connected Accounts Card */}
+        <Card className="border border-border">
           <CardHeader>
-            <CardTitle className="text-base">Connected accounts</CardTitle>
-            <CardDescription>
-              Who can talk to the agent on Telegram. Each inherits their own role and limits.
+            <CardTitle className="text-base">Linked Telegram Staff Accounts</CardTitle>
+            <CardDescription className="text-xs">
+              Staff members authenticated via Telegram QR pairing. Each user inherits their ERP role permissions.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
             {!status?.connections.length ? (
-              <p className="py-6 text-center text-sm text-muted-foreground">
-                {loading ? "Loading…" : "Nobody has linked their account yet."}
+              <p className="py-6 text-center text-xs text-muted-foreground">
+                {loading ? "Loading connections…" : "No Telegram accounts linked yet. Use QR connect above."}
               </p>
             ) : (
               status.connections.map((connection) => (
                 <div
                   key={connection.id}
-                  className="flex items-center justify-between gap-3 rounded-lg border p-3"
+                  className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-3"
                 >
                   <div className="min-w-0">
-                    <p className="text-sm font-medium">
-                      {connection.user?.name || connection.displayName || connection.chatId}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                      <UserCheck className="h-4 w-4 text-emerald-500" />
+                      <p className="text-xs font-semibold text-foreground">
+                        {connection.user?.name || connection.displayName || connection.chatId}
+                      </p>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
                       {connection.user
-                        ? `${connection.user.email} · ${connection.user.role}`
+                        ? `${connection.user.email} · Role: ${connection.user.role}`
                         : connection.isCustomer
-                          ? "customer"
-                          : "unlinked"}
+                          ? "Customer portal account"
+                          : "Unlinked staff connection"}
                     </p>
                   </div>
-                  <Button variant="ghost" size="icon" onClick={() => void disconnect(connection.id)}>
-                    <Trash2 className="h-3.5 w-3.5" />
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => void disconnect(connection.id)}>
+                    <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
               ))
@@ -571,3 +615,4 @@ export default function AgentSettingsPage() {
     </AppShell>
   )
 }
+

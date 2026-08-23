@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import { ArrowRight, Lock, Mail, ShieldCheck, Zap } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -80,74 +81,96 @@ export default function AdminSigninPage() {
   }
 
   return (
-    <div className="min-h-screen bg-black px-4 py-10 text-white">
-      <div className="mx-auto grid min-h-[calc(100vh-5rem)] w-full max-w-6xl items-center gap-8 lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="space-y-6">
-          <div className="apple-eyebrow">SupplySure OS</div>
-          <div className="max-w-2xl space-y-4">
-            <h1 className="text-[40px] font-semibold tracking-[-0.04em] text-white md:text-[56px]">
-              Operations software, presented with more clarity.
-            </h1>
-            <p className="max-w-xl text-[17px] text-white/72">
-              Sign in to manage commerce, inventory, customers, finance, and fulfilment from one Apple-inspired control surface.
-            </p>
+    <div className="relative min-h-screen flex items-center justify-center bg-background px-4 py-12">
+      <div className="relative w-full max-w-md space-y-6">
+        <div className="flex flex-col items-center text-center space-y-2">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-md shadow-primary/20">
+            <Zap className="h-6 w-6" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">SupplySure OS</h1>
+            <p className="text-xs text-muted-foreground mt-0.5">Enterprise Operations & Autonomous ERP</p>
           </div>
         </div>
-        <Card className="w-full max-w-md justify-self-end bg-white text-[#1d1d1f]">
-          <CardHeader className="space-y-2">
-            <CardTitle className="text-[32px]">Sign in</CardTitle>
-            <CardDescription>
-              Use your staff account to access the admin dashboard and live operating modules.
+
+        <Card className="border border-border bg-card shadow-lg">
+          <CardHeader className="space-y-1 pb-4">
+            <CardTitle className="text-xl font-semibold tracking-tight">Sign in to your account</CardTitle>
+            <CardDescription className="text-sm text-muted-foreground">
+              Enter your staff credentials to access the operations dashboard.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <form className="space-y-4" onSubmit={handleSubmit}>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                autoComplete="email"
-                value={form.email}
-                onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
-                placeholder="admin@yourcompany.com"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                autoComplete="current-password"
-                value={form.password}
-                onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
-                placeholder="Enter your password"
-              />
-            </div>
-            {error ? (
-              <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                {error}
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-xs font-medium">Email address</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="email"
+                    type="email"
+                    autoComplete="email"
+                    value={form.email}
+                    onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
+                    placeholder="admin@yourcompany.com"
+                    className="pl-9 text-sm"
+                    required
+                  />
+                </div>
               </div>
-            ) : null}
-            <Button type="submit" className="w-full" disabled={loading || checkingSetup}>
-              {loading ? "Signing in..." : "Sign in"}
-            </Button>
-          </form>
 
-          <div className="mt-4 text-sm text-muted-foreground">
-            {needsSetup ? (
-              <Link className="text-primary hover:underline" href="/setup">
-                Create the first admin account
-              </Link>
-            ) : (
-              <span>
-                New staff users are created inside the admin panel under <strong className="text-foreground">Users</strong>.
-              </span>
-            )}
-          </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password" className="text-xs font-medium">Password</Label>
+                </div>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="password"
+                    type="password"
+                    autoComplete="current-password"
+                    value={form.password}
+                    onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
+                    placeholder="••••••••••••"
+                    className="pl-9 text-sm"
+                    required
+                  />
+                </div>
+              </div>
+
+              {error ? (
+                <div className="rounded-lg border border-destructive/20 bg-destructive/10 px-3.5 py-2.5 text-xs text-destructive flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4 shrink-0" />
+                  <span>{error}</span>
+                </div>
+              ) : null}
+
+              <Button type="submit" className="w-full font-medium" disabled={loading || checkingSetup}>
+                {loading ? "Signing in..." : "Sign in"}
+                {!loading && <ArrowRight className="ml-2 h-4 w-4" />}
+              </Button>
+            </form>
+
+            <div className="pt-2 text-center text-xs text-muted-foreground">
+              {needsSetup ? (
+                <Link className="font-medium text-primary hover:underline" href="/setup">
+                  Initial setup: Create first admin account →
+                </Link>
+              ) : (
+                <span>
+                  Staff accounts are managed by your administrator in <strong className="text-foreground font-medium">Users</strong>.
+                </span>
+              )}
+            </div>
           </CardContent>
         </Card>
+
+        <div className="flex items-center justify-center gap-1.5 text-[11px] text-muted-foreground">
+          <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
+          <span>Encrypted Session & Multi-Tenant Data Isolation</span>
+        </div>
       </div>
     </div>
   )
 }
+

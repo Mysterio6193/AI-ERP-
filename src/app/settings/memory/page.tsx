@@ -1,13 +1,14 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { Brain, Building2, Loader2, Plus, RefreshCw, Trash2, User } from "lucide-react"
+import { Brain, Building2, Loader2, Plus, RefreshCw, Trash2, User, Globe } from "lucide-react"
 
 import { AppShell } from "@/components/layout/app-shell"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { PageHeader } from "@/components/ui/page-header"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/hooks/use-toast"
 
@@ -28,19 +29,19 @@ interface Memory {
 
 const SCOPE_META: Record<string, { label: string; icon: typeof Brain; blurb: string }> = {
   company: {
-    label: "The business",
+    label: "Company Knowledge",
     icon: Building2,
-    blurb: "How this company works. Every member of staff shares these.",
+    blurb: "Business operational heuristics, regional routing rules, and company-wide policies shared by all staff.",
   },
   user: {
-    label: "You",
+    label: "Personal Directives",
     icon: User,
-    blurb: "Your own preferences. Nobody else can see or change these.",
+    blurb: "Your individual preferences, communication cadence, and custom report formats.",
   },
   entity: {
-    label: "Accounts",
-    icon: Brain,
-    blurb: "Facts about particular customers and suppliers.",
+    label: "Customer & Vendor Facts",
+    icon: Globe,
+    blurb: "Account-specific nuances, warehouse delivery windows, and special logistics constraints.",
   },
 }
 
@@ -73,55 +74,64 @@ export default function MemoryPage() {
   const Icon = meta.icon
 
   return (
-    <AppShell title="Memory">
-      <div className="space-y-6">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Memory</h1>
-            <p className="text-sm text-muted-foreground">
-              What the agent has learned and carries between conversations.
-            </p>
-          </div>
-          <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
-            {loading ? (
-              <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <RefreshCw className="mr-2 h-3.5 w-3.5" />
-            )}
-            Refresh
-          </Button>
-        </div>
+    <AppShell title="Agent Memory" breadcrumbs={[{ label: "Settings", href: "/settings" }, { label: "Memory" }]}>
+      <div className="mx-auto max-w-4xl space-y-6">
+        <PageHeader
+          title="Agent Long-Term Memory"
+          description="Manage operational facts, customer nuances, and learned business rules retained across all chat sessions."
+          actions={
+            <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
+              {loading ? (
+                <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-2 h-3.5 w-3.5" />
+              )}
+              Refresh
+            </Button>
+          }
+        />
 
         <Tabs value={scope} onValueChange={setScope}>
-          <TabsList>
-            <TabsTrigger value="company">The business</TabsTrigger>
-            <TabsTrigger value="user">You</TabsTrigger>
-            <TabsTrigger value="entity">Accounts</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-3 bg-muted p-1">
+            <TabsTrigger value="company" className="text-xs flex items-center gap-1.5">
+              <Building2 className="h-3.5 w-3.5" />
+              Company ({memories.filter((m) => m.scope === "company").length})
+            </TabsTrigger>
+            <TabsTrigger value="user" className="text-xs flex items-center gap-1.5">
+              <User className="h-3.5 w-3.5" />
+              Personal ({memories.filter((m) => m.scope === "user").length})
+            </TabsTrigger>
+            <TabsTrigger value="entity" className="text-xs flex items-center gap-1.5">
+              <Globe className="h-3.5 w-3.5" />
+              Accounts ({memories.filter((m) => m.scope === "entity").length})
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value={scope} className="mt-4">
-            <Card>
+            <Card className="border border-border">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base">
-                  <Icon className="h-4 w-4" />
+                  <Icon className="h-4 w-4 text-primary" />
                   {meta.label}
                   <Badge variant="outline" className="text-[10px]">
-                    {inScope.length}
+                    {inScope.length} records
                   </Badge>
                 </CardTitle>
-                <CardDescription>{meta.blurb}</CardDescription>
+                <CardDescription className="text-xs text-muted-foreground mt-0.5">
+                  {meta.blurb}
+                </CardDescription>
               </CardHeader>
 
-              <CardContent className="space-y-2">
+              <CardContent className="space-y-3">
                 {scope !== "entity" ? (
-                  <div className="flex gap-2 border-b pb-3">
+                  <div className="flex gap-2 border-b border-border pb-3">
                     <Input
                       value={draft}
                       onChange={(event) => setDraft(event.target.value)}
                       placeholder={
                         scope === "company"
-                          ? "e.g. We don't deliver to Tasmania — customers there arrange their own freight"
-                          : "e.g. I prefer short answers with the number first"
+                          ? "e.g. We don't deliver to Tasmania on Mondays — customers arrange 3PL freight."
+                          : "e.g. I prefer daily revenue summaries formatted with dollar amounts first."
                       }
                       className="h-8 text-xs"
                       onKeyDown={(event) => {
@@ -131,6 +141,7 @@ export default function MemoryPage() {
                     <Button
                       size="sm"
                       disabled={!draft.trim() || saving === "new"}
+                      className="shrink-0 h-8 text-xs"
                       onClick={async () => {
                         setSaving("new")
 
@@ -153,78 +164,86 @@ export default function MemoryPage() {
                           setDraft("")
                           await load()
                           toast({
-                            title: "Memory learned",
-                            description: "Agent knowledge updated successfully.",
+                            title: "Memory recorded",
+                            description: "Operational knowledge updated successfully.",
                           })
                         } finally {
                           setSaving(null)
                         }
                       }}
                     >
-                      <Plus className="mr-1 h-3 w-3" />
-                      Teach it
+                      <Plus className="mr-1.5 h-3.5 w-3.5" />
+                      Teach
                     </Button>
                   </div>
                 ) : null}
 
-                {!inScope.length ? (
-                  <p className="py-8 text-center text-sm text-muted-foreground">
-                    {loading
-                      ? "Loading…"
-                      : scope === "entity"
-                        ? "Nothing learned about specific accounts yet. The agent adds these as it works."
-                        : "Nothing yet. Teach it something above, or it will pick things up as you work."}
+                {loading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : !inScope.length ? (
+                  <p className="py-10 text-center text-xs text-muted-foreground">
+                    {scope === "entity"
+                      ? "No account-specific facts recorded yet. The agent logs nuances as you process customer orders."
+                      : "No memories in this scope yet. Teach a fact above or continue chatting with the assistant."}
                   </p>
                 ) : (
-                  inScope.map((memory) => (
-                    <div
-                      key={memory.id}
-                      className="flex items-start justify-between gap-3 rounded-lg border p-3"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-sm">{memory.content}</p>
-                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                          <Badge variant="outline" className="text-[10px]">
-                            {memory.category}
-                          </Badge>
-                          {memory.entityName ? (
-                            <Badge variant="secondary" className="text-[10px]">
-                              {memory.entityName}
-                            </Badge>
-                          ) : null}
-                          {memory.source === "user" ? (
-                            <Badge variant="outline" className="text-[10px]">
-                              taught
-                            </Badge>
-                          ) : null}
-                          <span className="text-[10px] text-muted-foreground">
-                            importance {memory.importance}
-                            {memory.useCount ? ` · used ${memory.useCount}×` : " · never used"}
-                          </span>
-                        </div>
-                      </div>
-
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 shrink-0 px-2"
-                        disabled={saving === memory.id}
-                        onClick={async () => {
-                          if (!window.confirm(`Forget this?\n\n"${memory.content}"`)) return
-                          setSaving(memory.id)
-
-                          try {
-                            await fetch(`/api/agent/memory?id=${memory.id}`, { method: "DELETE" })
-                            await load()
-                          } finally {
-                            setSaving(null)
-                          }
-                        }}
+                  <div className="space-y-2">
+                    {inScope.map((memory) => (
+                      <div
+                        key={memory.id}
+                        className="flex items-start justify-between gap-3 rounded-lg border border-border bg-card p-3 hover:bg-muted/20 transition-colors"
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  ))
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <p className="text-xs font-medium text-foreground leading-relaxed">{memory.content}</p>
+                          <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
+                            <Badge variant="outline" className="text-[10px]">
+                              {memory.category}
+                            </Badge>
+                            {memory.entityName ? (
+                              <Badge variant="secondary" className="text-[10px]">
+                                {memory.entityName}
+                              </Badge>
+                            ) : null}
+                            {memory.source === "user" ? (
+                              <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/20">
+                                operator taught
+                              </Badge>
+                            ) : null}
+                            <span>
+                              importance {memory.importance}
+                              {memory.useCount ? ` · referenced ${memory.useCount}×` : " · never referenced"}
+                            </span>
+                          </div>
+                        </div>
+
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
+                          disabled={saving === memory.id}
+                          onClick={async () => {
+                            if (!window.confirm(`Forget this fact?\n\n"${memory.content}"`)) return
+                            setSaving(memory.id)
+
+                            try {
+                              await fetch(`/api/agent/memory?id=${memory.id}`, { method: "DELETE" })
+                              await load()
+                              toast({
+                                title: "Memory deleted",
+                                description: "Fact permanently removed from agent context.",
+                              })
+                            } finally {
+                              setSaving(null)
+                            }
+                          }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -234,3 +253,4 @@ export default function MemoryPage() {
     </AppShell>
   )
 }
+
