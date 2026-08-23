@@ -97,15 +97,16 @@ export function buildDocumentTools(principal: AgentPrincipal, channel?: string) 
             orderBy: { name: "asc" },
             take: 50,
           })
-          const headers = ["Supplier Name", "Code", "Contact Person", "Phone", "Email", "Payment Terms", "Lead Time"]
+          const headers = ["Supplier Name", "ABN", "Contact Person", "Phone", "Email", "Payment Terms"]
           const rows = suppliers.map((s) => [
             s.name,
-            s.code || "N/A",
-            s.contactName || "N/A",
+            // Supplier has no code; the ABN is the identifier it carries.
+            s.abn || "N/A",
+            s.contactPerson || "N/A",
             s.phone || "N/A",
             s.email || "N/A",
-            `${s.paymentTermsDays || 30} days`,
-            `${s.leadTimeDays || 3} days`,
+            // Lead time is per product-supplier link, not per supplier.
+            `${s.paymentTerms || 30} days`,
           ])
           pdfResult = await renderCustomReportPdfBuffer({
             title: "Wholesale Supplier Directory",
@@ -122,17 +123,19 @@ export function buildDocumentTools(principal: AgentPrincipal, channel?: string) 
           const inventory = await db.inventory.findMany({
             take: 50,
             orderBy: { product: { name: "asc" } },
-            include: { product: true },
+            // `category` is a relation, not a column.
+            include: { product: { include: { category: true } } },
           })
           const headers = ["SKU", "Product Name", "Category", "Quantity on Hand", "Unit", "Cost Price", "Sell Price"]
           const rows = inventory.map((inv) => [
             inv.product.sku,
             inv.product.name,
-            inv.product.category || "General",
+            inv.product.category?.name || "General",
             inv.quantity,
-            inv.product.unit || "unit",
+            // The unit column is `baseUnit`; the sell price is `wholesalePrice`.
+            inv.product.baseUnit || "unit",
             `$${money(inv.product.costPrice || 0)}`,
-            `$${money(inv.product.basePrice)}`,
+            `$${money(inv.product.wholesalePrice)}`,
           ])
           const totalUnits = inventory.reduce((sum, i) => sum + i.quantity, 0)
           pdfResult = await renderCustomReportPdfBuffer({
@@ -151,14 +154,13 @@ export function buildDocumentTools(principal: AgentPrincipal, channel?: string) 
             take: 50,
             orderBy: { name: "asc" },
           })
-          const headers = ["Account Code", "Business Name", "Contact", "Phone", "Email", "Payment Terms", "Status"]
+          const headers = ["Business Name", "Contact", "Phone", "Email", "Payment Terms", "Status"]
           const rows = customers.map((c) => [
-            c.code || "N/A",
             c.name,
-            c.contactName || "N/A",
+            c.contactPerson || "N/A",
             c.phone || "N/A",
             c.email || "N/A",
-            `${c.paymentTermsDays || 30} days`,
+            `${c.paymentTerms || 30} days`,
             c.status,
           ])
           pdfResult = await renderCustomReportPdfBuffer({
@@ -200,20 +202,38 @@ export function buildDocumentTools(principal: AgentPrincipal, channel?: string) 
             fileName: "delivery_routes.pdf",
           })
         } else if (documentType === "batches") {
-          const batches = await db.batch.findMany({
+          const batches = await db.inventoryBatch.findMany({
             take: 50,
             orderBy: { expiryDate: "asc" },
-            include: { product: true, supplier: true },
           })
-          const headers = ["Batch Number", "Product Name", "SKU", "Current Qty", "Expiry Date", "Supplier", "Status"]
+
+          // InventoryBatch carries productId and supplierId but has no
+          // relation to either, so the names are resolved separately.
+          const [batchProducts, batchSuppliers] = await Promise.all([
+            db.product.findMany({
+              where: { id: { in: batches.map((b) => b.productId) } },
+              select: { id: true, name: true, sku: true },
+            }),
+            db.supplier.findMany({
+              where: { id: { in: batches.map((b) => b.supplierId).filter(Boolean) as string[] } },
+              select: { id: true, name: true },
+            }),
+          ])
+
+          const batchProductById = new Map(batchProducts.map((x) => [x.id, x]))
+          const batchSupplierById = new Map(batchSuppliers.map((x) => [x.id, x]))
+
+          const headers = ["Batch Code", "Product Name", "SKU", "On Hand", "Expiry Date", "Supplier", "Status"]
           const rows = batches.map((b) => [
-            b.batchNumber,
-            b.product?.name || "N/A",
-            b.product?.sku || "N/A",
-            b.currentQty,
+            // The column is batchCode, the quantity is `quantity`, and
+            // quarantine is a value of `status`, not a boolean.
+            b.batchCode,
+            batchProductById.get(b.productId)?.name || "N/A",
+            batchProductById.get(b.productId)?.sku || "N/A",
+            b.quantity,
             b.expiryDate ? b.expiryDate.toISOString().split("T")[0] : "N/A",
-            b.supplier?.name || "N/A",
-            b.isQuarantined ? "QUARANTINED" : "Active",
+            (b.supplierId && batchSupplierById.get(b.supplierId)?.name) || "N/A",
+            b.status === "quarantined" ? "QUARANTINED" : b.status,
           ])
           pdfResult = await renderCustomReportPdfBuffer({
             title: "HACCP Batch Traceability & Expiry Register",
