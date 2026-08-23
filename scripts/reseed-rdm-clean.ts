@@ -54,9 +54,30 @@ async function reseedRdm() {
   await db.warehouse.deleteMany()
   await db.approvalAction.deleteMany()
   await db.auditLog.deleteMany()
-  await db.channelIdentity.deleteMany()
   await db.agentThread.deleteMany()
-  await db.user.deleteMany()
+
+  /**
+   * Deliberately NOT deleted: users, channel identities and agent definitions.
+   *
+   * Truncating those cost a working system rather than demo data. Deleting
+   * every user removed the account people actually sign in with, so the app
+   * became unreachable. Deleting channel identities unlinked every Telegram
+   * account, which can only be restored by each person scanning a new QR.
+   * And deleting users while agent definitions survive leaves runAsUserId
+   * pointing at a row that no longer exists, so a scheduled agent fails at run
+   * time with "No staff user available to run as", long after anyone connects
+   * it to a reseed.
+   *
+   * A reseed is for demo data. Access and wiring are not demo data.
+   */
+  const seededUsers = await db.user.findMany({
+    where: { email: { endsWith: "@rdmpizza.com.au" } },
+    select: { id: true },
+  })
+
+  // Only the accounts this seed owns, so a real operator account added later
+  // survives being re-run.
+  await db.user.deleteMany({ where: { id: { in: seededUsers.map((u) => u.id) } } })
   await db.company.deleteMany()
 
   console.log("✅ Database cleared. Running seed-rdm.ts...")
@@ -75,7 +96,28 @@ async function reseedRdm() {
   console.log("✅ Running sync-hermes-skills.ts (82 Hermes Skills)...")
   execSync("npx tsx scripts/sync-hermes-skills.ts", { stdio: "inherit" })
 
+  /**
+   * Leave the system usable.
+   *
+   * A reseed that finishes with no agents, a dangling runAsUserId and no way
+   * to sign in has not reseeded the data — it has broken the install. These
+   * two are idempotent, so running them here costs nothing and means the
+   * failure cannot survive the script.
+   */
+  console.log("✅ Restoring agents and repairing references...")
+  execSync("npx tsx scripts/restore-agents.ts", { stdio: "inherit" })
+
+  console.log("✅ Restoring RDM entity setup (chart of accounts, tax rates, branding)...")
+  execSync("npx tsx scripts/setup-rdm.ts", { stdio: "inherit" })
+
+  const admin = await db.user.findFirst({
+    where: { role: "admin", status: "active" },
+    select: { email: true },
+  })
+
   console.log("🎉 100% RDM Pizza Group dataset successfully active!")
+  console.log(`   Sign in as: ${admin?.email ?? "NO ACTIVE ADMIN — the app is unreachable"}`)
+  console.log("   Telegram links are preserved; if any are missing, re-link from Settings → Agent.")
 }
 
 reseedRdm()
