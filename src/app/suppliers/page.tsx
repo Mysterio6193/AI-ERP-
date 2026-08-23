@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { 
-  Plus, Search, MoreHorizontal, Edit, Trash2, Building2, Phone, Mail,
-  MapPin, FileText, Package, Eye, DollarSign, Clock, AlertCircle
+  Plus, Search, MoreHorizontal, Edit, Building2, Phone, Mail,
+  MapPin, FileText, Package, Eye, DollarSign, CheckCircle2,
+  Users, CreditCard, ShieldCheck
 } from "lucide-react"
 import { AppShell } from "@/components/layout/app-shell"
 import { Button } from "@/components/ui/button"
@@ -12,6 +13,9 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
+import { PageHeader } from "@/components/ui/page-header"
+import { KpiCard } from "@/components/ui/kpi-card"
+import { EmptyState } from "@/components/ui/empty-state"
 import {
   Table,
   TableBody,
@@ -210,282 +214,296 @@ export default function SuppliersPage() {
     setIsDialogOpen(true)
   }
 
-  const getStatusColor = (status: string) => {
-    if (status === "active") return "bg-green-100 text-green-700"
-    if (status === "inactive") return "bg-gray-100 text-gray-700"
-    if (status === "blocked") return "bg-red-100 text-red-700"
-    return "bg-gray-100 text-gray-700"
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "active":
+        return <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 font-medium">Active</Badge>
+      case "inactive":
+        return <Badge variant="secondary" className="bg-muted text-muted-foreground font-medium">Inactive</Badge>
+      case "blocked":
+        return <Badge variant="destructive" className="font-medium">Blocked</Badge>
+      default:
+        return <Badge variant="outline">{status}</Badge>
+    }
   }
 
   const activeSuppliers = suppliers.filter(s => s.status === "active").length
+  const totalProductsSupplied = suppliers.reduce((acc, s) => acc + (s.products?.length || 0), 0)
+  const avgPaymentTerms = suppliers.length > 0
+    ? Math.round(suppliers.reduce((acc, s) => acc + s.paymentTerms, 0) / suppliers.length)
+    : 30
 
   return (
     <AppShell title="Suppliers" breadcrumbs={[{ label: "Suppliers" }]}>
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Suppliers</h1>
-            <p className="text-muted-foreground">Manage supplier relationships and purchase orders</p>
-          </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <Button onClick={() => { resetForm(); setIsDialogOpen(true) }} className="bg-emerald-600 hover:bg-emerald-700">
+        {/* Page Header */}
+        <PageHeader
+          title="Suppliers & Vendors"
+          description="Manage supplier directory, vendor agreements, payment terms, and procurement links."
+          actions={
+            <Button onClick={() => { resetForm(); setIsDialogOpen(true) }} className="shadow-sm">
               <Plus className="mr-2 h-4 w-4" />
               Add Supplier
             </Button>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>{selectedSupplier ? "Edit Supplier" : "Add New Supplier"}</DialogTitle>
-                <DialogDescription>
-                  {selectedSupplier ? "Update supplier details" : "Create a new supplier record"}
-                </DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleSubmit}>
-                <Tabs defaultValue="basic" className="w-full">
-                  <TabsList className="grid w-full grid-cols-3">
-                    <TabsTrigger value="basic">Business Info</TabsTrigger>
-                    <TabsTrigger value="contact">Contact</TabsTrigger>
-                    <TabsTrigger value="terms">Terms</TabsTrigger>
-                  </TabsList>
-                  
-                  <TabsContent value="basic" className="space-y-4 mt-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="name">Company Name *</Label>
-                        <Input
-                          id="name"
-                          value={formData.name}
-                          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                          placeholder="Coca-Cola Amatil"
-                          required
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="tradingName">Trading Name</Label>
-                        <Input
-                          id="tradingName"
-                          value={formData.tradingName}
-                          onChange={(e) => setFormData({ ...formData, tradingName: e.target.value })}
-                          placeholder="CCA"
-                        />
-                      </div>
-                    </div>
+          }
+        />
+
+        {/* Dialog for Add / Edit */}
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{selectedSupplier ? "Edit Supplier" : "Add New Supplier"}</DialogTitle>
+              <DialogDescription>
+                {selectedSupplier ? "Update supplier vendor details and trade credit settings" : "Create a new supplier record for purchasing and goods receiving"}
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleSubmit}>
+              <Tabs defaultValue="basic" className="w-full">
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="basic">Business Info</TabsTrigger>
+                  <TabsTrigger value="contact">Contact & Address</TabsTrigger>
+                  <TabsTrigger value="terms">Terms & Status</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="basic" className="space-y-4 mt-4">
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="abn">ABN (Australian Business Number)</Label>
+                      <Label htmlFor="name">Company Name *</Label>
                       <Input
-                        id="abn"
-                        value={formData.abn}
-                        onChange={(e) => setFormData({ ...formData, abn: e.target.value })}
-                        placeholder="51 824 753 419"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Enter ABN with or without spaces (e.g., 51 824 753 419 or 51824753419)
-                      </p>
-                    </div>
-                  </TabsContent>
-                  
-                  <TabsContent value="contact" className="space-y-4 mt-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="contactPerson">Contact Person</Label>
-                        <Input
-                          id="contactPerson"
-                          value={formData.contactPerson}
-                          onChange={(e) => setFormData({ ...formData, contactPerson: e.target.value })}
-                          placeholder="David Miller"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="phone">Phone</Label>
-                        <Input
-                          id="phone"
-                          value={formData.phone}
-                          onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                          placeholder="02 9876 5432"
-                        />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="email">Email</Label>
-                        <Input
-                          id="email"
-                          type="email"
-                          value={formData.email}
-                          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                          placeholder="orders@supplier.com.au"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="website">Website</Label>
-                        <Input
-                          id="website"
-                          value={formData.website}
-                          onChange={(e) => setFormData({ ...formData, website: e.target.value })}
-                          placeholder="www.supplier.com.au"
-                        />
-                      </div>
-                    </div>
-                    <Separator />
-                    <div className="space-y-2">
-                      <Label>Address</Label>
-                      <Input
-                        value={formData.address}
-                        onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                        placeholder="Street address"
+                        id="name"
+                        value={formData.name}
+                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        placeholder="Coca-Cola Amatil"
+                        required
                       />
                     </div>
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="space-y-2">
-                        <Label>City</Label>
-                        <Input
-                          value={formData.city}
-                          onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                          placeholder="Sydney"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>State</Label>
-                        <Select value={formData.state} onValueChange={(value) => setFormData({ ...formData, state: value as AustralianState })}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {AUSTRALIAN_STATES.map((state) => (
-                              <SelectItem key={state} value={state}>{state}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Postcode</Label>
-                        <Input
-                          value={formData.postcode}
-                          onChange={(e) => setFormData({ ...formData, postcode: e.target.value })}
-                          placeholder="2000"
-                        />
-                      </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="tradingName">Trading Name</Label>
+                      <Input
+                        id="tradingName"
+                        value={formData.tradingName}
+                        onChange={(e) => setFormData({ ...formData, tradingName: e.target.value })}
+                        placeholder="CCA Beverages"
+                      />
                     </div>
-                  </TabsContent>
-                  
-                  <TabsContent value="terms" className="space-y-4 mt-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Payment Terms</Label>
-                        <Select value={formData.paymentTerms} onValueChange={(value) => setFormData({ ...formData, paymentTerms: value })}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {PAYMENT_TERMS_OPTIONS.map((term) => (
-                              <SelectItem key={term.value} value={term.value.toString()}>
-                                {term.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Credit Limit</Label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-2.5 text-muted-foreground">$</span>
-                          <Input
-                            type="number"
-                            value={formData.creditLimit}
-                            onChange={(e) => setFormData({ ...formData, creditLimit: e.target.value })}
-                            placeholder="0"
-                            className="pl-8"
-                          />
-                        </div>
-                      </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="abn">ABN (Australian Business Number)</Label>
+                    <Input
+                      id="abn"
+                      value={formData.abn}
+                      onChange={(e) => setFormData({ ...formData, abn: e.target.value })}
+                      placeholder="51 824 753 419"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Enter 11-digit ABN with or without spaces (e.g. 51 824 753 419)
+                    </p>
+                  </div>
+                </TabsContent>
+                
+                <TabsContent value="contact" className="space-y-4 mt-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="contactPerson">Contact Person</Label>
+                      <Input
+                        id="contactPerson"
+                        value={formData.contactPerson}
+                        onChange={(e) => setFormData({ ...formData, contactPerson: e.target.value })}
+                        placeholder="David Miller"
+                      />
                     </div>
                     <div className="space-y-2">
-                      <Label>Status</Label>
-                      <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
-                        <SelectTrigger className="w-40">
+                      <Label htmlFor="phone">Phone</Label>
+                      <Input
+                        id="phone"
+                        value={formData.phone}
+                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                        placeholder="02 9876 5432"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="email">Email</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        value={formData.email}
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        placeholder="orders@supplier.com.au"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="website">Website</Label>
+                      <Input
+                        id="website"
+                        value={formData.website}
+                        onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+                        placeholder="www.supplier.com.au"
+                      />
+                    </div>
+                  </div>
+                  <Separator />
+                  <div className="space-y-2">
+                    <Label>Street Address</Label>
+                    <Input
+                      value={formData.address}
+                      onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                      placeholder="123 Logistics Way"
+                    />
+                  </div>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label>City / Suburb</Label>
+                      <Input
+                        value={formData.city}
+                        onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                        placeholder="Sydney"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>State</Label>
+                      <Select value={formData.state} onValueChange={(value) => setFormData({ ...formData, state: value as AustralianState })}>
+                        <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="active">Active</SelectItem>
-                          <SelectItem value="inactive">Inactive</SelectItem>
-                          <SelectItem value="blocked">Blocked</SelectItem>
+                          {AUSTRALIAN_STATES.map((state) => (
+                            <SelectItem key={state} value={state}>{state}</SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
-                  </TabsContent>
-                </Tabs>
+                    <div className="space-y-2">
+                      <Label>Postcode</Label>
+                      <Input
+                        value={formData.postcode}
+                        onChange={(e) => setFormData({ ...formData, postcode: e.target.value })}
+                        placeholder="2000"
+                      />
+                    </div>
+                  </div>
+                </TabsContent>
                 
-                <DialogFooter className="mt-6">
-                  <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700">
-                    {selectedSupplier ? "Update" : "Create"} Supplier
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
+                <TabsContent value="terms" className="space-y-4 mt-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Payment Terms</Label>
+                      <Select value={formData.paymentTerms} onValueChange={(value) => setFormData({ ...formData, paymentTerms: value })}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PAYMENT_TERMS_OPTIONS.map((term) => (
+                            <SelectItem key={term.value} value={term.value.toString()}>
+                              {term.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Credit Limit</Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-2.5 text-muted-foreground text-sm">$</span>
+                        <Input
+                          type="number"
+                          value={formData.creditLimit}
+                          onChange={(e) => setFormData({ ...formData, creditLimit: e.target.value })}
+                          placeholder="0"
+                          className="pl-7"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Status</Label>
+                    <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
+                      <SelectTrigger className="w-48">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="inactive">Inactive</SelectItem>
+                        <SelectItem value="blocked">Blocked</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </TabsContent>
+              </Tabs>
+              
+              <DialogFooter className="mt-6">
+                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit">
+                  {selectedSupplier ? "Update Supplier" : "Create Supplier"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* KPI Summary Cards */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <KpiCard
+            title="Total Suppliers"
+            value={suppliers.length}
+            description="Registered procurement vendors"
+            icon={Building2}
+          />
+          <KpiCard
+            title="Active Vendors"
+            value={activeSuppliers}
+            description={`${Math.round((activeSuppliers / (suppliers.length || 1)) * 100)}% active trading rate`}
+            icon={CheckCircle2}
+          />
+          <KpiCard
+            title="Supplied SKUs"
+            value={totalProductsSupplied}
+            description="Catalog products mapped to suppliers"
+            icon={Package}
+          />
+          <KpiCard
+            title="Avg Payment Terms"
+            value={`Net ${avgPaymentTerms}`}
+            description="Standard supplier credit days"
+            icon={CreditCard}
+          />
         </div>
 
-        {/* Stats */}
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Total Suppliers</CardDescription>
-              <CardTitle className="text-2xl">{suppliers.length}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Active Suppliers</CardDescription>
-              <CardTitle className="text-2xl">{activeSuppliers}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Pending POs</CardDescription>
-              <CardTitle className="text-2xl">12</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Outstanding Payables</CardDescription>
-              <CardTitle className="text-2xl text-orange-600">$85.2K</CardTitle>
-            </CardHeader>
-          </Card>
-        </div>
-
-        {/* Filters */}
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center">
-              <div className="relative flex-1">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+        {/* Filters and Search */}
+        <Card className="shadow-sm">
+          <CardContent className="p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search suppliers..."
+                  placeholder="Search by name, trading name, ABN, email..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="pl-8"
+                  className="pl-9"
                 />
               </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
-                  <SelectItem value="blocked">Blocked</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-2">
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-[160px]">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Statuses</SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                    <SelectItem value="blocked">Blocked</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </CardContent>
         </Card>
 
         {/* Suppliers Table */}
-        <Card>
+        <Card className="shadow-sm">
           <CardContent className="p-0">
             <Table>
               <TableHeader>
@@ -502,31 +520,44 @@ export default function SuppliersPage() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
                       Loading suppliers...
                     </TableCell>
                   </TableRow>
                 ) : filteredSuppliers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                      No suppliers found
+                    <TableCell colSpan={7} className="p-6">
+                      <EmptyState
+                        icon={Building2}
+                        title="No suppliers found"
+                        description={search ? "No suppliers match your search criteria. Try a different search query." : "Get started by adding your first supplier record."}
+                        action={
+                          !search ? (
+                            <Button onClick={() => { resetForm(); setIsDialogOpen(true) }} size="sm">
+                              <Plus className="mr-2 h-4 w-4" /> Add Supplier
+                            </Button>
+                          ) : undefined
+                        }
+                      />
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredSuppliers.map((supplier) => (
-                    <TableRow key={supplier.id} className="group">
+                    <TableRow key={supplier.id} className="group hover:bg-muted/40 transition-colors">
                       <TableCell>
                         <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-medium">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary font-semibold text-xs border border-primary/20">
                             {supplier.name.substring(0, 2).toUpperCase()}
                           </div>
                           <div>
-                            <div className="font-medium">{supplier.name}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {supplier.tradingName && `Trading as: ${supplier.tradingName}`}
-                            </div>
+                            <div className="font-semibold text-foreground">{supplier.name}</div>
+                            {supplier.tradingName && (
+                              <div className="text-xs text-muted-foreground">
+                                Trading as: {supplier.tradingName}
+                              </div>
+                            )}
                             {supplier.abn && (
-                              <div className="text-xs text-muted-foreground font-mono">
+                              <div className="text-[11px] text-muted-foreground font-mono">
                                 ABN: {formatABN(supplier.abn)}
                               </div>
                             )}
@@ -534,16 +565,21 @@ export default function SuppliersPage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="flex flex-col gap-0.5">
-                          <div className="flex items-center gap-1.5 text-sm">
-                            <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-                            {supplier.phone || "-"}
-                          </div>
+                        <div className="flex flex-col gap-1">
+                          {supplier.phone && (
+                            <div className="flex items-center gap-1.5 text-xs text-foreground">
+                              <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                              {supplier.phone}
+                            </div>
+                          )}
                           {supplier.email && (
                             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                              <Mail className="h-3 w-3" />
+                              <Mail className="h-3.5 w-3.5" />
                               {supplier.email}
                             </div>
+                          )}
+                          {!supplier.phone && !supplier.email && (
+                            <span className="text-xs text-muted-foreground">—</span>
                           )}
                         </div>
                       </TableCell>
@@ -551,31 +587,29 @@ export default function SuppliersPage() {
                         <div className="text-sm">
                           {supplier.city && supplier.state ? (
                             <>
-                              <p>{supplier.city}</p>
-                              <p className="text-xs text-muted-foreground">{STATE_NAMES[supplier.state as AustralianState] || supplier.state}</p>
+                              <p className="font-medium text-xs">{supplier.city}</p>
+                              <p className="text-[11px] text-muted-foreground">{STATE_NAMES[supplier.state as AustralianState] || supplier.state}</p>
                             </>
                           ) : (
-                            "-"
+                            <span className="text-muted-foreground text-xs">—</span>
                           )}
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline">
+                        <Badge variant="outline" className="font-medium text-xs">
                           Net {supplier.paymentTerms}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-center">
-                        <span className="font-medium">{supplier.products?.length || 0}</span>
+                      <TableCell className="text-center font-medium">
+                        {supplier.products?.length || 0}
                       </TableCell>
                       <TableCell className="text-center">
-                        <Badge className={getStatusColor(supplier.status)}>
-                          {supplier.status}
-                        </Badge>
+                        {getStatusBadge(supplier.status)}
                       </TableCell>
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100">
+                            <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity">
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
@@ -599,10 +633,6 @@ export default function SuppliersPage() {
                                 Create Purchase Order
                               </DropdownMenuItem>
                             </Link>
-                            <DropdownMenuItem>
-                              <Package className="mr-2 h-4 w-4" />
-                              View Products
-                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -620,62 +650,71 @@ export default function SuppliersPage() {
             {selectedSupplier && (
               <>
                 <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2">
-                    {selectedSupplier.name}
-                    <Badge className={getStatusColor(selectedSupplier.status)}>
-                      {selectedSupplier.status}
-                    </Badge>
-                  </DialogTitle>
+                  <div className="flex items-center justify-between pr-4">
+                    <DialogTitle className="flex items-center gap-2.5 text-lg">
+                      <Building2 className="h-5 w-5 text-primary" />
+                      {selectedSupplier.name}
+                    </DialogTitle>
+                    {getStatusBadge(selectedSupplier.status)}
+                  </div>
                   <DialogDescription>
-                    {selectedSupplier.tradingName && `Trading as: ${selectedSupplier.tradingName}`}
+                    {selectedSupplier.tradingName ? `Trading as: ${selectedSupplier.tradingName}` : "Supplier Overview & Account Terms"}
                   </DialogDescription>
                 </DialogHeader>
                 
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-4 py-2">
+                  <div className="grid grid-cols-2 gap-4 rounded-xl border bg-muted/30 p-4 text-sm">
                     <div>
-                      <Label className="text-muted-foreground text-xs">ABN</Label>
-                      <p className="font-medium font-mono">
-                        {selectedSupplier.abn ? formatABN(selectedSupplier.abn) : "-"}
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">ABN</p>
+                      <p className="font-mono font-medium text-foreground mt-0.5">
+                        {selectedSupplier.abn ? formatABN(selectedSupplier.abn) : "—"}
                       </p>
                     </div>
                     <div>
-                      <Label className="text-muted-foreground text-xs">Payment Terms</Label>
-                      <p className="font-medium">Net {selectedSupplier.paymentTerms}</p>
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Payment Terms</p>
+                      <p className="font-medium text-foreground mt-0.5">Net {selectedSupplier.paymentTerms} Days</p>
                     </div>
                     <div>
-                      <Label className="text-muted-foreground text-xs">Contact Person</Label>
-                      <p className="font-medium">{selectedSupplier.contactPerson || "-"}</p>
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Contact Person</p>
+                      <p className="font-medium text-foreground mt-0.5">{selectedSupplier.contactPerson || "—"}</p>
                     </div>
                     <div>
-                      <Label className="text-muted-foreground text-xs">Phone</Label>
-                      <p className="font-medium">{selectedSupplier.phone || "-"}</p>
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Phone</p>
+                      <p className="font-medium text-foreground mt-0.5">{selectedSupplier.phone || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Email</p>
+                      <p className="font-medium text-foreground mt-0.5">{selectedSupplier.email || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Credit Limit</p>
+                      <p className="font-medium text-foreground mt-0.5">{formatCurrency(selectedSupplier.creditLimit || 0)}</p>
                     </div>
                     <div className="col-span-2">
-                      <Label className="text-muted-foreground text-xs">Email</Label>
-                      <p className="font-medium">{selectedSupplier.email || "-"}</p>
-                    </div>
-                    <div className="col-span-2">
-                      <Label className="text-muted-foreground text-xs">Address</Label>
-                      <p className="font-medium">
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Address</p>
+                      <p className="font-medium text-foreground mt-0.5">
                         {[selectedSupplier.address, selectedSupplier.city, selectedSupplier.state, selectedSupplier.postcode]
                           .filter(Boolean)
-                          .join(", ") || "-"}
+                          .join(", ") || "—"}
                       </p>
                     </div>
                   </div>
                 </div>
                 
-                <DialogFooter>
+                <DialogFooter className="gap-2 sm:justify-between">
                   <Button variant="outline" onClick={() => setIsDetailOpen(false)}>
                     Close
                   </Button>
-                  <Link href={`/purchase-orders?supplier=${selectedSupplier.id}`}>
-                    <Button className="bg-emerald-600 hover:bg-emerald-700">
-                      <FileText className="h-4 w-4 mr-2" />
-                      Create Purchase Order
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => { setIsDetailOpen(false); openEditDialog(selectedSupplier); }}>
+                      <Edit className="h-4 w-4 mr-1.5" /> Edit
                     </Button>
-                  </Link>
+                    <Link href={`/purchase-orders?supplier=${selectedSupplier.id}`}>
+                      <Button>
+                        <FileText className="h-4 w-4 mr-1.5" /> Create Purchase Order
+                      </Button>
+                    </Link>
+                  </div>
                 </DialogFooter>
               </>
             )}

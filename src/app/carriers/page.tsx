@@ -1,15 +1,18 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { Bot, Loader2, MapPin, Pencil, Plus, RefreshCw, Send, Trash2, Truck } from "lucide-react"
+import { Bot, Loader2, MapPin, Pencil, Plus, RefreshCw, Send, Trash2, Truck, CheckCircle, Search, HelpCircle, ArrowRight } from "lucide-react"
 
 import { AppShell } from "@/components/layout/app-shell"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { PageHeader } from "@/components/ui/page-header"
+import { EmptyState } from "@/components/ui/empty-state"
 import { useToast } from "@/hooks/use-toast"
 
 interface Zone {
@@ -196,171 +199,196 @@ export default function CarriersPage() {
   )
 
   return (
-    <AppShell title="Carriers">
+    <AppShell title="Carriers & 3PL Freight" breadcrumbs={[{ label: "Logistics" }, { label: "Carriers" }]}>
       <div className="space-y-6">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Carriers</h1>
-            <p className="text-sm text-muted-foreground">
-              Who delivers where, and the booking form each one wants.
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
-              {loading ? (
-                <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <RefreshCw className="mr-2 h-3.5 w-3.5" />
-              )}
-              Refresh
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => {
-                setEditing({ ...EMPTY_CARRIER })
-                setEditingFields([])
-                setTab("carriers")
-              }}
-            >
-              <Plus className="mr-2 h-3.5 w-3.5" />
-              Add carrier
-            </Button>
-          </div>
-        </div>
+        <PageHeader
+          title="Carriers & 3PL Logistics"
+          description="Manage freight providers, zone rating matrices, automated booking templates, and route resolvers."
+          actions={
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
+                {loading ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                )}
+                Refresh
+              </Button>
+              <Button
+                size="sm"
+                className="shadow-sm"
+                onClick={() => {
+                  setEditing({ ...EMPTY_CARRIER })
+                  setEditingFields([])
+                  setTab("carriers")
+                }}
+              >
+                <Plus className="mr-1.5 h-3.5 w-3.5" />
+                Add Carrier
+              </Button>
+            </div>
+          }
+        />
 
-        <Tabs value={tab} onValueChange={setTab}>
-          <TabsList>
-            <TabsTrigger value="carriers">Carriers</TabsTrigger>
-            <TabsTrigger value="test">Test routing</TabsTrigger>
-            <TabsTrigger value="bookings">Bookings</TabsTrigger>
+        <Tabs value={tab} onValueChange={setTab} className="space-y-4">
+          <TabsList className="grid w-full grid-cols-3 sm:w-[400px]">
+            <TabsTrigger value="carriers">Carriers ({carriers.length})</TabsTrigger>
+            <TabsTrigger value="test">Test Routing</TabsTrigger>
+            <TabsTrigger value="bookings">Bookings ({bookings.length})</TabsTrigger>
           </TabsList>
 
           {/* ---------------- Carriers ---------------- */}
-          <TabsContent value="carriers" className="mt-4 space-y-3">
+          <TabsContent value="carriers" className="space-y-4">
             {editing ? (
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base">
-                    {editing.id ? `Edit ${editing.name}` : "New carrier"}
+              <Card className="border-primary/40 shadow-sm">
+                <CardHeader className="pb-3 border-b">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Truck className="h-4 w-4 text-primary" />
+                    {editing.id ? `Edit ${editing.name}` : "Create New Carrier"}
                   </CardTitle>
                   <CardDescription>
-                    How to reach them, and what their booking form asks for. Service areas are added
-                    after saving.
+                    Configure contact parameters and custom booking payload fields. Service areas and rates are managed after saving.
                   </CardDescription>
                 </CardHeader>
 
-                <CardContent className="space-y-4">
-                  <div className="grid gap-2 sm:grid-cols-3">
-                    <Input
-                      value={editing.name}
-                      onChange={(event) => setEditing({ ...editing, name: event.target.value })}
-                      placeholder="Carrier name *"
-                      className="h-8 text-xs"
-                    />
-                    <Input
-                      value={editing.tradingName}
-                      onChange={(event) => setEditing({ ...editing, tradingName: event.target.value })}
-                      placeholder="Trading name"
-                      className="h-8 text-xs"
-                    />
-                    <Input
-                      value={editing.abn}
-                      onChange={(event) => setEditing({ ...editing, abn: event.target.value })}
-                      placeholder="ABN"
-                      className="h-8 text-xs"
-                    />
+                <CardContent className="p-4 space-y-4">
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Carrier Legal Name *</Label>
+                      <Input
+                        value={editing.name}
+                        onChange={(event) => setEditing({ ...editing, name: event.target.value })}
+                        placeholder="e.g. Australia Post"
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Trading Name</Label>
+                      <Input
+                        value={editing.tradingName}
+                        onChange={(event) => setEditing({ ...editing, tradingName: event.target.value })}
+                        placeholder="e.g. AusPost eParcel"
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">ABN</Label>
+                      <Input
+                        value={editing.abn}
+                        onChange={(event) => setEditing({ ...editing, abn: event.target.value })}
+                        placeholder="XX XXX XXX XXX"
+                        className="h-8 text-xs font-mono"
+                      />
+                    </div>
                   </div>
 
-                  <div className="grid gap-2 sm:grid-cols-3">
-                    <Input
-                      value={editing.contactName}
-                      onChange={(event) => setEditing({ ...editing, contactName: event.target.value })}
-                      placeholder="Contact person"
-                      className="h-8 text-xs"
-                    />
-                    <Input
-                      value={editing.email}
-                      onChange={(event) => setEditing({ ...editing, email: event.target.value })}
-                      placeholder="General email"
-                      className="h-8 text-xs"
-                    />
-                    <Input
-                      value={editing.phone}
-                      onChange={(event) => setEditing({ ...editing, phone: event.target.value })}
-                      placeholder="Phone"
-                      className="h-8 text-xs"
-                    />
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Account Contact Person</Label>
+                      <Input
+                        value={editing.contactName}
+                        onChange={(event) => setEditing({ ...editing, contactName: event.target.value })}
+                        placeholder="Contact person"
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">General Support Email</Label>
+                      <Input
+                        value={editing.email}
+                        onChange={(event) => setEditing({ ...editing, email: event.target.value })}
+                        placeholder="support@carrier.com.au"
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Phone Number</Label>
+                      <Input
+                        value={editing.phone}
+                        onChange={(event) => setEditing({ ...editing, phone: event.target.value })}
+                        placeholder="1300 000 000"
+                        className="h-8 text-xs font-mono"
+                      />
+                    </div>
                   </div>
 
-                  <div className="grid gap-2 sm:grid-cols-[150px_1fr_120px_1fr]">
-                    <select
-                      value={editing.bookingMethod}
-                      onChange={(event) =>
-                        setEditing({ ...editing, bookingMethod: event.target.value })
-                      }
-                      className="h-8 rounded-md border bg-background px-2 text-xs"
-                    >
-                      <option value="email">Book by email</option>
-                      <option value="webform">Book on portal</option>
-                      <option value="api">Book by API</option>
-                    </select>
+                  <div className="grid gap-3 sm:grid-cols-[160px_1fr_120px_1fr]">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Booking Protocol</Label>
+                      <select
+                        value={editing.bookingMethod}
+                        onChange={(event) =>
+                          setEditing({ ...editing, bookingMethod: event.target.value })
+                        }
+                        className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
+                      >
+                        <option value="email">Book by email</option>
+                        <option value="webform">Book on portal</option>
+                        <option value="api">Book by API</option>
+                      </select>
+                    </div>
 
                     {editing.bookingMethod === "email" ? (
-                      <Input
-                        value={editing.bookingEmail}
-                        onChange={(event) =>
-                          setEditing({ ...editing, bookingEmail: event.target.value })
-                        }
-                        placeholder="Bookings email *"
-                        className="h-8 text-xs"
-                      />
+                      <div className="space-y-1">
+                        <Label className="text-xs">Dispatch Booking Email *</Label>
+                        <Input
+                          value={editing.bookingEmail}
+                          onChange={(event) =>
+                            setEditing({ ...editing, bookingEmail: event.target.value })
+                          }
+                          placeholder="bookings@carrier.com.au"
+                          className="h-8 text-xs"
+                        />
+                      </div>
                     ) : (
-                      <Input
-                        value={editing.portalUrl}
-                        onChange={(event) => setEditing({ ...editing, portalUrl: event.target.value })}
-                        placeholder="Portal URL"
-                        className="h-8 text-xs"
-                      />
+                      <div className="space-y-1">
+                        <Label className="text-xs">Dispatch Portal URL</Label>
+                        <Input
+                          value={editing.portalUrl}
+                          onChange={(event) => setEditing({ ...editing, portalUrl: event.target.value })}
+                          placeholder="https://carrier.com.au/portal"
+                          className="h-8 text-xs"
+                        />
+                      </div>
                     )}
 
-                    <Input
-                      value={editing.cutoffTime}
-                      onChange={(event) => setEditing({ ...editing, cutoffTime: event.target.value })}
-                      placeholder="Cutoff 14:00"
-                      className="h-8 text-xs"
-                    />
-                    <Input
-                      value={editing.accountNumber}
-                      onChange={(event) =>
-                        setEditing({ ...editing, accountNumber: event.target.value })
-                      }
-                      placeholder="Our account number"
-                      className="h-8 text-xs"
-                    />
+                    <div className="space-y-1">
+                      <Label className="text-xs">Daily Cutoff</Label>
+                      <Input
+                        value={editing.cutoffTime}
+                        onChange={(event) => setEditing({ ...editing, cutoffTime: event.target.value })}
+                        placeholder="14:00"
+                        className="h-8 text-xs font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Merchant Account #</Label>
+                      <Input
+                        value={editing.accountNumber}
+                        onChange={(event) =>
+                          setEditing({ ...editing, accountNumber: event.target.value })
+                        }
+                        placeholder="ACC-99482"
+                        className="h-8 text-xs font-mono"
+                      />
+                    </div>
                   </div>
 
-                  {editing.bookingMethod !== "email" ? (
-                    <p className="text-[11px] text-muted-foreground">
-                      Only email bookings dispatch automatically. The others still fill the form for
-                      someone to lodge.
-                    </p>
-                  ) : null}
-
                   {/* ---- Booking form fields ---- */}
-                  <div className="space-y-2 rounded-lg border p-3">
+                  <div className="space-y-2.5 rounded-xl border bg-muted/20 p-3.5">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
-                        <p className="text-xs font-medium">Their booking form</p>
+                        <p className="text-xs font-semibold text-foreground">Custom Booking Form Schema</p>
                         <p className="text-[11px] text-muted-foreground">
                           {editingFields.length
-                            ? "Each field is filled from the order automatically."
-                            : "Leave empty to use the standard form."}
+                            ? "Each field value will be extracted from the order automatically."
+                            : "Leave empty to use the standard SupplySure freight booking manifest."}
                         </p>
                       </div>
                       <Button
                         size="sm"
                         variant="outline"
-                        className="h-7 px-2 text-[11px]"
+                        className="h-7 px-2 text-xs"
                         onClick={() =>
                           setEditingFields([
                             ...editingFields,
@@ -369,7 +397,7 @@ export default function CarriersPage() {
                         }
                       >
                         <Plus className="mr-1 h-3 w-3" />
-                        Add field
+                        Add Field
                       </Button>
                     </div>
 
@@ -383,7 +411,7 @@ export default function CarriersPage() {
                             setEditingFields(next)
                           }}
                           placeholder="Label on their form"
-                          className="h-7 text-[11px]"
+                          className="h-7 text-xs bg-background"
                         />
                         <Input
                           value={field.key}
@@ -392,8 +420,8 @@ export default function CarriersPage() {
                             next[index] = { ...field, key: event.target.value }
                             setEditingFields(next)
                           }}
-                          placeholder="key"
-                          className="h-7 font-mono text-[11px]"
+                          placeholder="key_name"
+                          className="h-7 font-mono text-xs bg-background"
                         />
                         <select
                           value={field.source || ""}
@@ -402,7 +430,7 @@ export default function CarriersPage() {
                             next[index] = { ...field, source: event.target.value }
                             setEditingFields(next)
                           }}
-                          className="h-7 rounded-md border bg-background px-1.5 text-[11px]"
+                          className="h-7 rounded-md border border-input bg-background px-1.5 text-xs"
                         >
                           <option value="">— fixed value —</option>
                           {["Order", "Customer", "Delivery", "Pickup"].map((group) => (
@@ -417,7 +445,7 @@ export default function CarriersPage() {
                             </optgroup>
                           ))}
                         </select>
-                        <label className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                        <label className="flex items-center gap-1 text-xs text-muted-foreground">
                           <input
                             type="checkbox"
                             checked={Boolean(field.required)}
@@ -432,7 +460,7 @@ export default function CarriersPage() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="h-7 px-1.5 text-[11px]"
+                          className="h-7 px-1.5 text-xs text-destructive hover:bg-destructive/10"
                           onClick={() => setEditingFields(editingFields.filter((_, i) => i !== index))}
                         >
                           <Trash2 className="h-3 w-3" />
@@ -443,14 +471,15 @@ export default function CarriersPage() {
 
                   {/* ---- Message template ---- */}
                   {editing.bookingMethod === "email" ? (
-                    <div className="space-y-1.5">
+                    <div className="space-y-2">
+                      <Label className="text-xs font-semibold">Email Subject & Body Templates</Label>
                       <Input
                         value={editing.bodySubject}
                         onChange={(event) =>
                           setEditing({ ...editing, bodySubject: event.target.value })
                         }
                         placeholder="Subject template — Booking {{reference}} to {{deliverySuburb}}"
-                        className="h-8 font-mono text-[11px]"
+                        className="h-8 font-mono text-xs"
                       />
                       <Textarea
                         value={editing.bodyTemplate}
@@ -458,13 +487,13 @@ export default function CarriersPage() {
                           setEditing({ ...editing, bodyTemplate: event.target.value })
                         }
                         rows={4}
-                        placeholder="Body template. Use {{key}} for any field above. Leave blank to list every field as Label: value."
-                        className="font-mono text-[11px]"
+                        placeholder="Body template. Use {{key}} for any field above. Leave blank to list every field as Key: value."
+                        className="font-mono text-xs"
                       />
                     </div>
                   ) : null}
 
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 pt-2 border-t">
                     <Button
                       size="sm"
                       disabled={
@@ -476,8 +505,6 @@ export default function CarriersPage() {
                         const payload = {
                           action: editing.id ? "updateCarrier" : "createCarrier",
                           ...editing,
-                          // Only send fields when the user actually defined some,
-                          // otherwise the carrier keeps using the standard form.
                           formFields: editingFields.length ? editingFields : null,
                         }
 
@@ -488,11 +515,11 @@ export default function CarriersPage() {
                         }
                       }}
                     >
-                      {editing.id ? "Save changes" : "Create carrier"}
+                      {editing.id ? "Save Changes" : "Create Carrier"}
                     </Button>
                     <Button
                       size="sm"
-                      variant="ghost"
+                      variant="outline"
                       onClick={() => {
                         setEditing(null)
                         setEditingFields([])
@@ -506,49 +533,55 @@ export default function CarriersPage() {
             ) : null}
 
             {!carriers.length ? (
-              <Card>
-                <CardContent className="py-10 text-center text-sm text-muted-foreground">
-                  {loading ? "Loading…" : "No carriers yet."}
-                </CardContent>
-              </Card>
+              <EmptyState
+                icon={Truck}
+                title="No carriers configured"
+                description="Click 'Add Carrier' to set up Australia Post, StarTrack, Toll, or custom freight providers."
+              />
             ) : (
               carriers.map((carrier) => (
-                <Card key={carrier.id}>
-                  <CardHeader className="pb-3">
+                <Card key={carrier.id} className="shadow-sm border">
+                  <CardHeader className="pb-3 border-b">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
                         <CardTitle className="flex flex-wrap items-center gap-2 text-base">
-                          <Truck className="h-4 w-4 shrink-0" />
+                          <Truck className="h-4 w-4 text-primary shrink-0" />
                           {carrier.name}
-                          <Badge variant="outline" className="text-[10px]">
+                          <Badge variant="outline" className="text-[10px] font-mono">
                             {carrier.bookingMethod}
                           </Badge>
                           {!carrier.enabled ? (
-                            <Badge variant="secondary" className="text-[10px]">
+                            <Badge variant="secondary" className="text-[10px] text-destructive bg-destructive/10 border-destructive/20">
                               disabled
                             </Badge>
-                          ) : null}
+                          ) : (
+                            <Badge variant="secondary" className="text-[10px] text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20">
+                              active
+                            </Badge>
+                          )}
                         </CardTitle>
-                        <CardDescription>
+                        <CardDescription className="mt-1">
                           {carrier.bookingMethod === "email"
-                            ? carrier.bookingEmail || "No booking email set"
-                            : carrier.portalUrl || "Portal booking"}
-                          {carrier.cutoffTime ? ` · cutoff ${carrier.cutoffTime}` : ""}
-                          {carrier.accountNumber ? ` · acct ${carrier.accountNumber}` : ""}
-                          {` · ${carrier._count.bookings} bookings`}
+                            ? carrier.bookingEmail || "No booking email configured"
+                            : carrier.portalUrl || "Portal booking endpoint"}
+                          {carrier.cutoffTime ? ` · Cutoff: ${carrier.cutoffTime}` : ""}
+                          {carrier.accountNumber ? ` · Acct: ${carrier.accountNumber}` : ""}
+                          {` · ${carrier._count.bookings} bookings logged`}
                         </CardDescription>
                       </div>
-                      <div className="flex shrink-0 gap-1">
+                      <div className="flex shrink-0 items-center gap-1.5">
                         <Button
                           size="sm"
                           variant="outline"
+                          className="h-8 text-xs"
                           onClick={() => setExpanded(expanded === carrier.id ? null : carrier.id)}
                         >
-                          {expanded === carrier.id ? "Hide" : "Service areas"}
+                          {expanded === carrier.id ? "Hide Zones" : `Zones (${carrier.zones.length})`}
                         </Button>
                         <Button
                           size="sm"
-                          variant="ghost"
+                          variant="outline"
+                          className="h-8 w-8 p-0"
                           onClick={() => {
                             setEditing({
                               id: carrier.id,
@@ -566,9 +599,6 @@ export default function CarriersPage() {
                               bodySubject: carrier.bodySubject || "",
                               bodyTemplate: carrier.bodyTemplate || "",
                             })
-                            // Only preload fields the carrier actually defined,
-                            // so opening the editor cannot freeze the default
-                            // form into a custom one by accident.
                             setEditingFields(carrier.hasCustomForm ? carrier.formFields : [])
                             window.scrollTo({ top: 0, behavior: "smooth" })
                           }}
@@ -578,6 +608,7 @@ export default function CarriersPage() {
                         <Button
                           size="sm"
                           variant="ghost"
+                          className="h-8 text-xs"
                           disabled={acting === `toggle-${carrier.id}`}
                           onClick={() =>
                             void act(
@@ -592,42 +623,41 @@ export default function CarriersPage() {
                     </div>
                   </CardHeader>
 
-                  <CardContent className="space-y-3">
-                    <div className="flex flex-wrap gap-1.5">
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex flex-wrap gap-1.5 items-center">
+                      <span className="text-xs font-semibold text-muted-foreground mr-1">Service Areas:</span>
                       {carrier.zones.map((zone) => (
-                        <Badge key={zone.id} variant="secondary" className="gap-1 text-[10px]">
-                          <MapPin className="h-2.5 w-2.5" />
+                        <Badge key={zone.id} variant="secondary" className="gap-1 text-[11px] font-mono">
+                          <MapPin className="h-2.5 w-2.5 text-primary" />
                           {zone.matchValue}
-                          <span className="text-muted-foreground">p{zone.priority}</span>
+                          <span className="text-muted-foreground font-normal">p{zone.priority}</span>
                         </Badge>
                       ))}
                       {!carrier.zones.length ? (
-                        <span className="text-xs text-amber-600">
-                          No service areas — this carrier will never be matched.
+                        <span className="text-xs text-amber-600 dark:text-amber-400">
+                          No service areas configured — carrier cannot be automatically matched.
                         </span>
                       ) : null}
                     </div>
 
                     {expanded === carrier.id ? (
-                      <div className="space-y-3 rounded-lg border p-3">
+                      <div className="space-y-3 rounded-xl border bg-muted/20 p-3.5 mt-3">
                         <div className="space-y-1.5">
                           {carrier.zones.map((zone) => (
                             <div
                               key={zone.id}
-                              className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-2 text-xs"
+                              className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-background p-2.5 text-xs shadow-sm"
                             >
                               <div className="min-w-0">
-                                <span className="font-medium">{zone.name}</span>
+                                <span className="font-semibold text-foreground">{zone.name}</span>
                                 <span className="ml-2 text-muted-foreground">
-                                  {MATCH_LABEL[zone.matchType]} {zone.matchValue} · priority{" "}
-                                  {zone.priority} · {zone.leadTimeDays}d · {money(zone.baseRate)} +{" "}
-                                  {money(zone.perKgRate)}/kg
+                                  {MATCH_LABEL[zone.matchType]} <code className="font-mono text-foreground">{zone.matchValue}</code> · Priority {zone.priority} · {zone.leadTimeDays}d SLA · {money(zone.baseRate)} base + {money(zone.perKgRate)}/kg
                                 </span>
                               </div>
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                className="h-6 px-2 text-[10px]"
+                                className="h-6 px-2 text-[11px] text-destructive hover:bg-destructive/10"
                                 disabled={acting === `zone-${zone.id}`}
                                 onClick={() => void act({ action: "deleteZone", zoneId: zone.id }, `zone-${zone.id}`)}
                               >
@@ -643,7 +673,7 @@ export default function CarriersPage() {
                             onChange={(event) =>
                               setNewZone((current) => ({ ...current, matchType: event.target.value }))
                             }
-                            className="h-8 rounded-md border bg-background px-2 text-xs"
+                            className="h-8 rounded-md border border-input bg-background px-2 text-xs"
                           >
                             <option value="postcode">Postcode</option>
                             <option value="postcode_range">Postcode range</option>
@@ -658,26 +688,27 @@ export default function CarriersPage() {
                             placeholder={
                               newZone.matchType === "postcode_range" ? "2000-2249" : newZone.matchType === "state" ? "NSW" : "2042"
                             }
-                            className="h-8 text-xs"
+                            className="h-8 text-xs bg-background"
                           />
                           <Input
                             value={newZone.name}
                             onChange={(event) =>
                               setNewZone((current) => ({ ...current, name: event.target.value }))
                             }
-                            placeholder="Area name"
-                            className="h-8 text-xs"
+                            placeholder="Area name (e.g. Sydney Metro)"
+                            className="h-8 text-xs bg-background"
                           />
                           <Input
                             value={newZone.priority}
                             onChange={(event) =>
                               setNewZone((current) => ({ ...current, priority: event.target.value }))
                             }
-                            placeholder="Priority"
-                            className="h-8 text-xs"
+                            placeholder="Priority (1-100)"
+                            className="h-8 text-xs bg-background"
                           />
                           <Button
                             size="sm"
+                            className="h-8 text-xs"
                             disabled={!newZone.matchValue.trim() || acting === "new-zone"}
                             onClick={async () => {
                               await act(
@@ -694,17 +725,16 @@ export default function CarriersPage() {
                             }}
                           >
                             <Plus className="mr-1 h-3 w-3" />
-                            Add
+                            Add Zone
                           </Button>
                         </div>
                         <p className="text-[11px] text-muted-foreground">
-                          Lower priority wins, so a single postcode set to 10 overrides a whole-state
-                          rule at 90.
+                          Lower priority number takes precedence (e.g. specific postcode rule at priority 10 overrides a state-wide rule at 90).
                         </p>
 
                         <div className="border-t pt-3">
-                          <p className="mb-1.5 text-xs font-medium">
-                            Booking form ({carrier.formFields.length} fields)
+                          <p className="mb-1.5 text-xs font-semibold text-foreground">
+                            Manifest Fields ({carrier.formFields.length} configured)
                           </p>
                           <div className="flex flex-wrap gap-1">
                             {carrier.formFields.map((field) => (
@@ -724,36 +754,40 @@ export default function CarriersPage() {
           </TabsContent>
 
           {/* ---------------- Routing tester ---------------- */}
-          <TabsContent value="test" className="mt-4">
-            <Card>
+          <TabsContent value="test">
+            <Card className="shadow-sm">
               <CardHeader>
-                <CardTitle className="text-base">Who covers this address?</CardTitle>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Search className="h-4 w-4 text-primary" />
+                  Address & Postcode Route Resolver
+                </CardTitle>
                 <CardDescription>
-                  Runs the same resolver the agent uses when an order comes in. Creates nothing.
+                  Tests the real-time carrier matcher used during order dispatch and automated wave fulfillment.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="grid gap-2 sm:grid-cols-[1fr_1fr_100px_auto]">
+              <CardContent className="space-y-4">
+                <div className="grid gap-2.5 sm:grid-cols-[1fr_1fr_120px_auto]">
                   <Input
                     value={test.city}
                     onChange={(event) => setTest((current) => ({ ...current, city: event.target.value }))}
-                    placeholder="Suburb"
-                    className="h-8 text-xs"
+                    placeholder="Suburb / City (e.g. Parramatta)"
+                    className="h-9 text-xs"
                   />
                   <Input
                     value={test.state}
                     onChange={(event) => setTest((current) => ({ ...current, state: event.target.value }))}
-                    placeholder="State (NSW)"
-                    className="h-8 text-xs"
+                    placeholder="State (e.g. NSW)"
+                    className="h-9 text-xs"
                   />
                   <Input
                     value={test.postcode}
                     onChange={(event) => setTest((current) => ({ ...current, postcode: event.target.value }))}
-                    placeholder="Postcode"
-                    className="h-8 text-xs"
+                    placeholder="Postcode (2150)"
+                    className="h-9 text-xs font-mono"
                   />
                   <Button
                     size="sm"
+                    className="h-9"
                     disabled={acting === "test"}
                     onClick={async () => {
                       setActing("test")
@@ -767,24 +801,31 @@ export default function CarriersPage() {
                       }
                     }}
                   >
-                    Resolve
+                    {acting === "test" ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+                    Resolve Best Route
                   </Button>
                 </div>
 
                 {testResult === "none" ? (
-                  <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-xs">
-                    No carrier covers that address. Add a service area, or the booking will need
-                    routing by hand.
+                  <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 text-xs text-amber-800 dark:text-amber-300">
+                    No active carrier zone covers that address combination. Add a matching zone rule to a carrier above.
                   </div>
                 ) : testResult ? (
-                  <div className="rounded-md border p-3 text-xs">
-                    <p className="text-sm font-medium">{testResult.carrier}</p>
-                    <p className="mt-0.5 text-muted-foreground">
-                      {testResult.zone} · matched on {testResult.matchedOn} ·{" "}
-                      {testResult.leadTimeDays} day lead · {testResult.bookingMethod}
+                  <div className="rounded-xl border bg-muted/20 p-4 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-bold text-foreground flex items-center gap-1.5">
+                        <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                        {testResult.carrier}
+                      </p>
+                      <Badge variant="outline" className="text-xs font-mono">{testResult.bookingMethod}</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Matched Zone: <span className="font-semibold text-foreground">{testResult.zone}</span> · Match Rule: <span className="font-mono text-foreground">{testResult.matchedOn}</span> · SLA Lead Time: <span className="font-medium text-foreground">{testResult.leadTimeDays} business day(s)</span>
                     </p>
                     {testResult.estimatedPrice !== null ? (
-                      <p className="mt-1 font-medium">Est. {money(testResult.estimatedPrice)}</p>
+                      <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 pt-1">
+                        Estimated Base Rate: {money(testResult.estimatedPrice)}
+                      </p>
                     ) : null}
                   </div>
                 ) : null}
@@ -793,56 +834,64 @@ export default function CarriersPage() {
           </TabsContent>
 
           {/* ---------------- Bookings ---------------- */}
-          <TabsContent value="bookings" className="mt-4">
-            <Card>
+          <TabsContent value="bookings">
+            <Card className="shadow-sm">
               <CardHeader>
-                <CardTitle className="text-base">Freight bookings</CardTitle>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Truck className="h-4 w-4 text-primary" />
+                  Freight Booking History & Drafts
+                </CardTitle>
                 <CardDescription>
-                  Drafts contact nobody. Sending needs a human, because the carrier acts on it
-                  immediately.
+                  Review queued freight bookings, carrier manifests, and transmission receipts.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-2">
+              <CardContent className="space-y-3">
                 {!bookings.length ? (
-                  <p className="py-8 text-center text-sm text-muted-foreground">
-                    {loading ? "Loading…" : "No bookings yet."}
-                  </p>
+                  <EmptyState
+                    icon={Truck}
+                    title="No freight bookings recorded"
+                    description="Bookings will appear when orders are dispatched via 3PL freight carriers."
+                  />
                 ) : (
                   bookings.map((booking) => (
                     <div
                       key={booking.id}
-                      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3"
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-3.5 shadow-sm hover:border-primary/30 transition-all"
                     >
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-mono text-xs">{booking.bookingNumber}</span>
+                          <span className="font-mono text-xs font-semibold text-foreground">{booking.bookingNumber}</span>
                           <Badge
-                            variant={booking.status === "sent" ? "default" : "outline"}
-                            className="text-[10px]"
+                            variant="outline"
+                            className={
+                              booking.status === "sent"
+                                ? "border-emerald-500/30 text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 text-[10px]"
+                                : "text-[10px]"
+                            }
                           >
                             {booking.status}
                           </Badge>
                           {booking.createdByAgent ? (
-                            <Badge variant="outline" className="gap-1 text-[10px]">
+                            <Badge variant="outline" className="gap-1 text-[10px] bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20">
                               <Bot className="h-2.5 w-2.5" />
-                              agent
+                              AI Auto-Booked
                             </Badge>
                           ) : null}
                         </div>
-                        <p className="mt-0.5 text-xs text-muted-foreground">
-                          {booking.carrier.name}
-                          {booking.sentTo ? ` · sent to ${booking.sentTo}` : ""}
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Carrier: <span className="font-medium text-foreground">{booking.carrier.name}</span>
+                          {booking.sentTo ? ` · Sent to: ${booking.sentTo}` : ""}
                           {booking.sentAt ? ` · ${new Date(booking.sentAt).toLocaleString()}` : ""}
                         </p>
                       </div>
                       <div className="flex shrink-0 items-center gap-2">
                         {booking.quotedPrice !== null ? (
-                          <span className="text-sm font-medium">{money(booking.quotedPrice)}</span>
+                          <span className="text-sm font-bold text-foreground">{money(booking.quotedPrice)}</span>
                         ) : null}
                         {booking.status === "draft" ? (
-                          <Badge variant="outline" className="gap-1 text-[10px]">
+                          <Badge variant="outline" className="gap-1 text-[10px] bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20">
                             <Send className="h-2.5 w-2.5" />
-                            needs approval
+                            Pending Dispatch
                           </Badge>
                         ) : null}
                       </div>
@@ -857,3 +906,4 @@ export default function CarriersPage() {
     </AppShell>
   )
 }
+

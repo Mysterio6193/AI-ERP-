@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import {
     Package, CheckCircle, Clock, AlertTriangle, User, Search,
-    ClipboardCheck, ArrowRight, MapPin, Loader2, Truck
+    ClipboardCheck, ArrowRight, MapPin, Loader2, Truck, RefreshCw
 } from "lucide-react"
 import { AppShell } from "@/components/layout/app-shell"
 import { Button } from "@/components/ui/button"
@@ -11,6 +11,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { PageHeader } from "@/components/ui/page-header"
+import { KpiCard } from "@/components/ui/kpi-card"
+import { EmptyState } from "@/components/ui/empty-state"
 import {
     Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table"
@@ -37,17 +40,17 @@ interface PickList {
     progress: number
 }
 
-const statusConfig: Record<string, { label: string; color: string }> = {
-    pending: { label: "Pending", color: "bg-gray-100 text-gray-700" },
-    in_progress: { label: "In Progress", color: "bg-blue-100 text-blue-700" },
-    completed: { label: "Completed", color: "bg-green-100 text-green-700" },
-    cancelled: { label: "Cancelled", color: "bg-red-100 text-red-700" },
+const statusConfig: Record<string, { label: string; badgeClass: string }> = {
+    pending: { label: "Pending", badgeClass: "bg-muted text-muted-foreground border-border" },
+    in_progress: { label: "In Progress", badgeClass: "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20" },
+    completed: { label: "Completed", badgeClass: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20" },
+    cancelled: { label: "Cancelled", badgeClass: "bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/20" },
 }
 
-const priorityConfig: Record<string, { label: string; color: string }> = {
-    high: { label: "High", color: "bg-red-100 text-red-700" },
-    normal: { label: "Normal", color: "bg-blue-100 text-blue-700" },
-    low: { label: "Low", color: "bg-gray-100 text-gray-700" },
+const priorityConfig: Record<string, { label: string; badgeClass: string }> = {
+    high: { label: "High Priority", badgeClass: "bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/20" },
+    normal: { label: "Normal", badgeClass: "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20" },
+    low: { label: "Low", badgeClass: "bg-muted text-muted-foreground border-border" },
 }
 
 export default function WarehousePickingPage() {
@@ -195,47 +198,57 @@ export default function WarehousePickingPage() {
     }
 
     return (
-        <AppShell title="Warehouse Picking" breadcrumbs={[{ label: "Warehouse" }, { label: "Picking" }]}>
+        <AppShell title="Warehouse Picking" breadcrumbs={[{ label: "Warehouse", href: "/warehouse" }, { label: "Picking Queue" }]}>
             <div className="space-y-6">
-                <div>
-                    <h1 className="text-2xl font-bold tracking-tight">Pick Queue</h1>
-                    <p className="text-muted-foreground">Manage warehouse pick lists and order fulfillment</p>
-                </div>
+                <PageHeader
+                    title="Warehouse Picking Floor"
+                    description="Fulfill order batches, record bin picking, track wave progress, and dispatch shipments."
+                    actions={
+                        <Button variant="outline" size="sm" onClick={() => void fetchPickLists()} disabled={loading}>
+                            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                            Refresh
+                        </Button>
+                    }
+                />
 
                 {/* Stats */}
-                <div className="grid gap-4 md:grid-cols-4">
-                    {[
-                        { label: "Total Picks", value: stats.total, icon: ClipboardCheck, color: "text-blue-600 bg-blue-50" },
-                        { label: "Pending", value: stats.pending, icon: Clock, color: "text-orange-600 bg-orange-50" },
-                        { label: "In Progress", value: stats.inProgress, icon: Package, color: "text-indigo-600 bg-indigo-50" },
-                        { label: "Completed", value: stats.completed, icon: CheckCircle, color: "text-emerald-600 bg-emerald-50" },
-                    ].map(stat => (
-                        <Card key={stat.label}>
-                            <CardContent className="p-4">
-                                <div className="flex items-center gap-3">
-                                    <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${stat.color}`}>
-                                        <stat.icon className="h-5 w-5" />
-                                    </div>
-                                    <div>
-                                        <p className="text-sm text-muted-foreground">{stat.label}</p>
-                                        <p className="text-xl font-bold">{stat.value}</p>
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    ))}
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <KpiCard
+                        title="Total Picks"
+                        value={stats.total}
+                        description="All active pick batches"
+                        icon={ClipboardCheck}
+                    />
+                    <KpiCard
+                        title="Pending Queue"
+                        value={stats.pending}
+                        description="Awaiting picker assignment"
+                        icon={Clock}
+                    />
+                    <KpiCard
+                        title="In Progress"
+                        value={stats.inProgress}
+                        description="Currently on warehouse floor"
+                        icon={Package}
+                    />
+                    <KpiCard
+                        title="Completed"
+                        value={stats.completed}
+                        description="Ready for pack & dispatch"
+                        icon={CheckCircle}
+                    />
                 </div>
 
                 {/* Filters */}
-                <div className="flex gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                     <div className="relative flex-1 max-w-sm">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input placeholder="Search picks..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
+                        <Input placeholder="Search by pick #, order #, or customer..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 text-xs" />
                     </div>
                     <Select value={statusFilter} onValueChange={setStatusFilter}>
-                        <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="w-[180px] text-xs"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="all">All Status</SelectItem>
+                            <SelectItem value="all">All Statuses</SelectItem>
                             <SelectItem value="pending">Pending</SelectItem>
                             <SelectItem value="in_progress">In Progress</SelectItem>
                             <SelectItem value="completed">Completed</SelectItem>
@@ -243,43 +256,52 @@ export default function WarehousePickingPage() {
                     </Select>
                 </div>
 
-                <div className="grid gap-6 lg:grid-cols-2">
+                <div className="grid gap-6 lg:grid-cols-12">
                     {/* Pick List Cards */}
-                    <div className="space-y-4">
-                        <h3 className="text-lg font-semibold">Pick Lists</h3>
+                    <div className="space-y-3 lg:col-span-5">
+                        <h3 className="text-sm font-semibold tracking-tight text-foreground">Pick Lists ({filtered.length})</h3>
                         {loading ? (
-                            <Card>
-                                <CardContent className="p-8 text-center text-muted-foreground">
+                            <Card className="shadow-sm">
+                                <CardContent className="p-8 text-center text-sm text-muted-foreground flex flex-col items-center justify-center">
+                                    <Loader2 className="h-6 w-6 animate-spin mb-2 text-primary" />
                                     Loading pick lists...
                                 </CardContent>
                             </Card>
                         ) : filtered.map(pl => {
                             const progress = getPickProgress(pl)
+                            const isSelected = selectedPick?.id === pl.id
                             return (
-                                <Card key={pl.id}
-                                    className={`cursor-pointer transition-all hover:shadow-md ${selectedPick?.id === pl.id ? "ring-2 ring-emerald-500" : ""}`}
-                                    onClick={() => setSelectedPickId(pl.id)}>
-                                    <CardContent className="p-4">
-                                        <div className="flex items-center justify-between mb-3">
+                                <Card
+                                    key={pl.id}
+                                    className={`cursor-pointer transition-all border shadow-sm hover:shadow-md ${isSelected ? "border-primary ring-2 ring-primary/20 bg-primary/[0.02]" : "border-border hover:border-primary/40"}`}
+                                    onClick={() => setSelectedPickId(pl.id)}
+                                >
+                                    <CardContent className="p-4 space-y-3">
+                                        <div className="flex items-start justify-between gap-2">
                                             <div>
-                                                <p className="font-semibold">{pl.pickNumber}</p>
-                                                <p className="text-sm text-muted-foreground">{pl.orderNumber} • {pl.customerName}</p>
+                                                <p className="font-semibold text-sm text-foreground">{pl.pickNumber}</p>
+                                                <p className="text-xs text-muted-foreground mt-0.5">{pl.orderNumber} • <span className="text-foreground font-medium">{pl.customerName}</span></p>
                                             </div>
-                                            <div className="flex items-center gap-2">
-                                                <Badge className={priorityConfig[pl.priority]?.color}>
-                                                    {priorityConfig[pl.priority]?.label}
+                                            <div className="flex flex-wrap items-center gap-1.5 justify-end">
+                                                <Badge variant="outline" className={`text-[10px] ${priorityConfig[pl.priority]?.badgeClass || ""}`}>
+                                                    {priorityConfig[pl.priority]?.label || pl.priority}
                                                 </Badge>
-                                                <Badge className={statusConfig[pl.status]?.color}>
-                                                    {statusConfig[pl.status]?.label}
+                                                <Badge variant="outline" className={`text-[10px] ${statusConfig[pl.status]?.badgeClass || ""}`}>
+                                                    {statusConfig[pl.status]?.label || pl.status}
                                                 </Badge>
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-3">
-                                            <Progress value={progress} className="flex-1 h-2" />
-                                            <span className="text-sm font-medium text-muted-foreground w-12 text-right">{progress}%</span>
+
+                                        <div className="space-y-1">
+                                            <div className="flex items-center justify-between text-xs">
+                                                <span className="text-muted-foreground">Pick Progress</span>
+                                                <span className="font-semibold text-foreground">{progress}%</span>
+                                            </div>
+                                            <Progress value={progress} className="h-1.5" />
                                         </div>
-                                        <div className="flex items-center justify-between mt-2 text-sm text-muted-foreground">
-                                            <span>{pl.items.length} items</span>
+
+                                        <div className="flex items-center justify-between text-xs text-muted-foreground pt-1 border-t border-border/50">
+                                            <span>{pl.items.length} line items</span>
                                             <span className="flex items-center gap-1">
                                                 <User className="h-3 w-3" />
                                                 {pl.assignedTo || "Unassigned"}
@@ -290,16 +312,15 @@ export default function WarehousePickingPage() {
                             )
                         })}
                         {!loading && filtered.length === 0 && (
-                            <Card>
-                                <CardContent className="p-8 text-center text-muted-foreground">
-                                    <ClipboardCheck className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                                    <p className="font-medium">No pick lists found</p>
-                                </CardContent>
-                            </Card>
+                            <EmptyState
+                                icon={ClipboardCheck}
+                                title="No pick lists found"
+                                description="Try adjusting your search query or status filter."
+                            />
                         )}
                         {error && (
-                            <Card className="border-red-200">
-                                <CardContent className="p-4 text-sm text-red-600">
+                            <Card className="border-destructive/30 bg-destructive/5 shadow-sm">
+                                <CardContent className="p-4 text-xs text-destructive font-medium">
                                     {error}
                                 </CardContent>
                             </Card>
@@ -307,65 +328,74 @@ export default function WarehousePickingPage() {
                     </div>
 
                     {/* Pick Detail */}
-                    <div>
-                        <h3 className="text-lg font-semibold mb-4">Pick Details</h3>
+                    <div className="lg:col-span-7">
+                        <h3 className="text-sm font-semibold tracking-tight text-foreground mb-3">Pick Items & Fulfillment</h3>
                         {selectedPick ? (
-                            <Card>
-                                <CardHeader className="pb-3">
-                                    <div className="flex items-center justify-between">
+                            <Card className="shadow-sm">
+                                <CardHeader className="pb-3 border-b">
+                                    <div className="flex flex-wrap items-start justify-between gap-3">
                                         <div>
-                                            <CardTitle className="text-base">{selectedPick.pickNumber}</CardTitle>
-                                            <CardDescription>{selectedPick.orderNumber} • {selectedPick.customerName}</CardDescription>
+                                            <CardTitle className="text-base flex items-center gap-2">
+                                                <Package className="h-4 w-4 text-primary" />
+                                                {selectedPick.pickNumber}
+                                            </CardTitle>
+                                            <CardDescription className="mt-1">
+                                                Order: <span className="font-mono font-medium text-foreground">{selectedPick.orderNumber}</span> • Customer: <span className="font-medium text-foreground">{selectedPick.customerName}</span>
+                                            </CardDescription>
                                         </div>
-                                        <Badge className={statusConfig[selectedPick.status]?.color}>
-                                            {statusConfig[selectedPick.status]?.label}
+                                        <Badge variant="outline" className={`text-xs ${statusConfig[selectedPick.status]?.badgeClass || ""}`}>
+                                            {statusConfig[selectedPick.status]?.label || selectedPick.status}
                                         </Badge>
                                     </div>
                                 </CardHeader>
-                                <CardContent>
+                                <CardContent className="p-0">
                                     <Table>
                                         <TableHeader>
                                             <TableRow>
                                                 <TableHead>Product</TableHead>
-                                                <TableHead>Location</TableHead>
+                                                <TableHead>Bin Location</TableHead>
                                                 <TableHead className="text-center">Required</TableHead>
                                                 <TableHead className="text-center">Picked</TableHead>
-                                                <TableHead className="w-24"></TableHead>
+                                                <TableHead className="w-28 text-right pr-4">Action</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
                                             {selectedPick.items.map(item => (
-                                                <TableRow key={item.id}>
+                                                <TableRow key={item.id} className="hover:bg-muted/40">
                                                     <TableCell>
                                                         <div>
-                                                            <p className="font-medium text-sm">{item.productName}</p>
-                                                            <p className="text-xs text-muted-foreground">{item.sku}</p>
+                                                            <p className="font-medium text-xs text-foreground">{item.productName}</p>
+                                                            <p className="font-mono text-[11px] text-muted-foreground">{item.sku}</p>
                                                         </div>
                                                     </TableCell>
                                                     <TableCell>
-                                                        <div className="flex items-center gap-1 text-sm">
-                                                            <MapPin className="h-3 w-3" /> {item.location}
+                                                        <div className="flex items-center gap-1 text-xs text-muted-foreground font-mono">
+                                                            <MapPin className="h-3.5 w-3.5 text-primary" /> {item.location}
                                                         </div>
                                                     </TableCell>
-                                                    <TableCell className="text-center font-medium">{item.requiredQty}</TableCell>
-                                                    <TableCell className="text-center">
-                                                        <span className={item.pickedQty >= item.requiredQty ? "text-green-600 font-bold" : ""}>
+                                                    <TableCell className="text-center font-medium text-xs">{item.requiredQty}</TableCell>
+                                                    <TableCell className="text-center text-xs">
+                                                        <span className={item.pickedQty >= item.requiredQty ? "text-emerald-600 dark:text-emerald-400 font-bold" : "font-medium"}>
                                                             {item.pickedQty}
                                                         </span>
                                                     </TableCell>
-                                                    <TableCell>
+                                                    <TableCell className="text-right pr-4">
                                                         {item.status === "picked" ? (
-                                                            <Badge className="bg-green-100 text-green-700">
-                                                                <CheckCircle className="h-3 w-3 mr-1" /> Done
+                                                            <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 text-[11px]">
+                                                                <CheckCircle className="h-3 w-3 mr-1" /> Picked
                                                             </Badge>
                                                         ) : (
-                                                            <Button size="sm" variant="outline"
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="h-7 text-xs"
                                                                 disabled={savingItemId === item.id}
                                                                 onClick={(e) => {
                                                                     e.stopPropagation()
                                                                     pickItem(selectedPick.id, item.id, item.requiredQty - item.pickedQty)
-                                                                }}>
-                                                                {savingItemId === item.id ? "Saving..." : "Pick All"}
+                                                                }}
+                                                            >
+                                                                {savingItemId === item.id ? <Loader2 className="h-3 w-3 animate-spin" /> : "Pick All"}
                                                             </Button>
                                                         )}
                                                     </TableCell>
@@ -375,21 +405,21 @@ export default function WarehousePickingPage() {
                                     </Table>
 
                                     {/* Action & Logistics Dispatch Bar */}
-                                    <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+                                    <div className="m-4 rounded-xl border bg-muted/30 p-4 space-y-3">
                                         <div className="flex items-center justify-between">
                                             <div>
-                                                <p className="text-xs font-semibold uppercase tracking-wider text-slate-700">Logistics & Order Dispatch</p>
+                                                <p className="text-xs font-semibold uppercase tracking-wider text-foreground">Logistics & Order Dispatch</p>
                                                 <p className="text-xs text-muted-foreground">Assign to internal driver fleet or hand off to a 3PL freight carrier.</p>
                                             </div>
-                                            <Badge variant="outline" className="bg-white text-xs">
-                                                {selectedPick.items.every(i => i.pickedQty >= i.requiredQty) ? "100% Picked" : "In Progress"}
+                                            <Badge variant="outline" className="text-xs bg-background">
+                                                {selectedPick.items.every(i => i.pickedQty >= i.requiredQty) ? "✓ 100% Picked" : "In Progress"}
                                             </Badge>
                                         </div>
 
                                         <div className="flex flex-wrap gap-2 pt-1">
                                             <Button
                                                 size="sm"
-                                                className="bg-emerald-600 hover:bg-emerald-700"
+                                                className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
                                                 onClick={() => {
                                                     setDispatchPick(selectedPick)
                                                     setDispatchModalOpen(true)
@@ -402,12 +432,11 @@ export default function WarehousePickingPage() {
                                 </CardContent>
                             </Card>
                         ) : (
-                            <Card>
-                                <CardContent className="p-8 text-center text-muted-foreground">
-                                    <Package className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                                    <p>Select a pick list to view details</p>
-                                </CardContent>
-                            </Card>
+                            <EmptyState
+                                icon={Package}
+                                title="No pick list selected"
+                                description="Select a pick list from the left pane to view items and record picks."
+                            />
                         )}
                     </div>
                 </div>
@@ -434,29 +463,29 @@ export default function WarehousePickingPage() {
                                     <div className="grid grid-cols-2 gap-3">
                                         <button
                                             type="button"
-                                            className={`rounded-xl border p-3.5 text-left transition-all ${logisticsMode === "3pl" ? "border-emerald-600 bg-emerald-50/50 ring-2 ring-emerald-500/20" : "border-slate-200 bg-white hover:bg-slate-50"}`}
+                                            className={`rounded-xl border p-3.5 text-left transition-all ${logisticsMode === "3pl" ? "border-primary bg-primary/5 ring-2 ring-primary/20" : "border-border bg-card hover:bg-muted/40"}`}
                                             onClick={() => setLogisticsMode("3pl")}
                                         >
-                                            <p className="font-semibold text-sm text-slate-900">📦 3PL Carrier Freight</p>
-                                            <p className="text-xs text-slate-500 mt-1">AusPost, StarTrack, Toll, Direct Freight</p>
+                                            <p className="font-semibold text-sm text-foreground">📦 3PL Carrier Freight</p>
+                                            <p className="text-xs text-muted-foreground mt-1">AusPost, StarTrack, Toll, Direct Freight</p>
                                         </button>
                                         <button
                                             type="button"
-                                            className={`rounded-xl border p-3.5 text-left transition-all ${logisticsMode === "fleet" ? "border-emerald-600 bg-emerald-50/50 ring-2 ring-emerald-500/20" : "border-slate-200 bg-white hover:bg-slate-50"}`}
+                                            className={`rounded-xl border p-3.5 text-left transition-all ${logisticsMode === "fleet" ? "border-primary bg-primary/5 ring-2 ring-primary/20" : "border-border bg-card hover:bg-muted/40"}`}
                                             onClick={() => setLogisticsMode("fleet")}
                                         >
-                                            <p className="font-semibold text-sm text-slate-900">🚚 Internal Driver Route</p>
-                                            <p className="text-xs text-slate-500 mt-1">Driver PWA, run sheet & stop navigation</p>
+                                            <p className="font-semibold text-sm text-foreground">🚚 Internal Driver Route</p>
+                                            <p className="text-xs text-muted-foreground mt-1">Driver PWA, run sheet & stop navigation</p>
                                         </button>
                                     </div>
                                 </div>
 
                                 {logisticsMode === "3pl" ? (
-                                    <div className="space-y-3 rounded-xl border bg-slate-50/60 p-3.5">
+                                    <div className="space-y-3 rounded-xl border bg-muted/20 p-3.5">
                                         <div className="space-y-1.5">
-                                            <Label className="text-xs">Select 3PL Carrier</Label>
+                                            <Label className="text-xs font-medium">Select 3PL Carrier</Label>
                                             <Select value={selectedCarrier} onValueChange={setSelectedCarrier}>
-                                                <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                                                <SelectTrigger className="bg-background text-xs"><SelectValue /></SelectTrigger>
                                                 <SelectContent>
                                                     <SelectItem value="Australia Post eParcel">Australia Post eParcel (Standard/Express)</SelectItem>
                                                     <SelectItem value="StarTrack Express">StarTrack Express (Road/Next Flight)</SelectItem>
@@ -469,20 +498,20 @@ export default function WarehousePickingPage() {
 
                                         <div className="grid grid-cols-2 gap-3">
                                             <div className="space-y-1.5">
-                                                <Label className="text-xs">Consignment / Tracking #</Label>
+                                                <Label className="text-xs font-medium">Consignment / Tracking #</Label>
                                                 <Input
-                                                    className="bg-white font-mono text-xs"
+                                                    className="bg-background font-mono text-xs"
                                                     value={consignmentNumber}
                                                     onChange={e => setConsignmentNumber(e.target.value)}
                                                     placeholder="e.g. AP-94829104AU"
                                                 />
                                             </div>
                                             <div className="space-y-1.5">
-                                                <Label className="text-xs">Cartons / Pallets</Label>
+                                                <Label className="text-xs font-medium">Cartons / Pallets</Label>
                                                 <Input
                                                     type="number"
                                                     min="1"
-                                                    className="bg-white text-xs"
+                                                    className="bg-background text-xs"
                                                     value={cartonCount}
                                                     onChange={e => setCartonCount(parseInt(e.target.value) || 1)}
                                                 />
@@ -490,9 +519,9 @@ export default function WarehousePickingPage() {
                                         </div>
 
                                         <div className="space-y-1.5">
-                                            <Label className="text-xs">Special Carrier Instructions</Label>
+                                            <Label className="text-xs font-medium">Special Carrier Instructions</Label>
                                             <Input
-                                                className="bg-white text-xs"
+                                                className="bg-background text-xs"
                                                 value={carrierInstructions}
                                                 onChange={e => setCarrierInstructions(e.target.value)}
                                                 placeholder="Authority to leave, tailgate delivery, dock 4"
@@ -500,11 +529,11 @@ export default function WarehousePickingPage() {
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="space-y-3 rounded-xl border bg-slate-50/60 p-3.5">
+                                    <div className="space-y-3 rounded-xl border bg-muted/20 p-3.5">
                                         <div className="space-y-1.5">
-                                            <Label className="text-xs">Assign to Driver Route</Label>
+                                            <Label className="text-xs font-medium">Assign to Driver Route</Label>
                                             <Select value={fleetRoute} onValueChange={setFleetRoute}>
-                                                <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                                                <SelectTrigger className="bg-background text-xs"><SelectValue /></SelectTrigger>
                                                 <SelectContent>
                                                     <SelectItem value="RT-2026-001">Route 1 — Dave Miller (Sydney Metro North)</SelectItem>
                                                     <SelectItem value="RT-2026-002">Route 2 — Sarah Jenkins (Sydney Metro West)</SelectItem>
@@ -523,7 +552,7 @@ export default function WarehousePickingPage() {
                                 <Button variant="outline" size="sm" onClick={() => setDispatchModalOpen(false)}>Cancel</Button>
                                 <Button
                                     size="sm"
-                                    className="bg-emerald-600 hover:bg-emerald-700"
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white"
                                     disabled={dispatchingBusy}
                                     onClick={handleCompleteDispatch}
                                 >
@@ -538,3 +567,4 @@ export default function WarehousePickingPage() {
         </AppShell>
     )
 }
+

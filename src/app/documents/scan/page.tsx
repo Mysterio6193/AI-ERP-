@@ -13,6 +13,10 @@ import {
   RefreshCw,
   ScanLine,
   Upload,
+  CheckCircle2,
+  Sparkles,
+  FileCheck,
+  AlertCircle
 } from "lucide-react"
 
 import { AppShell } from "@/components/layout/app-shell"
@@ -20,11 +24,22 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { PageHeader } from "@/components/ui/page-header"
+import { EmptyState } from "@/components/ui/empty-state"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { useToast } from "@/hooks/use-toast"
 import type { ExtractedDocument } from "@/lib/ocr/engine"
 
 const OCR_MODEL_PRESETS = [
-  { label: "Nemotron Nano 12B VL (100% Free)", value: "nvidia/nemotron-nano-12b-v2-vl:free" },
+  { label: "Nemotron Nano 12B VL (Free)", value: "nvidia/nemotron-nano-12b-v2-vl:free" },
   { label: "Gemini 2.5 Flash", value: "google/gemini-2.5-flash" },
   { label: "Claude 3.5 Sonnet", value: "anthropic/claude-3.5-sonnet" },
   { label: "DeepSeek Chat", value: "deepseek/deepseek-chat" },
@@ -136,23 +151,22 @@ export default function DocumentScanPage() {
   }
 
   return (
-    <AppShell title="Document Intelligence & OCR Scanner">
-      <div className="mx-auto max-w-6xl space-y-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Vision OCR & Document Scanner</h1>
-            <p className="text-sm text-muted-foreground">
-              Extract supplier invoices, delivery dockets, bills of lading, and receipts into structured ERP records.
-            </p>
-          </div>
-        </div>
+    <AppShell title="Document Intelligence & OCR Scanner" breadcrumbs={[{ label: "Documents" }, { label: "Scan & OCR" }]}>
+      <div className="space-y-6">
+        <PageHeader
+          title="Vision OCR & Document Intelligence"
+          description="Extract supplier invoices, delivery dockets, bills of lading, and receipts into structured ERP records with AI."
+        />
 
         <div className="grid gap-6 lg:grid-cols-12">
           {/* Upload & Controls */}
           <div className="space-y-4 lg:col-span-5">
-            <Card>
+            <Card className="shadow-sm">
               <CardHeader>
-                <CardTitle className="text-base">Upload Document</CardTitle>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Upload className="h-4 w-4 text-primary" />
+                  Upload Source Document
+                </CardTitle>
                 <CardDescription>
                   Select a photo, scanned image (JPG, PNG, WebP) or invoice document.
                 </CardDescription>
@@ -168,8 +182,8 @@ export default function DocumentScanPage() {
 
                 <div
                   onClick={() => fileInputRef.current?.click()}
-                  className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-6 text-center transition-colors ${
-                    file ? "border-primary/50 bg-primary/5" : "border-muted-foreground/20 hover:border-primary/40"
+                  className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-6 text-center transition-all ${
+                    file ? "border-primary/50 bg-primary/5" : "border-border hover:border-primary/40 hover:bg-muted/30"
                   }`}
                 >
                   {previewUrl ? (
@@ -177,28 +191,30 @@ export default function DocumentScanPage() {
                       <img
                         src={previewUrl}
                         alt="Document Preview"
-                        className="max-h-56 rounded-lg object-contain shadow-sm"
+                        className="max-h-56 rounded-lg object-contain shadow-sm mx-auto"
                       />
                       <p className="font-mono text-xs text-muted-foreground">{file?.name}</p>
                     </div>
                   ) : (
-                    <div className="space-y-2">
-                      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-                        <Upload className="h-6 w-6 text-muted-foreground" />
+                    <div className="space-y-3 py-4">
+                      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+                        <Upload className="h-6 w-6" />
                       </div>
-                      <p className="text-sm font-medium">Click to upload or drag & drop</p>
-                      <p className="text-xs text-muted-foreground">Invoices, Delivery Dockets, Receipts, BOLs</p>
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">Click to upload or drag & drop</p>
+                        <p className="text-xs text-muted-foreground mt-1">Invoices, Delivery Dockets, Receipts, BOLs</p>
+                      </div>
                     </div>
                   )}
                 </div>
 
                 {/* Model Selector */}
-                <div className="space-y-2 rounded-lg border p-3">
+                <div className="space-y-2.5 rounded-xl border bg-muted/20 p-3.5">
                   <div className="flex items-center gap-2">
-                    <Cpu className="h-4 w-4" />
-                    <p className="text-xs font-medium">Vision OCR Model</p>
+                    <Cpu className="h-4 w-4 text-primary" />
+                    <Label className="text-xs font-semibold">Vision OCR AI Model</Label>
                   </div>
-                  <div className="flex flex-wrap gap-1">
+                  <div className="flex flex-wrap gap-1.5">
                     {OCR_MODEL_PRESETS.map((preset) => (
                       <button
                         key={preset.value}
@@ -207,10 +223,10 @@ export default function DocumentScanPage() {
                           setSelectedModel(preset.value)
                           setCustomModel("")
                         }}
-                        className={`rounded border px-2 py-1 text-[10px] transition-colors ${
+                        className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition-all ${
                           selectedModel === preset.value && !customModel
-                            ? "border-primary bg-primary text-primary-foreground"
-                            : "hover:bg-accent"
+                            ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                            : "border-border bg-background hover:bg-muted text-muted-foreground hover:text-foreground"
                         }`}
                       >
                         {preset.label}
@@ -226,7 +242,7 @@ export default function DocumentScanPage() {
                 </div>
 
                 <Button
-                  className="w-full"
+                  className="w-full shadow-sm"
                   disabled={!file || scanning}
                   onClick={runScan}
                 >
@@ -248,10 +264,13 @@ export default function DocumentScanPage() {
 
           {/* Results Panel */}
           <div className="space-y-4 lg:col-span-7">
-            <Card>
+            <Card className="shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between pb-3">
                 <div>
-                  <CardTitle className="text-base">Extracted Document Data</CardTitle>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <FileCheck className="h-4 w-4 text-primary" />
+                    Extracted Document Data
+                  </CardTitle>
                   <CardDescription>
                     {result ? `${result.documentType?.replace(/_/g, " ").toUpperCase()} · Confidence: ${(result.confidenceScore * 100).toFixed(0)}%` : "Awaiting scan."}
                   </CardDescription>
@@ -271,33 +290,34 @@ export default function DocumentScanPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 {!result ? (
-                  <div className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground">
-                    <ScanLine className="h-10 w-10 opacity-30" />
-                    <p className="mt-2 text-sm">Upload a document on the left and click Extract.</p>
-                  </div>
+                  <EmptyState
+                    icon={ScanLine}
+                    title="No document scanned yet"
+                    description="Upload an invoice, docket, or receipt image on the left and click 'Extract Structured Data'."
+                  />
                 ) : (
                   <div className="space-y-4">
                     {/* Header Metadata */}
-                    <div className="grid gap-3 rounded-lg border bg-muted/30 p-3 sm:grid-cols-3">
+                    <div className="grid gap-3 rounded-xl border bg-muted/30 p-4 sm:grid-cols-3">
                       <div>
-                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Vendor / Supplier</p>
-                        <p className="text-sm font-semibold">{result.vendorName || "Unknown"}</p>
+                        <p className="text-[10px] uppercase font-semibold tracking-wider text-muted-foreground">Vendor / Supplier</p>
+                        <p className="text-sm font-semibold text-foreground mt-0.5">{result.vendorName || "Unknown"}</p>
                         {result.matchedSupplierName ? (
-                          <Badge variant="secondary" className="mt-1 text-[10px]">
+                          <Badge variant="secondary" className="mt-1 text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20">
                             ✓ Matched: {result.matchedSupplierName}
                           </Badge>
                         ) : null}
                       </div>
 
                       <div>
-                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Document #</p>
-                        <p className="font-mono text-sm font-semibold">{result.documentNumber || "N/A"}</p>
+                        <p className="text-[10px] uppercase font-semibold tracking-wider text-muted-foreground">Document #</p>
+                        <p className="font-mono text-sm font-semibold text-foreground mt-0.5">{result.documentNumber || "N/A"}</p>
                         <p className="text-xs text-muted-foreground">{result.documentDate || "No date"}</p>
                       </div>
 
                       <div>
-                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Total Amount</p>
-                        <p className="text-base font-bold text-emerald-600 dark:text-emerald-400">
+                        <p className="text-[10px] uppercase font-semibold tracking-wider text-muted-foreground">Total Amount</p>
+                        <p className="text-base font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
                           ${Number(result.totalAmount || 0).toFixed(2)} {result.currency}
                         </p>
                         <p className="text-[11px] text-muted-foreground">GST: ${Number(result.taxAmount || 0).toFixed(2)}</p>
@@ -310,37 +330,37 @@ export default function DocumentScanPage() {
                         Line Items ({result.items?.length || 0})
                       </p>
                       <div className="overflow-x-auto rounded-lg border">
-                        <table className="w-full text-left text-xs">
-                          <thead className="border-b bg-muted/50 text-[11px] font-medium text-muted-foreground">
-                            <tr>
-                              <th className="p-2">Description</th>
-                              <th className="p-2">SKU</th>
-                              <th className="p-2 text-right">Qty</th>
-                              <th className="p-2 text-right">Unit Price</th>
-                              <th className="p-2 text-right">Line Total</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Description</TableHead>
+                              <TableHead>SKU</TableHead>
+                              <TableHead className="text-right">Qty</TableHead>
+                              <TableHead className="text-right">Unit Price</TableHead>
+                              <TableHead className="text-right">Line Total</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
                             {result.items?.map((item, idx) => (
-                              <tr key={idx} className="hover:bg-muted/20">
-                                <td className="p-2">
-                                  <p className="font-medium">{item.description}</p>
+                              <TableRow key={idx} className="hover:bg-muted/40">
+                                <TableCell>
+                                  <p className="font-medium text-foreground">{item.description}</p>
                                   {item.matchedProductName ? (
-                                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400">
+                                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
                                       ✓ Matched SKU: {item.matchedProductName}
                                     </span>
                                   ) : null}
-                                </td>
-                                <td className="p-2 font-mono text-[11px] text-muted-foreground">
+                                </TableCell>
+                                <TableCell className="font-mono text-xs text-muted-foreground">
                                   {item.sku || "—"}
-                                </td>
-                                <td className="p-2 text-right font-medium">{item.quantity}</td>
-                                <td className="p-2 text-right font-mono">${Number(item.unitPrice || 0).toFixed(2)}</td>
-                                <td className="p-2 text-right font-mono font-semibold">${Number(item.lineTotal || 0).toFixed(2)}</td>
-                              </tr>
+                                </TableCell>
+                                <TableCell className="text-right font-medium">{item.quantity}</TableCell>
+                                <TableCell className="text-right font-mono">${Number(item.unitPrice || 0).toFixed(2)}</TableCell>
+                                <TableCell className="text-right font-mono font-semibold text-foreground">${Number(item.lineTotal || 0).toFixed(2)}</TableCell>
+                              </TableRow>
                             ))}
-                          </tbody>
-                        </table>
+                          </TableBody>
+                        </Table>
                       </div>
                     </div>
                   </div>
@@ -353,3 +373,4 @@ export default function DocumentScanPage() {
     </AppShell>
   )
 }
+
