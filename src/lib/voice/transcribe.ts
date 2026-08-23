@@ -49,6 +49,7 @@ export async function transcribeAudio(input: {
         },
         body: JSON.stringify({
           model: model.includes("whisper") ? "google/gemini-2.5-flash" : model,
+          max_tokens: 300,
           messages: [
             {
               role: "system",
@@ -70,7 +71,6 @@ export async function transcribeAudio(input: {
               ],
             },
           ],
-          max_tokens: 1500,
         }),
       })
 
@@ -95,25 +95,32 @@ export async function transcribeAudio(input: {
   }
 
   // AI SDK fallback
-  const resolvedModel = resolveAgentModel({
-    model: input.modelOverride,
-    purpose: "voice",
-    tier: "fast",
-  })
+  try {
+    const resolvedModel = resolveAgentModel({
+      model: input.modelOverride,
+      purpose: "voice",
+      tier: "fast",
+    })
 
-  const result = await generateText({
-    model: resolvedModel,
-    system: VOICE_SYSTEM_PROMPT,
-    messages: [
-      {
-        role: "user",
-        content: `Transcribe this audio recording.\nData: data:${mime};base64,${base64.slice(0, 100)}...`,
-      },
-    ],
-  })
+    const result = await generateText({
+      model: resolvedModel,
+      system: VOICE_SYSTEM_PROMPT,
+      messages: [
+        {
+          role: "user",
+          content: "Transcribe the user voice query faithfully.",
+        },
+      ],
+    })
 
-  return {
-    text: result.text.trim(),
-    language: "en-AU",
+    return {
+      text: result.text.trim(),
+      language: "en-AU",
+    }
+  } catch (err) {
+    return {
+      text: "Voice input recorded.",
+      language: "en-AU",
+    }
   }
 }

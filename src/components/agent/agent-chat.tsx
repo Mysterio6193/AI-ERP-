@@ -136,9 +136,59 @@ export function AgentChat({ threadKey, suggestions, pageContext, compact }: Agen
   // actual barrier. Browser speech synthesis, so it needs no credential and no
   // audio leaves the machine.
   const [speaking, setSpeaking] = useState(false)
+  const [audioLoadingId, setAudioLoadingId] = useState<string | null>(null)
+  const [playingId, setPlayingId] = useState<string | null>(null)
+  const audioPlayerRef = useRef<HTMLAudioElement | null>(null)
   const speechSupported =
     typeof window !== "undefined" && typeof window.speechSynthesis !== "undefined"
   const spokenRef = useRef<string | null>(null)
+
+  async function playAudioResponse(messageId: string, text: string) {
+    if (playingId === messageId) {
+      if (audioPlayerRef.current) {
+        audioPlayerRef.current.pause()
+      }
+      if (typeof window !== "undefined" && window.speechSynthesis) {
+        window.speechSynthesis.cancel()
+      }
+      setPlayingId(null)
+      return
+    }
+
+    setAudioLoadingId(messageId)
+    try {
+      const res = await fetch("/api/voice/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      })
+      if (!res.ok) throw new Error("TTS request failed")
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+
+      if (audioPlayerRef.current) {
+        audioPlayerRef.current.pause()
+      }
+      const audio = new Audio(url)
+      audioPlayerRef.current = audio
+      audio.onended = () => setPlayingId(null)
+      audio.onerror = () => setPlayingId(null)
+      await audio.play()
+      setPlayingId(messageId)
+    } catch (err) {
+      console.warn("Edge TTS note, fallback to browser speech:", err)
+      if (typeof window !== "undefined" && window.speechSynthesis) {
+        window.speechSynthesis.cancel()
+        const utt = new SpeechSynthesisUtterance(text)
+        utt.onend = () => setPlayingId(null)
+        utt.onerror = () => setPlayingId(null)
+        window.speechSynthesis.speak(utt)
+        setPlayingId(messageId)
+      }
+    } finally {
+      setAudioLoadingId(null)
+    }
+  }
 
   const activeModelParam = selectedModel || undefined
 
@@ -159,7 +209,7 @@ export function AgentChat({ threadKey, suggestions, pageContext, compact }: Agen
   const busy = status === "submitted" || status === "streaming" || scanningOcr
 
   useEffect(() => {
-    if (!speaking || !speechSupported || busy) {
+    if (!speaking || busy) {
       return
     }
 
@@ -173,20 +223,21 @@ export function AgentChat({ threadKey, suggestions, pageContext, compact }: Agen
       .join(" ")
       .trim()
 
-    // Only once per message, and only once it has stopped streaming —
-    // otherwise every token restarts the utterance.
+    // Only once per message, and only once it has stopped streaming
     if (!text || spokenRef.current === last.id) {
       return
     }
 
     spokenRef.current = last.id
-    window.speechSynthesis.cancel()
-    window.speechSynthesis.speak(new SpeechSynthesisUtterance(text))
-  }, [messages, busy, speaking, speechSupported])
+    void playAudioResponse(last.id, text)
+  }, [messages, busy, speaking])
 
   useEffect(() => {
-    // Never keep talking after the panel closes.
+    // Clean up audio on unmount
     return () => {
+      if (audioPlayerRef.current) {
+        audioPlayerRef.current.pause()
+      }
       if (typeof window !== "undefined" && window.speechSynthesis) {
         window.speechSynthesis.cancel()
       }
@@ -423,14 +474,30 @@ export function AgentChat({ threadKey, suggestions, pageContext, compact }: Agen
                   )
                 }
 
+                const isPlayingThis = playingId === message.id
+                const isLoadingThis = audioLoadingId === message.id
+
                 return (
-                  <div
-                    key={key}
-                    className="w-fit max-w-[85%] rounded-2xl rounded-bl-sm bg-muted px-4 py-2.5 text-sm text-foreground"
-                  >
-                    <div className="prose prose-sm dark:prose-invert max-w-none break-words space-y-2 text-sm leading-relaxed [&_p]:my-1.5 [&_p]:leading-relaxed [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_ul]:my-1.5 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-1.5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-0.5 [&_strong]:font-semibold [&_code]:rounded [&_code]:bg-background/80 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-xs [&_pre]:my-2 [&_pre]:rounded-lg [&_pre]:bg-background [&_pre]:p-3 [&_pre]:overflow-x-auto [&_table]:my-2 [&_table]:w-full [&_table]:border-collapse [&_th]:border [&_th]:border-border [&_th]:bg-background/50 [&_th]:px-2.5 [&_th]:py-1.5 [&_th]:text-left [&_th]:text-xs [&_th]:font-semibold [&_td]:border [&_td]:border-border [&_td]:px-2.5 [&_td]:py-1.5 [&_td]:text-xs [&_blockquote]:my-2 [&_blockquote]:border-l-2 [&_blockquote]:border-primary [&_blockquote]:pl-3 [&_blockquote]:italic [&_h1]:text-base [&_h1]:font-semibold [&_h2]:text-sm [&_h2]:font-semibold [&_h3]:text-xs [&_h3]:font-semibold [&_hr]:my-2 [&_hr]:border-border">
-                      <ReactMarkdown>{part.text}</ReactMarkdown>
+                  <div key={key} className="group relative w-fit max-w-[85%]">
+                    <div className="rounded-2xl rounded-bl-sm bg-muted px-4 py-2.5 text-sm text-foreground">
+                      <div className="prose prose-sm dark:prose-invert max-w-none break-words space-y-2 text-sm leading-relaxed [&_p]:my-1.5 [&_p]:leading-relaxed [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_ul]:my-1.5 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-1.5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-0.5 [&_strong]:font-semibold [&_code]:rounded [&_code]:bg-background/80 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-xs [&_pre]:my-2 [&_pre]:rounded-lg [&_pre]:bg-background [&_pre]:p-3 [&_pre]:overflow-x-auto [&_table]:my-2 [&_table]:w-full [&_table]:border-collapse [&_th]:border [&_th]:border-border [&_th]:bg-background/50 [&_th]:px-2.5 [&_th]:py-1.5 [&_th]:text-left [&_th]:text-xs [&_th]:font-semibold [&_td]:border [&_td]:border-border [&_td]:px-2.5 [&_td]:py-1.5 [&_td]:text-xs [&_blockquote]:my-2 [&_blockquote]:border-l-2 [&_blockquote]:border-primary [&_blockquote]:pl-3 [&_blockquote]:italic [&_h1]:text-base [&_h1]:font-semibold [&_h2]:text-sm [&_h2]:font-semibold [&_h3]:text-xs [&_h3]:font-semibold [&_hr]:my-2 [&_hr]:border-border">
+                        <ReactMarkdown>{part.text}</ReactMarkdown>
+                      </div>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => void playAudioResponse(message.id, part.text)}
+                      title={isPlayingThis ? "Stop audio" : "Read aloud (Neural Voice)"}
+                      className="absolute -bottom-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-xs transition-opacity hover:text-foreground opacity-70 group-hover:opacity-100"
+                    >
+                      {isLoadingThis ? (
+                        <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                      ) : isPlayingThis ? (
+                        <VolumeX className="h-3 w-3 text-destructive animate-pulse" />
+                      ) : (
+                        <Volume2 className="h-3 w-3" />
+                      )}
+                    </button>
                   </div>
                 )
               }
