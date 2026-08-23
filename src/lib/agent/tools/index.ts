@@ -36,6 +36,8 @@ import { buildReportingTools } from "./reporting"
 import { buildSalesTools } from "./sales"
 import { buildSkillTools } from "./skills"
 import { buildUnitTools } from "./units"
+import { buildAnalyticsTools } from "./analytics"
+import { buildDeepOperationsTools } from "./operations-deep"
 import { buildUniversalTools } from "./universal"
 import { buildWebSearchTools } from "./websearch"
 
@@ -286,6 +288,21 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
   scheduleMeeting: { risk: "low", roles: ["admin", "sales", "warehouse", "accounts"] },
   listUpcomingEvents: { risk: "read" },
 
+  // Enterprise Analytics & Cashflow
+  cashflowForecast: { risk: "read" },
+  profitAndLossStatement: { risk: "read" },
+  customerRfmSegmentation: { risk: "read" },
+  supplierPerformanceScorecard: { risk: "read" },
+  taxSummaryGst: { risk: "read" },
+
+  // Deep Operations, Traceability & Supply Chain
+  compareSupplierQuotes: { risk: "read" },
+  recipeCostingAnalysis: { risk: "read" },
+  palletOptimization: { risk: "read" },
+  warehouseSlottingAdvisor: { risk: "read" },
+  mockRecallSimulation: { risk: "read" },
+  creditRiskAssessment: { risk: "read" },
+
   // Freight. Drafting writes a row and contacts nobody; sending commits the
   // business to a third party who acts on it immediately, so it is the gate.
   listCarriers: { risk: "read" },
@@ -343,6 +360,8 @@ export function buildTools(principal: AgentPrincipal, channel?: string): ToolSet
     buildEmailTools(principal),
     buildMultiAgentTools(principal),
     buildSpreadsheetTools(principal),
+    buildAnalyticsTools(principal),
+    buildDeepOperationsTools(principal),
     buildSkillTools(principal),
     buildPurchasingTools(principal),
     buildReportingTools(principal),

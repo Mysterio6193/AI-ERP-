@@ -265,6 +265,8 @@ export const OPS_TOOLS = [
   "generateSpreadsheet", "exportReportToCsv", "parseSpreadsheet",
   "sendEmail", "draftEmail", "listCommunicationHistory",
   "scheduleMeeting", "listUpcomingEvents",
+  "cashflowForecast", "profitAndLossStatement", "customerRfmSegmentation", "supplierPerformanceScorecard", "taxSummaryGst",
+  "compareSupplierQuotes", "recipeCostingAnalysis", "palletOptimization", "warehouseSlottingAdvisor", "mockRecallSimulation", "creditRiskAssessment",
   "listSkills", "readSkill", "createSkill", "improveSkill", "recordSkillOutcome", "recallMemories", "remember",
 ]
 

@@ -70,6 +70,82 @@ const INITIAL_SKILLS = [
 3. Compute volume break tiers or pallet shipping markups using math expressions.
 4. Return a clear breakdown of margins, markup percentages, and recommended selling price.`,
   },
+  {
+    slug: "forecast-business-cashflow",
+    name: "30/60/90-Day Cashflow & Liquidity Forecast",
+    description: "Use to project financial health, incoming receivables, and outgoing supplier payables.",
+    category: "analysis",
+    tools: ["cashflowForecast", "profitAndLossStatement", "taxSummaryGst"],
+    body: `1. Call cashflowForecast with 30, 60, or 90 day horizon.
+2. Cross-reference open sales invoice due dates with pending purchase orders.
+3. Compute projected net cash buffer or deficit risk.
+4. Report actionable steps to accelerate collections or delay supplier terms if cashflow is tight.`,
+  },
+  {
+    slug: "export-erp-dataset-spreadsheet",
+    name: "Export Live ERP Data to Spreadsheet",
+    description: "Use when a user asks for CSV, Excel, or tabular exports of orders, stock, invoices, or customers.",
+    category: "process",
+    tools: ["exportReportToCsv", "generateSpreadsheet"],
+    body: `1. Identify the target dataset ('sales_orders', 'invoices', 'inventory', 'customers', 'suppliers', 'leads', 'batches').
+2. Call exportReportToCsv to extract formatted rows.
+3. If custom rows or computed stats are requested, use generateSpreadsheet.
+4. Present the preview table and provide the downloadable CSV format.`,
+  },
+  {
+    slug: "dispatch-bulk-customer-email",
+    name: "Draft & Dispatch Customer Communications",
+    description: "Use to compose, draft, and dispatch professional emails to customers or suppliers.",
+    category: "process",
+    tools: ["draftEmail", "sendEmail", "listCommunicationHistory"],
+    body: `1. Choose the appropriate scenario in draftEmail (order_confirmation, overdue_invoice_reminder, quote_followup, etc.).
+2. Tailor tone and custom reference details (order numbers, totals).
+3. Review draft copy with user or execute sendEmail directly.
+4. Verify communication logging on the customer/supplier CRM timeline.`,
+  },
+  {
+    slug: "run-haccp-recall-simulation",
+    name: "HACCP Food Safety Mock Recall Drill",
+    description: "Use for food safety mock recalls or actual batch containment investigations.",
+    category: "compliance",
+    tools: ["mockRecallSimulation", "quarantineStock", "sendStaffAlert"],
+    body: `1. Call mockRecallSimulation with target batch number or SKU.
+2. Trace backward to supplier receipt and forward to all dispatched customer orders.
+3. Isolate remaining warehouse stock immediately using quarantineStock.
+4. Generate containment checklist and send emergency staff alert via sendStaffAlert.`,
+  },
+  {
+    slug: "optimize-warehouse-pallet-slotting",
+    name: "Warehouse Pallet & Bin Slotting Optimization",
+    description: "Use to calculate pallet capacity (Ti x Hi) and optimize warehouse picking zones (ABC analysis).",
+    category: "logistics",
+    tools: ["palletOptimization", "warehouseSlottingAdvisor"],
+    body: `1. For carton shipping, run palletOptimization with dimensions and weight to find maximum Ti/Hi capacity.
+2. For warehouse layout, run warehouseSlottingAdvisor to classify items into Class A (high velocity), B, or C.
+3. Recommend bin relocations to minimize travel time on the warehouse floor.`,
+  },
+  {
+    slug: "assess-customer-credit-risk",
+    name: "Customer Credit Risk & Payment Terms Audit",
+    description: "Use when setting credit limits, reviewing delinquent accounts, or onboarding trade credit applicants.",
+    category: "finance",
+    tools: ["creditRiskAssessment", "setCreditStatus", "logCustomerNote"],
+    body: `1. Call creditRiskAssessment with customer ID or business name.
+2. Audit credit utilization percentage, overdue invoice count, and days beyond terms.
+3. Review credit rating score (0-100) and recommendation tier.
+4. Adjust credit limit / status or place on pre-payment holds if required.`,
+  },
+  {
+    slug: "multi-agent-strategic-review",
+    name: "360° Multi-Agent Swarm Strategic Review",
+    description: "Use for executive decisions, quarterly reviews, or complex business problems requiring multiple perspectives.",
+    category: "strategy",
+    tools: ["agentSwarm", "broadcastToAgents", "businessSnapshot"],
+    body: `1. Formulate the core strategic objective or challenge.
+2. Call agentSwarm involving Sales, Warehouse, Accounts, Purchasing, and Compliance agents.
+3. Synthesize individual domain analyses into a unified executive action plan.
+4. Highlight trade-offs, financial impacts, and risk mitigations.`,
+  },
 ]
 
 async function seedSkills() {
