@@ -182,6 +182,16 @@ model Product {
 
   // Tax
   gstRate   Float   @default(10.0) // Australian GST
+
+  /// The named rate this product is sold under, when one applies.
+  ///
+  /// `gstRate` remains the fallback and the source of truth when this is null,
+  /// so nothing changes for the products that have always carried a bare
+  /// percentage. A reference here is what makes "which products are GST free"
+  /// answerable, and what lets a rate be changed in one place rather than
+  /// across every product carrying the same number.
+  taxRateId String?
+  taxRate   TaxRate? @relation(fields: [taxRateId], references: [id])
   gstExempt Boolean @default(false)
 
   // --- Food safety -------------------------------------------------------
@@ -1870,6 +1880,8 @@ model TaxRate {
   updatedAt DateTime @updatedAt
 
   @@unique([code, companyId])
+
+  products Product[]
 }
 
 // ============================================

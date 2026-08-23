@@ -158,6 +158,7 @@ export async function PUT(
           gstExempt: true,
           wholesalePrice: true,
           retailPrice: true,
+          taxRate: { select: { rate: true, status: true, taxType: true } },
         },
       })
 
@@ -255,7 +256,7 @@ export async function PUT(
         const lineTax = computeLineTax(
           lineSubtotal - discountAmount,
           {
-            product: { gstRate: product.gstRate, gstExempt: product.gstExempt },
+            product: { gstRate: product.gstRate, gstExempt: product.gstExempt, taxRate: product.taxRate },
             customer: taxCustomer,
             company: taxCompany,
           },

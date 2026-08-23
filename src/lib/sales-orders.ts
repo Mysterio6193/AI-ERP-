@@ -156,6 +156,15 @@ export async function priceSalesOrder(
       return { ok: false as const, error: `Product ${item.productId} not found` }
     }
 
+    // Fetched separately because the product query above selects every column
+    // rather than a projection, so the relation is not included.
+    const taxRate = product.taxRateId
+      ? await db.taxRate.findUnique({
+          where: { id: product.taxRateId },
+          select: { rate: true, status: true, taxType: true },
+        })
+      : null
+
     // Was `item.unitPrice ?? product.wholesalePrice`, which ignored the
     // customer's contract list entirely.
     const priced = resolveLinePrice(
@@ -180,7 +189,11 @@ export async function priceSalesOrder(
 
     const lineTax = computeLineTax(
       itemSubtotal,
-      { product: { gstRate: product.gstRate, gstExempt: product.gstExempt }, customer, company },
+      {
+        product: { gstRate: product.gstRate, gstExempt: product.gstExempt, taxRate },
+        customer,
+        company,
+      },
       taxSettings
     )
 

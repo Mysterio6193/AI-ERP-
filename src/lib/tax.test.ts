@@ -179,3 +179,52 @@ describe("computeLineTax", () => {
     expect(result.breakdown.taxLines.length).toBeGreaterThan(1)
   })
 })
+
+describe("named tax rates", () => {
+  it("prefers a named rate over the product's bare percentage", () => {
+    // The named rate is the one someone deliberately chose, and the one that
+    // can be changed in a single place.
+    const resolved = resolveLineTaxRate(
+      { product: { gstRate: 10, taxRate: { rate: 5, status: "active" } } },
+      settings
+    )
+
+    expect(resolved).toEqual({ rate: 5, source: "product" })
+  })
+
+  it("ignores an archived rate rather than continuing to charge it", () => {
+    const resolved = resolveLineTaxRate(
+      { product: { gstRate: 10, taxRate: { rate: 5, status: "archived" } } },
+      settings
+    )
+
+    expect(resolved).toEqual({ rate: 10, source: "product" })
+  })
+
+  it("falls back to the bare rate when no named rate is set", () => {
+    // Every product that has always carried a plain percentage keeps working.
+    expect(resolveLineTaxRate({ product: { gstRate: 10, taxRate: null } }, settings)).toEqual({
+      rate: 10,
+      source: "product",
+    })
+  })
+
+  it("honours a named zero rate rather than treating it as unset", () => {
+    // "GST Free" is a real answer, not a missing one.
+    expect(
+      resolveLineTaxRate(
+        { product: { gstRate: 10, taxRate: { rate: 0, status: "active" } } },
+        settings
+      )
+    ).toEqual({ rate: 0, source: "product" })
+  })
+
+  it("still lets an exempt product beat any named rate", () => {
+    expect(
+      resolveLineTaxRate(
+        { product: { gstRate: 10, gstExempt: true, taxRate: { rate: 18, status: "active" } } },
+        settings
+      )
+    ).toEqual({ rate: 0, source: "exempt" })
+  })
+})
