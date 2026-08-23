@@ -54,6 +54,13 @@ describe("defaults reproduce existing behaviour", () => {
     const numbering = defaultsFor("numbering")
 
     for (const [kind, format] of Object.entries(numbering)) {
+      // `expense` is the one exception: there was no expenses API before, so
+      // there is no legacy generator to preserve and it starts on the counter.
+      if (kind === "expense") {
+        expect(format.useCounter, "expense has no legacy path to fall back to").toBe(true)
+        continue
+      }
+
       expect(format.useCounter, `${kind} must start on the legacy generator`).toBe(false)
     }
   })

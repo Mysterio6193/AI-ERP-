@@ -28,6 +28,10 @@ const DEFAULT_CHART: ChartSeed[] = [
   { code: "6200", name: "Rent & Occupancy", accountType: "expense", subType: "operating_expense", normalSide: "debit" },
   { code: "6300", name: "Utilities", accountType: "expense", subType: "operating_expense", normalSide: "debit" },
   { code: "6400", name: "Marketing", accountType: "expense", subType: "operating_expense", normalSide: "debit" },
+  { code: "6500", name: "Salaries & Wages", accountType: "expense", subType: "operating_expense", normalSide: "debit" },
+  { code: "6600", name: "Travel", accountType: "expense", subType: "operating_expense", normalSide: "debit" },
+  { code: "6700", name: "Supplies", accountType: "expense", subType: "operating_expense", normalSide: "debit" },
+  { code: "6900", name: "General Expenses", accountType: "expense", subType: "operating_expense", normalSide: "debit" },
 ]
 
 export const ACCOUNTING_PROVIDERS = [

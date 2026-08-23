@@ -51,6 +51,7 @@ describe("renderDocumentNumber reproduces every legacy generator", () => {
     ["creditNote", 1, "CN-2026-0001"],
     // Legacy is `RET-${1000 + count + 1}` — no date token at all.
     ["return", 1001, "RET-1001"],
+    ["expense", 1, "EXP-2026-00001"],
   ]
 
   for (const [kind, sequence, expected] of cases) {
@@ -84,8 +85,14 @@ describe("renderDocumentNumber", () => {
     expect(renderDocumentNumber(format, 42, date)).toBe("INV/2026/00042-AU")
   })
 
-  it("keeps every kind on the legacy generator by default", () => {
+  it("keeps every kind with a legacy generator switched off by default", () => {
     for (const [kind, format] of Object.entries(numbering)) {
+      // Expenses are the exception: there was no API and so no legacy
+      // generator to preserve, so that kind starts on the counter.
+      if (kind === "expense") {
+        expect(format.useCounter, "expense has no legacy path to fall back to").toBe(true)
+        continue
+      }
       expect(format.useCounter, `${kind} must not switch on by default`).toBe(false)
     }
   })

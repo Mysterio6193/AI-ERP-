@@ -97,6 +97,7 @@ export const numberingSchema = z.object({
   creditNote: docNumberFormat.default({ prefix: "CN", dateToken: "YYYY", separator: "-", pad: 4, start: 1, reset: "yearly", suffix: "", useCounter: false }),
   return: docNumberFormat.default({ prefix: "RET", dateToken: "none", separator: "-", pad: 4, start: 1001, reset: "never", suffix: "", useCounter: false }),
   case: docNumberFormat.default({ prefix: "CS", dateToken: "YYYY", separator: "-", pad: 5, start: 1, reset: "yearly", suffix: "", useCounter: false }),
+  expense: docNumberFormat.default({ prefix: "EXP", dateToken: "YYYY", separator: "-", pad: 5, start: 1, reset: "yearly", suffix: "", useCounter: true }),
 })
 
 export const pricingSchema = z.object({
@@ -160,6 +161,18 @@ export const agentPersonaSchema = z.object({
   customSystemInstructions: z.string().default("Prioritize customer satisfaction and verify stock levels before confirming delivery commitments."),
 })
 
+export const aiModelsSchema = z.object({
+  provider: z.enum(["openrouter", "gateway", "local"]).default("openrouter"),
+  chatModel: z.string().default("deepseek/deepseek-chat"),
+  telegramModel: z.string().default("deepseek/deepseek-chat"),
+  ocrModel: z.string().default("google/gemini-2.5-flash"),
+  voiceModel: z.string().default("openai/whisper-large-v3"),
+  replenishmentModel: z.string().default("deepseek/deepseek-chat"),
+  emailModel: z.string().default("meta-llama/llama-3.3-70b-instruct"),
+  financeModel: z.string().default("deepseek/deepseek-chat"),
+  fastModel: z.string().default("meta-llama/llama-3.3-70b-instruct"),
+})
+
 export interface NamespaceDefinition {
   schema: z.ZodTypeAny
   label: string
@@ -169,6 +182,12 @@ export interface NamespaceDefinition {
 }
 
 export const REGISTRY = {
+  aiModels: {
+    schema: aiModelsSchema,
+    label: "AI Models & Multi-Modal Routing",
+    description: "Assigned neural models for chat, Telegram, OCR vision, voice transcribing, and purchasing.",
+    writeRoles: ["admin"],
+  },
   branding: {
     schema: brandingSchema,
     label: "Brand & Document Style",

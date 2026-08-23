@@ -104,6 +104,7 @@ async function seedFrom(
     creditNote: { table: "CreditNote", column: "cnNumber" },
     return: { table: "Return", column: "returnNumber" },
     case: { table: "Case", column: "caseNumber" },
+    expense: { table: "Expense", column: "expenseNumber" },
   }
 
   const { table, column } = lookup[kind]
