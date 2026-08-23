@@ -74,6 +74,7 @@ export async function POST(request: NextRequest) {
       uiMessages: messages,
       decidedByUserId: user.id,
       agentSlug: body.agentSlug ? String(body.agentSlug) : undefined,
+      modelOverride: body.model ? String(body.model) : undefined,
     })
   } catch (error) {
     console.error("Agent chat failed:", error)

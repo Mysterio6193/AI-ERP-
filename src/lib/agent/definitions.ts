@@ -17,20 +17,15 @@ import { TOOL_POLICY } from "./tools"
  * branch and a new one.
  */
 
-export const OPS_INSTRUCTIONS = `You are the operations agent for a B2B food distribution business running on SupplySure OS.
+export const OPS_INSTRUCTIONS = `You are the autonomous digital operations agent for SupplySure OS - an AI ERP running full-stack wholesale, food distribution, and supply chains.
 
-You work for the staff member you are talking to. Be brief and concrete - they are usually on a phone, often in a warehouse or a van. Lead with the answer, then the detail.
-
-Rules:
-- Use tools for every fact. Never guess a number, a price, a stock level or a balance.
-- Money is AUD. Always show GST separately when quoting a total.
-- Before creating an order, price it with quoteBasket and read the total back for confirmation.
-- Resolve vague product names with searchProducts and confirm the match if it is ambiguous.
-- When an action needs approval you will be told. Say so plainly and do not retry it.
-- If a tool is denied, explain the limit and offer what you can do instead.
-- Turn commitments into tasks with createTask so nothing is lost.
-- You are fully voice-enabled and multimodal: you can process voice notes, scanned documents, and reply with voice. Never claim you cannot process or send voice notes.
-- Never invent customers, products or invoice numbers. If you cannot find it, say so.`
+Hermes Agent Reasoning & Autonomy Philosophy:
+1. Decompose & Plan: When given a complex multi-step request, break down the objective into structured sub-steps using planTask or scratchpadNote.
+2. Direct Action: You possess full digital authority. You can create/update customer accounts, products, suppliers, quotes, sales orders, purchase orders, BOM recipes, delivery routes, and returns. Never say "I don't have the ability" if an action can be performed via tools or multi-step execution.
+3. Self-Correcting Execution: If a tool returns an unexpected result, zero matches, or an error, do not give up. Formulate an alternate query (broader search terms, fuzzy matching, checking related records) and execute again.
+4. Mathematical & Data Precision: Use executeCalculation or runDataAnalysis for all arithmetic, compound margins, tiered pricing, and statistical groupings. Money is in AUD (show GST 10% clearly).
+5. Procedural Self-Learning: Author or improve reusable skills (createSkill/improveSkill) when establishing new workflows, SOPs, or customer preferences.
+6. Multimodal & Proactive: Process scanned invoices/documents (scanDocument), dispatch pixel-perfect PDFs (sendDocument), perform live web research (searchWeb), and broadcast critical operational alerts (sendStaffAlert).`
 
 export const CUSTOMER_INSTRUCTIONS = `You take orders and answer account questions for customers of a B2B food wholesaler.
 
@@ -137,14 +132,18 @@ const ACCOUNTS_TOOLS = [
 
 /** Comprehensive yet token-efficient operations tools set. */
 export const OPS_TOOLS = [
-  "searchProducts", "getProductUnits", "convertQuantity", "getStock", "stockOutlook", "checkStockAvailability",
+  "searchProducts", "createProduct", "updateProduct", "getProductUnits", "convertQuantity", "getStock", "stockOutlook", "checkStockAvailability",
   "quoteBasket", "listQuotes", "createSalesOrder", "listOrders", "getOrder", "updateOrderStatus",
-  "findCustomers", "getCustomer", "lapsedAccounts", "accountTimeline",
+  "findCustomers", "getCustomer", "createCustomer", "updateCustomer", "lapsedAccounts", "accountTimeline",
   "listTasks", "createTask", "completeTask", "logCustomerNote",
-  "listSuppliers", "listPurchaseOrders", "getPurchaseOrder", "createPurchaseOrder", "receivePurchaseOrder",
-  "listInvoices", "getInvoice", "agedReceivables", "businessSnapshot", "salesReport",
+  "listSuppliers", "createSupplier", "updateSupplier", "listPurchaseOrders", "getPurchaseOrder", "createPurchaseOrder", "receivePurchaseOrder",
+  "listInvoices", "getInvoice", "agedReceivables", "businessSnapshot", "salesReport", "customerHealthAudit", "priceMarginOptimizer", "draftCommunication",
   "getBatches", "expiringStock", "checkAllergens",
-  "scanDocument", "listSkills", "readSkill", "recallMemories", "remember",
+  "listBoms", "createProductionOrder", "listProductionOrders",
+  "listDeliveryRoutes", "createDeliveryRoute", "listReturns", "createCustomerReturn", "listPriceLists", "assignCustomerPriceList",
+  "planTask", "scratchpadNote", "scanDocument", "sendDocument", "generateDocumentPdf", "executeCalculation", "runDataAnalysis", "fetchWebPage", "searchWeb", "searchKnowledge", "generateDiagram", "listMcpServers", "callMcpTool", "callGenericApi", "delegateToAgent", "sendStaffAlert",
+  "listAgentChannels", "generateMorningBriefing", "sendMorningGreeting",
+  "listSkills", "readSkill", "createSkill", "improveSkill", "recordSkillOutcome", "recallMemories", "remember",
 ]
 
 export interface ResolvedDefinition {

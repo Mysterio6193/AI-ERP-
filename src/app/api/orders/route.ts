@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAdminUser } from "@/lib/admin-auth"
+import { getActiveCompanyId } from "@/lib/active-company"
 import { db } from "@/lib/db"
 import { normalizeCommerceChannel } from "@/lib/commerce"
 import { createSalesOrder } from "@/lib/sales-orders"
@@ -7,11 +8,12 @@ import { createSalesOrder } from "@/lib/sales-orders"
 // GET /api/orders - List all sales orders
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireAdminUser(request, ["admin", "sales", "warehouse", "accounts"])
+    const auth = await requireAdminUser(request, ["admin", "sales", "warehouse", "accounts", "driver"])
     if (auth.response) {
       return auth.response
     }
 
+    const companyId = await getActiveCompanyId(request)
     const { searchParams } = new URL(request.url)
     const search = searchParams.get("search") || ""
     const status = searchParams.get("status") || ""
@@ -30,6 +32,7 @@ export async function GET(request: NextRequest) {
     const orders = await db.salesOrder.findMany({
       where: {
         AND: [
+          companyId ? { companyId } : {},
           search
             ? {
               OR: [

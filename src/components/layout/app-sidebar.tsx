@@ -43,6 +43,7 @@ import {
   SlidersHorizontal,
   RotateCcw,
   Radio,
+  ScanLine,
 } from "lucide-react"
 
 import {
@@ -197,6 +198,13 @@ const navItems: NavItem[] = [
     href: "/purchase-orders",
     icon: ClipboardList,
     roles: ["admin", "warehouse"],
+    group: "Purchasing",
+  },
+  {
+    label: "OCR & Document Scanner",
+    href: "/documents/scan",
+    icon: ScanLine,
+    roles: ["admin", "warehouse", "sales", "accounts"],
     group: "Purchasing",
   },
 

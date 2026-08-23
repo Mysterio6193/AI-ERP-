@@ -115,6 +115,7 @@ export async function POST(request: NextRequest) {
         instructions,
         toolsJson: tools ? JSON.stringify(tools) : null,
         audience: body.audience === "customer" ? "customer" : "staff",
+        model: body.model ? String(body.model).trim() : null,
         maxSteps: Number(body.maxSteps) > 0 ? Math.min(Number(body.maxSteps), 30) : 12,
         thresholdsJson: body.thresholds ? JSON.stringify(body.thresholds) : null,
         trigger: ["manual", "schedule", "event"].includes(String(body.trigger))
@@ -161,6 +162,7 @@ export async function PATCH(request: NextRequest) {
   if (body.avatar !== undefined) data.avatar = String(body.avatar)
   if (body.instructions !== undefined) data.instructions = String(body.instructions)
   if (body.enabled !== undefined) data.enabled = Boolean(body.enabled)
+  if (body.model !== undefined) data.model = body.model ? String(body.model).trim() : null
   if (body.maxSteps !== undefined) data.maxSteps = Math.min(Math.max(Number(body.maxSteps), 1), 30)
   if (body.schedule !== undefined) data.schedule = body.schedule ? String(body.schedule) : null
   if (body.runPrompt !== undefined) data.runPrompt = body.runPrompt ? String(body.runPrompt) : null

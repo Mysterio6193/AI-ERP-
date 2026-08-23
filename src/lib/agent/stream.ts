@@ -11,6 +11,7 @@ import {
   loadThread,
   personaFor,
   persistMessages,
+  repairToolMessages,
   summarise,
   valueFor,
 } from "./runtime"
@@ -101,9 +102,15 @@ export async function streamAgentResponse(input: {
   decidedByUserId?: string
   /** Definition slug to run as. Defaults to the principal's built-in persona. */
   agentSlug?: string
+  /** Optional custom model override selected on the fly in the UI. */
+  modelOverride?: string
 }) {
   const thresholds = await getThresholds()
   const definition = await resolveDefinition(input.agentSlug || defaultSlugFor(input.principal))
+
+  if (input.modelOverride) {
+    definition.model = input.modelOverride
+  }
 
   if (input.principal.kind === "customer" && definition.audience !== "customer") {
     throw new Error("That agent is not available on this channel")
@@ -116,7 +123,8 @@ export async function streamAgentResponse(input: {
     persona: definition.slug,
   })
 
-  const modelMessages = await convertToModelMessages(input.uiMessages as never)
+  const rawModelMessages = await convertToModelMessages(input.uiMessages as never)
+  const modelMessages = repairToolMessages(rawModelMessages)
   await recordApprovalDecisions(modelMessages, input.decidedByUserId)
 
   const run = await db.agentRun.create({

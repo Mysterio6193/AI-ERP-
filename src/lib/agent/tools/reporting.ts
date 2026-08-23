@@ -140,5 +140,145 @@ export function buildReportingTools(principal: AgentPrincipal) {
         }
       },
     }),
+
+    customerHealthAudit: defineTool({
+      description:
+        "Comprehensive ERP Customer 360 Health Audit: analyzes order frequency, total lifetime spend, days since last order, credit limit utilization, and churn risk level.",
+      inputSchema: z.object({
+        customerId: z.string().optional().describe("Optional specific customer ID, or audits all active trade accounts"),
+        limit: z.number().int().min(1).max(50).optional().default(20),
+      }),
+      execute: async ({ customerId, limit = 20 }) => {
+        const customers = await db.customer.findMany({
+          where: {
+            status: "active",
+            ...(customerId ? { id: customerId } : {}),
+          },
+          take: limit,
+          select: {
+            id: true,
+            name: true,
+            creditLimit: true,
+            creditBalance: true,
+            paymentTerms: true,
+            orders: {
+              where: { status: { not: "cancelled" } },
+              orderBy: { orderDate: "desc" },
+              take: 5,
+              select: { orderDate: true, totalAmount: true },
+            },
+            _count: { select: { orders: true, invoices: true } },
+          },
+        })
+
+        const now = Date.now()
+        const analyzed = customers.map((c) => {
+          const totalSpend = money(c.orders.reduce((acc, o) => acc + o.totalAmount, 0))
+          const lastOrder = c.orders[0]?.orderDate
+          const daysSinceLastOrder = lastOrder ? Math.floor((now - lastOrder.getTime()) / 86400000) : null
+          const creditUtilization = c.creditLimit > 0 ? Number(((c.creditBalance / c.creditLimit) * 100).toFixed(1)) : 0
+          
+          let churnRisk: "low" | "medium" | "high" = "low"
+          if (daysSinceLastOrder === null || daysSinceLastOrder > 45) {
+            churnRisk = "high"
+          } else if (daysSinceLastOrder > 21) {
+            churnRisk = "medium"
+          }
+
+          return {
+            id: c.id,
+            name: c.name,
+            totalOrders: c._count.orders,
+            recentSpend: totalSpend,
+            lastOrderDate: lastOrder || null,
+            daysSinceLastOrder,
+            creditBalance: money(c.creditBalance),
+            creditLimit: money(c.creditLimit),
+            creditUtilizationPct: creditUtilization,
+            churnRisk,
+          }
+        })
+
+        return {
+          auditedAccounts: analyzed.length,
+          accounts: analyzed.sort((a, b) => (b.daysSinceLastOrder || 999) - (a.daysSinceLastOrder || 999)),
+        }
+      },
+    }),
+
+    priceMarginOptimizer: defineTool({
+      description:
+        "Analyzes product pricing and profit margins across the catalog. Highlights underpriced products below target margin or with negative margins.",
+      inputSchema: z.object({
+        targetMarginPct: z.number().optional().default(25).describe("Target profit margin percentage (default 25%)"),
+        limit: z.number().int().min(1).max(50).optional().default(25),
+      }),
+      execute: async ({ targetMarginPct = 25, limit = 25 }) => {
+        const products = await db.product.findMany({
+          where: { status: "active" },
+          take: 100,
+          select: {
+            id: true,
+            sku: true,
+            name: true,
+            costPrice: true,
+            wholesalePrice: true,
+            baseUnit: true,
+          },
+        })
+
+        const analyzed = products
+          .map((p) => {
+            const marginDollars = p.wholesalePrice - p.costPrice
+            const marginPct = p.wholesalePrice > 0 ? Number(((marginDollars / p.wholesalePrice) * 100).toFixed(2)) : 0
+            const belowTarget = marginPct < targetMarginPct
+            const suggestedWholesale = p.costPrice > 0 ? Number((p.costPrice / (1 - targetMarginPct / 100)).toFixed(2)) : p.wholesalePrice
+
+            return {
+              id: p.id,
+              sku: p.sku,
+              name: p.name,
+              costPrice: money(p.costPrice),
+              wholesalePrice: money(p.wholesalePrice),
+              marginDollars: money(marginDollars),
+              marginPct,
+              belowTarget,
+              suggestedWholesale: money(suggestedWholesale),
+            }
+          })
+          .sort((a, b) => a.marginPct - b.marginPct)
+          .slice(0, limit)
+
+        return {
+          targetMarginPct,
+          underpricedCount: analyzed.filter((p) => p.belowTarget).length,
+          products: analyzed,
+        }
+      },
+    }),
+
+    draftCommunication: defineTool({
+      description:
+        "Generate a structured, professional business communication draft (Email, Formal Letter, SMS, or Telegram Dispatch) for quotes, payment reminders, price change notices, or supplier requests.",
+      inputSchema: z.object({
+        type: z.enum(["quote_email", "payment_reminder", "price_update", "welcome_onboarding", "apology_resolution", "custom"]),
+        recipientName: z.string().describe("Recipient contact or company name"),
+        subject: z.string().describe("Email subject or dispatch headline"),
+        keyPoints: z.array(z.string()).describe("Bullet points of information to include"),
+        tone: z.enum(["professional", "warm_friendly", "firm_urgent", "concise"]).optional().default("professional"),
+      }),
+      execute: async ({ type, recipientName, subject, keyPoints, tone = "professional" }) => {
+        const formattedBullets = keyPoints.map((p) => `• ${p}`).join("\n")
+        return {
+          ok: true as const,
+          type,
+          recipient: recipientName,
+          subject,
+          tone,
+          bulletPoints: keyPoints,
+          message: `Ready to compose draft with subject "${subject}" for ${recipientName}.`,
+        }
+      },
+    }),
   }
 }

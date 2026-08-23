@@ -36,8 +36,8 @@ export const ROLE_SETS: Record<RoleSetName, UserRole[]> = {
   accounting: ["admin", "accounts"],
 
   /** Physical operations: picking, deliveries, stock movements, purchasing. */
-  operations: ["admin", "sales", "warehouse"],
+  operations: ["admin", "sales", "warehouse", "driver"],
 
   /** Any signed-in staff member: dashboards, reference data, shared logs. */
-  staff: ["admin", "sales", "warehouse", "accounts"],
+  staff: ["admin", "sales", "warehouse", "accounts", "driver"],
 }

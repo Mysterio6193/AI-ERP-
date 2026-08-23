@@ -1,13 +1,14 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Camera, Flashlight, Keyboard, ScanLine, X } from "lucide-react"
+import { Camera, Flashlight, RefreshCw, X, Zap } from "lucide-react"
 import { audioFeedback } from "./AudioFeedback"
+import styles from "../../page.module.css"
 
 interface ScannerModalProps {
   isOpen: boolean
   onClose: () => void
-  onScan: (barcode: string) => void
+  onScan: (scannedCode: string) => void
   title?: string
   hint?: string
 }
@@ -16,47 +17,69 @@ export function ScannerModal({
   isOpen,
   onClose,
   onScan,
-  title = "Scan Barcode / SKU",
-  hint = "Align barcode within the viewfinder or enter SKU",
+  title = "Barcode Scanner",
+  hint = "Position barcode within viewfinder",
 }: ScannerModalProps) {
+  const [cameraActive, setCameraActive] = useState(false)
+  const [cameraError, setCameraError] = useState<string | null>(null)
+  const [torchOn, setTorchOn] = useState(false)
+  const [manualCode, setManualCode] = useState("")
+
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
-  const [manualCode, setManualCode] = useState("")
-  const [cameraActive, setCameraActive] = useState(false)
-  const [torchOn, setTorchOn] = useState(false)
-  const [cameraError, setCameraError] = useState<string | null>(null)
-  const manualInputRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
-    if (!isOpen) {
+    if (isOpen) {
+      void startCamera()
+    } else {
       stopCamera()
-      setManualCode("")
-      return
     }
-
-    // Auto-focus manual input for hardware scanners
-    setTimeout(() => {
-      manualInputRef.current?.focus()
-    }, 100)
-
-    startCamera()
 
     return () => {
       stopCamera()
     }
   }, [isOpen])
 
+  // Keydown listener for physical laser barcode scanners
+  useEffect(() => {
+    if (!isOpen) return
+
+    let scanBuffer = ""
+    let lastKeyTime = Date.now()
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const now = Date.now()
+      if (now - lastKeyTime > 100) {
+        scanBuffer = ""
+      }
+      lastKeyTime = now
+
+      if (e.key === "Enter") {
+        if (scanBuffer.length >= 3) {
+          e.preventDefault()
+          handleDetectedCode(scanBuffer)
+          scanBuffer = ""
+        }
+      } else if (e.key.length === 1) {
+        scanBuffer += e.key
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [isOpen])
+
   async function startCamera() {
     try {
       setCameraError(null)
       if (!navigator.mediaDevices?.getUserMedia) {
-        setCameraError("Camera access not supported on this browser.")
+        setCameraError("Camera access not supported in this browser.")
         return
       }
 
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: "environment",
+          facingMode: { ideal: "environment" },
           width: { ideal: 1280 },
           height: { ideal: 720 },
         },
@@ -67,49 +90,17 @@ export function ScannerModal({
         videoRef.current.srcObject = stream
         await videoRef.current.play()
         setCameraActive(true)
-
-        // If BarcodeDetector is supported in modern browsers
-        if ("BarcodeDetector" in window) {
-          const barcodeDetector = new (window as unknown as {
-            BarcodeDetector: new (opts?: { formats: string[] }) => {
-              detect: (source: ImageBitmapSource) => Promise<Array<{ rawValue: string }>>
-            }
-          }).BarcodeDetector({
-            formats: ["code_128", "code_39", "ean_13", "ean_8", "qr_code", "upc_a", "upc_e"],
-          })
-
-          const detectInterval = setInterval(async () => {
-            if (!videoRef.current || !streamRef.current?.active) {
-              clearInterval(detectInterval)
-              return
-            }
-            try {
-              const barcodes = await barcodeDetector.detect(videoRef.current)
-              if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
-                const detected = barcodes[0].rawValue.trim()
-                if (detected) {
-                  clearInterval(detectInterval)
-                  audioFeedback.playScanBeep()
-                  onScan(detected)
-                  onClose()
-                }
-              }
-            } catch {
-              // Ignore frame detection failures
-            }
-          }, 300)
-        }
       }
     } catch (err) {
-      console.warn("Camera access failed:", err)
-      setCameraError("Camera unavailable or permission denied. You can still type or scan with a hardware scanner.")
+      console.warn("Camera init warning:", err)
+      setCameraError("Camera permission denied or camera not found.")
       setCameraActive(false)
     }
   }
 
   function stopCamera() {
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop())
+      streamRef.current.getTracks().forEach((t) => t.stop())
       streamRef.current = null
     }
     setCameraActive(false)
@@ -122,258 +113,149 @@ export function ScannerModal({
     if (!track) return
 
     try {
-      const nextState = !torchOn
-      await (track as unknown as { applyConstraints: (c: unknown) => Promise<void> }).applyConstraints({
-        advanced: [{ torch: nextState }],
-      })
-      setTorchOn(nextState)
-    } catch {
-      // Torch not supported
+      const capabilities = track.getCapabilities?.() as { torch?: boolean } | undefined
+      if (capabilities && capabilities.torch) {
+        const nextState = !torchOn
+        await track.applyConstraints({
+          advanced: [{ torch: nextState } as MediaTrackConstraintSet],
+        })
+        setTorchOn(nextState)
+      }
+    } catch (err) {
+      console.warn("Torch not supported:", err)
     }
   }
 
-  function handleManualSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    const trimmed = manualCode.trim()
-    if (!trimmed) return
+  function handleDetectedCode(code: string) {
+    if (!code.trim()) return
     audioFeedback.playScanBeep()
-    onScan(trimmed)
+    onScan(code.trim())
     onClose()
   }
 
   if (!isOpen) return null
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 9999,
-        background: "rgba(2, 6, 23, 0.95)",
-        backdropFilter: "blur(12px)",
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
-      {/* Top Bar */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "16px 20px",
-          borderBottom: "1px solid rgba(148, 163, 184, 0.15)",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <div
-            style={{
-              width: "36px",
-              height: "36px",
-              borderRadius: "10px",
-              background: "rgba(56, 189, 248, 0.15)",
-              color: "#38bdf8",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <ScanLine size={20} />
-          </div>
+    <div className={styles.modalOverlay}>
+      <div className={styles.modalContent} style={{ maxWidth: "500px" }}>
+        <div className={styles.modalHeader}>
           <div>
-            <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 600, color: "#f8fafc" }}>{title}</h3>
-            <p style={{ margin: 0, fontSize: "12px", color: "#94a3b8" }}>{hint}</p>
+            <span className={styles.heroTaglineLight}>Optical Scanner</span>
+            <h3 className={styles.modalTitle} style={{ marginTop: "4px" }}>
+              {title}
+            </h3>
           </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={onClose}
-          style={{
-            width: "36px",
-            height: "36px",
-            borderRadius: "50%",
-            background: "rgba(255, 255, 255, 0.1)",
-            border: "none",
-            color: "#e2e8f0",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: "pointer",
-          }}
-        >
-          <X size={20} />
-        </button>
-      </div>
-
-      {/* Viewfinder / Camera Area */}
-      <div
-        style={{
-          flex: 1,
-          position: "relative",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          overflow: "hidden",
-          background: "#000",
-        }}
-      >
-        <video
-          ref={videoRef}
-          playsInline
-          muted
-          style={{
-            position: "absolute",
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-            opacity: cameraActive ? 1 : 0.2,
-          }}
-        />
-
-        {/* Viewfinder Target Reticle */}
-        <div
-          style={{
-            position: "relative",
-            width: "280px",
-            height: "220px",
-            border: "2px solid rgba(56, 189, 248, 0.8)",
-            borderRadius: "16px",
-            boxShadow: "0 0 0 9999px rgba(2, 6, 23, 0.65)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 10,
-          }}
-        >
-          {/* Animated Red Laser Scan Line */}
-          <div
-            style={{
-              position: "absolute",
-              left: "10px",
-              right: "10px",
-              height: "2px",
-              background: "linear-gradient(90deg, transparent, #ef4444, #f87171, #ef4444, transparent)",
-              boxShadow: "0 0 8px #ef4444",
-              animation: "scanSweep 2s ease-in-out infinite",
-            }}
-          />
-
-          {/* Corner Markers */}
-          <div style={{ position: "absolute", top: -2, left: -2, width: 24, height: 24, borderTop: "4px solid #38bdf8", borderLeft: "4px solid #38bdf8", borderTopLeftRadius: 16 }} />
-          <div style={{ position: "absolute", top: -2, right: -2, width: 24, height: 24, borderTop: "4px solid #38bdf8", borderRight: "4px solid #38bdf8", borderTopRightRadius: 16 }} />
-          <div style={{ position: "absolute", bottom: -2, left: -2, width: 24, height: 24, borderBottom: "4px solid #38bdf8", borderLeft: "4px solid #38bdf8", borderBottomLeftRadius: 16 }} />
-          <div style={{ position: "absolute", bottom: -2, right: -2, width: 24, height: 24, borderBottom: "4px solid #38bdf8", borderRight: "4px solid #38bdf8", borderBottomRightRadius: 16 }} />
-        </div>
-
-        {/* Torch Button if stream active */}
-        {cameraActive && (
           <button
             type="button"
-            onClick={toggleTorch}
+            onClick={onClose}
+            className={styles.buttonIconCircular}
+            style={{ width: "32px", height: "32px" }}
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className={styles.modalBody} style={{ padding: "20px" }}>
+          {/* Viewfinder Window */}
+          <div
             style={{
-              position: "absolute",
-              bottom: "20px",
-              right: "20px",
-              zIndex: 20,
-              width: "44px",
-              height: "44px",
-              borderRadius: "50%",
-              background: torchOn ? "#eab308" : "rgba(15, 23, 42, 0.8)",
-              border: "1px solid rgba(255, 255, 255, 0.2)",
-              color: torchOn ? "#000" : "#fff",
+              position: "relative",
+              height: "260px",
+              background: "#000000",
+              borderRadius: "14px",
+              overflow: "hidden",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              cursor: "pointer",
             }}
           >
-            <Flashlight size={20} />
-          </button>
-        )}
+            <video
+              ref={videoRef}
+              playsInline
+              muted
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                display: cameraActive ? "block" : "none",
+              }}
+            />
 
-        {cameraError && (
-          <div
-            style={{
-              position: "absolute",
-              top: "20px",
-              left: "20px",
-              right: "20px",
-              zIndex: 20,
-              background: "rgba(239, 68, 68, 0.15)",
-              border: "1px solid rgba(239, 68, 68, 0.3)",
-              borderRadius: "10px",
-              padding: "10px 14px",
-              color: "#fca5a5",
-              fontSize: "12px",
-              textAlign: "center",
-            }}
-          >
-            {cameraError}
+            {!cameraActive && (
+              <div style={{ textAlign: "center", color: "#94a3b8", padding: "20px" }}>
+                <Camera size={36} style={{ margin: "0 auto 8px auto", opacity: 0.6 }} />
+                <p style={{ margin: 0, fontSize: "14px" }}>
+                  {cameraError || "Camera scanner active (Hardware Laser Ready)"}
+                </p>
+              </div>
+            )}
+
+            {/* Laser Line */}
+            {cameraActive && (
+              <div
+                style={{
+                  position: "absolute",
+                  left: "15%",
+                  right: "15%",
+                  height: "2px",
+                  backgroundColor: "var(--primary-on-dark)",
+                  boxShadow: "0 0 10px #2997ff",
+                  animation: `${styles.scanSweep} 2.5s ease-in-out infinite`,
+                }}
+              />
+            )}
+
+            {/* Torch Control Button */}
+            {cameraActive && (
+              <button
+                type="button"
+                onClick={toggleTorch}
+                className={styles.buttonIconCircular}
+                style={{
+                  position: "absolute",
+                  bottom: "12px",
+                  right: "12px",
+                  background: torchOn ? "var(--primary)" : "rgba(210, 210, 215, 0.64)",
+                  color: torchOn ? "#ffffff" : "var(--ink)",
+                }}
+              >
+                <Flashlight size={18} />
+              </button>
+            )}
           </div>
-        )}
-      </div>
 
-      {/* Manual Input Form (also works with USB/Bluetooth laser scanners) */}
-      <form
-        onSubmit={handleManualSubmit}
-        style={{
-          padding: "16px 20px",
-          background: "#0f172a",
-          borderTop: "1px solid rgba(148, 163, 184, 0.15)",
-          display: "flex",
-          gap: "10px",
-          alignItems: "center",
-        }}
-      >
-        <div style={{ position: "relative", flex: 1 }}>
-          <Keyboard
-            size={18}
-            style={{
-              position: "absolute",
-              left: "14px",
-              top: "50%",
-              transform: "translateY(-50%)",
-              color: "#64748b",
+          <p style={{ textAlign: "center", fontSize: "14px", color: "var(--ink-muted-80)", margin: "4px 0" }}>
+            {hint}
+          </p>
+
+          {/* Manual Entry or Laser Scanner Input */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              handleDetectedCode(manualCode)
             }}
-          />
-          <input
-            ref={manualInputRef}
-            type="text"
-            value={manualCode}
-            onChange={(e) => setManualCode(e.target.value)}
-            placeholder="Type or laser scan SKU / Barcode..."
-            style={{
-              width: "100%",
-              padding: "12px 14px 12px 42px",
-              borderRadius: "10px",
-              background: "#1e293b",
-              border: "1px solid rgba(148, 163, 184, 0.2)",
-              color: "#f8fafc",
-              fontSize: "14px",
-              outline: "none",
-            }}
-          />
+            style={{ display: "flex", gap: "8px", marginTop: "8px" }}
+          >
+            <input
+              type="text"
+              autoFocus
+              value={manualCode}
+              onChange={(e) => setManualCode(e.target.value)}
+              placeholder="Enter SKU / Scan with Laser..."
+              className={styles.searchInput}
+              style={{ flex: 1, height: "42px" }}
+            />
+            <button
+              type="submit"
+              disabled={!manualCode.trim()}
+              className={styles.buttonPrimary}
+              style={{ padding: "0 20px" }}
+            >
+              Submit
+            </button>
+          </form>
         </div>
-
-        <button
-          type="submit"
-          disabled={!manualCode.trim()}
-          style={{
-            padding: "12px 20px",
-            borderRadius: "10px",
-            background: manualCode.trim() ? "#0284c7" : "rgba(2, 132, 199, 0.3)",
-            border: "none",
-            color: "#ffffff",
-            fontWeight: 600,
-            fontSize: "14px",
-            cursor: manualCode.trim() ? "pointer" : "default",
-            whiteSpace: "nowrap",
-          }}
-        >
-          Submit
-        </button>
-      </form>
+      </div>
     </div>
   )
 }

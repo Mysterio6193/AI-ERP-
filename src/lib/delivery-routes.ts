@@ -213,22 +213,42 @@ async function ensureRouteForOrder(
     return existingRoute
   }
 
-  return db.deliveryRoute.create({
-    data: {
-      routeNumber: await nextDocumentNumber("route", {
-        db,
-        date: input.routeDate,
-        legacy: () => getNextRouteNumber(db, input.routeDate),
-      }),
-      name: buildRouteName(input.routeDate, input.warehouseName),
-      routeDate: input.routeDate,
-      warehouseId: input.warehouseId || null,
-      driverId: input.driverId || null,
-      vehicle: null,
-      status: "planned",
-      companyId: input.companyId || null,
-    },
-  })
+  try {
+    return await db.deliveryRoute.create({
+      data: {
+        routeNumber: await nextDocumentNumber("route", {
+          db,
+          date: input.routeDate,
+          legacy: () => getNextRouteNumber(db, input.routeDate),
+        }),
+        name: buildRouteName(input.routeDate, input.warehouseName),
+        routeDate: input.routeDate,
+        warehouseId: input.warehouseId || null,
+        driverId: input.driverId || null,
+        vehicle: null,
+        status: "planned",
+        companyId: input.companyId || null,
+      },
+    })
+  } catch (error: any) {
+    if (error?.code === "P2002") {
+      const existing = await db.deliveryRoute.findFirst({
+        where: {
+          routeDate: {
+            gte: startOfDay(input.routeDate),
+            lte: endOfDay(input.routeDate),
+          },
+          warehouseId: input.warehouseId || null,
+          companyId: input.companyId || null,
+        },
+        orderBy: { createdAt: "desc" },
+      })
+      if (existing) {
+        return existing
+      }
+    }
+    throw error
+  }
 }
 
 export async function ensureDeliveryForOrder(db: DbClient, orderId: string) {

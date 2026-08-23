@@ -1,20 +1,28 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAdminUser } from "@/lib/admin-auth"
+import { getActiveCompanyId } from "@/lib/active-company"
 import { db } from "@/lib/db"
 import { ensurePickListForOrder } from "@/lib/pick-lists"
 
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireAdminUser(request, ["admin", "sales", "warehouse"])
+    const auth = await requireAdminUser(request, ["admin", "sales", "warehouse", "driver"])
     if (auth.response) {
       return auth.response
     }
 
+    const companyId = await getActiveCompanyId(request)
+
     const eligibleOrders = await db.salesOrder.findMany({
       where: {
-        status: {
-          in: ["approved", "picking", "packed", "dispatched", "delivered", "invoiced"],
-        },
+        AND: [
+          companyId ? { companyId } : {},
+          {
+            status: {
+              in: ["approved", "picking", "packed", "dispatched", "delivered", "invoiced"],
+            },
+          },
+        ],
       },
       select: { id: true },
     })
@@ -24,6 +32,7 @@ export async function GET(request: NextRequest) {
     }
 
     const pickLists = await db.pickList.findMany({
+      where: companyId ? { order: { companyId } } : {},
       include: {
         order: {
           include: {

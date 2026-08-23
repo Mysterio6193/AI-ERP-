@@ -41,7 +41,13 @@ function isPlaceholderValue(value?: string | null) {
 }
 
 export function isPlaceholderBranding(company?: CompanyBranding | null) {
-  return isPlaceholderValue(company?.tradingName) || isPlaceholderValue(company?.name)
+  if (!company || company.setupComplete === true) {
+    return false
+  }
+  if (company.abn && company.abn.trim().length > 5) {
+    return false
+  }
+  return isPlaceholderValue(company?.tradingName) && isPlaceholderValue(company?.name)
 }
 
 export function sanitizeCompanyBranding<T extends CompanyBranding | null | undefined>(company: T): T {

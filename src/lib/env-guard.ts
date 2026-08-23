@@ -93,13 +93,16 @@ export function checkEnvironment(env: NodeJS.ProcessEnv = process.env): EnvIssue
 
   // --- Model access -------------------------------------------------------
   const hasModelKey = Boolean(
-    env.AI_GATEWAY_API_KEY || env.OPENAI_API_KEY || env.ANTHROPIC_API_KEY
+    env.AI_GATEWAY_API_KEY ||
+    env.OPENAI_API_KEY ||
+    env.ANTHROPIC_API_KEY ||
+    env.OPENROUTER_API_KEY
   )
 
   if (!hasModelKey) {
     issues.push({
       level: "warn",
-      key: "AI_GATEWAY_API_KEY",
+      key: "OPENROUTER_API_KEY",
       message: "No model credential found. Every agent feature will fail at call time.",
     })
   }

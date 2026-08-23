@@ -1,341 +1,338 @@
-/* SupplySure Operations Companion App - Dark Industrial Theme */
+/* Apple-design-analysis Stylesheet */
 
 .page {
   min-height: 100vh;
-  background-color: #020617;
-  background-image: 
-    radial-gradient(at 0% 0%, rgba(15, 23, 42, 0.9) 0, transparent 50%),
-    radial-gradient(at 100% 0%, rgba(30, 41, 59, 0.8) 0, transparent 50%),
-    radial-gradient(at 50% 100%, rgba(15, 23, 42, 0.9) 0, transparent 50%);
-  color: #f8fafc;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background-color: var(--canvas-parchment);
+  color: var(--body);
   display: flex;
   flex-direction: column;
-  padding-bottom: 90px; /* Space for bottom nav */
+  padding-bottom: 96px; /* Space for bottom floating bar */
 }
 
-/* Header Styles */
-.appHeader {
-  background: rgba(15, 23, 42, 0.85);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+/* ==========================================================================
+   Global Nav & Frosted Sub-Nav
+   ========================================================================== */
+
+.globalNav {
+  height: 44px;
+  background-color: var(--surface-black);
+  color: var(--body-on-dark);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
   position: sticky;
   top: 0;
-  z-index: 50;
-  padding: 12px 16px 8px 16px;
+  z-index: 60;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: -0.12px;
 }
 
-.headerTop {
+.globalNavLeft {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.globalNavLogo {
+  display: flex;
+  align-items: center;
+  color: var(--body-on-dark);
+  font-weight: 600;
+}
+
+.globalNavStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--body-muted);
+  font-size: 11px;
+}
+
+.globalNavRight {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.globalNavUtilityBtn {
+  background: var(--ink);
+  color: var(--body-on-dark);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: -0.12px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.subNavFrosted {
+  height: 52px;
+  background-color: rgba(245, 245, 247, 0.85);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 1px solid var(--hairline);
   display: flex;
   align-items: center;
   justify-content: space-between;
+  padding: 0 20px;
+  position: sticky;
+  top: 44px;
+  z-index: 50;
 }
 
-.headerBrand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.brandLogoIcon {
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
-  color: #ffffff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
-}
-
-.brandName {
+.subNavCategory {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+  font-size: 21px;
+  font-weight: 600;
+  line-height: 1.19;
+  letter-spacing: 0.231px;
+  color: var(--ink);
   margin: 0;
-  font-size: 15px;
-  font-weight: 700;
-  color: #f8fafc;
-  letter-spacing: -0.01em;
 }
 
-.userRoleTag {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 2px;
-}
-
-.roleBadge {
-  font-size: 9px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: rgba(56, 189, 248, 0.15);
-  color: #38bdf8;
-  border: 1px solid rgba(56, 189, 248, 0.3);
-}
-
-.userNameText {
-  font-size: 12px;
-  color: #94a3b8;
-}
-
-.headerActions {
+.subNavActions {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.onlineIndicator {
+.modeTogglePill {
   display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  font-weight: 600;
-  color: #34d399;
-  background: rgba(52, 211, 153, 0.12);
-  border: 1px solid rgba(52, 211, 153, 0.25);
-  padding: 4px 8px;
-  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 9999px;
+  padding: 2px;
 }
 
-.offlineIndicator {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  font-weight: 600;
-  color: #f87171;
-  background: rgba(248, 113, 113, 0.12);
-  border: 1px solid rgba(248, 113, 113, 0.25);
-  padding: 4px 8px;
-  border-radius: 12px;
-}
-
-.signOutBtn {
-  width: 34px;
-  height: 34px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #94a3b8;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.signOutBtn:hover {
-  background: rgba(239, 68, 68, 0.15);
-  color: #f87171;
-  border-color: rgba(239, 68, 68, 0.3);
-}
-
-/* Mode Switcher Pill Tabs */
-.modeSwitcherContainer {
-  margin-top: 10px;
-}
-
-.modeSwitcher {
-  display: flex;
-  background: #090d16;
-  border: 1px solid rgba(148, 163, 184, 0.15);
-  border-radius: 10px;
-  padding: 3px;
-  gap: 4px;
-}
-
-.modeTab {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 7px 12px;
-  border-radius: 8px;
-  background: transparent;
+.modePillBtn {
+  padding: 6px 14px;
+  border-radius: 9999px;
   border: none;
-  color: #94a3b8;
-  font-size: 12px;
-  font-weight: 600;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--ink-muted-80);
   cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.modeTabActive {
-  flex: 1;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 7px 12px;
-  border-radius: 8px;
-  background: #1e293b;
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  color: #f8fafc;
-  font-size: 12px;
-  font-weight: 700;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  gap: 5px;
+  transition: all 0.15s ease;
 }
 
-/* Main Container */
-.routeContainer {
-  padding: 14px 16px;
+.modePillBtnActive {
+  padding: 6px 14px;
+  border-radius: 9999px;
+  border: none;
+  background: var(--canvas);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+/* ==========================================================================
+   Layout Containers & Hero Sections
+   ========================================================================== */
+
+.mainContent {
+  width: 100%;
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 32px 20px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  max-width: 680px;
-  margin: 0 auto;
-  width: 100%;
+  gap: 24px;
 }
 
-/* Summary Card */
-.summaryCard {
-  background: linear-gradient(180deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.8) 100%);
-  border: 1px solid rgba(148, 163, 184, 0.15);
-  border-radius: 16px;
-  padding: 16px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-  backdrop-filter: blur(8px);
-}
-
-.summaryTop {
+/* Full-bleed Tile Alternate: Dark Tile */
+.heroDarkTile {
+  background-color: var(--surface-tile-1);
+  color: var(--body-on-dark);
+  border-radius: 18px;
+  padding: 48px 32px;
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 20px;
 }
 
-.summaryTitle {
-  margin: 6px 0 2px 0;
-  font-size: 18px;
-  font-weight: 700;
-  color: #f8fafc;
-  letter-spacing: -0.01em;
+.heroTileLight {
+  background-color: var(--canvas);
+  color: var(--ink);
+  border: 1px solid var(--hairline);
+  border-radius: 18px;
+  padding: 36px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
-.summarySub {
+.heroHeaderStack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.heroTagline {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.231px;
+  color: var(--primary-on-dark);
+}
+
+.heroTaglineLight {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.231px;
+  color: var(--primary);
+}
+
+.heroDisplay {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+  font-size: 40px;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: 0;
   margin: 0;
-  font-size: 13px;
-  color: #94a3b8;
 }
 
-/* Progress Section */
-.progressSection {
-  margin-top: 14px;
+.heroLead {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+  font-size: 21px;
+  font-weight: 400;
+  line-height: 1.3;
+  letter-spacing: 0.196px;
+  color: var(--body-muted);
+  margin: 0;
 }
 
-.progressHeader {
-  display: flex;
-  justify-content: space-between;
-  font-size: 12px;
-  color: #94a3b8;
-  margin-bottom: 6px;
+.heroLeadLight {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+  font-size: 21px;
+  font-weight: 400;
+  line-height: 1.3;
+  letter-spacing: 0.196px;
+  color: var(--ink-muted-80);
+  margin: 0;
 }
 
-.progressValue {
-  font-weight: 700;
-  color: #f8fafc;
-}
-
-.progressBarBg {
-  height: 8px;
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 999px;
-  overflow: hidden;
-}
-
-.progressBarFill {
-  height: 100%;
-  background: linear-gradient(90deg, #0284c7 0%, #38bdf8 100%);
-  border-radius: 999px;
-  transition: width 0.4s ease;
-}
-
-/* Metrics Grid */
-.metricsGrid {
+/* Metric / Stat Strip */
+.statStrip {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px solid rgba(148, 163, 184, 0.1);
+  gap: 16px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.metricItem {
+.statStripLight {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  padding-top: 20px;
+  border-top: 1px solid var(--hairline);
+}
+
+.statItem {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  text-align: center;
+  gap: 2px;
 }
 
-.metricLabel {
-  font-size: 11px;
-  color: #64748b;
-  font-weight: 500;
+.statLabel {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ink-muted-48);
+  letter-spacing: -0.12px;
 }
 
-.metricNumber {
-  font-size: 16px;
-  font-weight: 700;
-  color: #f8fafc;
-  margin-top: 2px;
+.statValue {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.28px;
+  color: var(--body-on-dark);
 }
 
-/* Filters & Search */
-.filterSection {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+.statValueLight {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.28px;
+  color: var(--ink);
 }
 
-.searchBar {
+/* ==========================================================================
+   Search Input (Full Pill)
+   ========================================================================== */
+
+.searchContainer {
   position: relative;
   width: 100%;
 }
 
 .searchIcon {
   position: absolute;
-  left: 12px;
+  left: 16px;
   top: 50%;
   transform: translateY(-50%);
-  color: #64748b;
+  color: var(--ink-muted-48);
+  pointer-events: none;
 }
 
 .searchInput {
   width: 100%;
-  padding: 10px 36px 10px 36px;
-  background: #0f172a;
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  border-radius: 10px;
-  color: #f8fafc;
-  font-size: 13px;
+  height: 44px;
+  background-color: var(--canvas);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  font-size: 17px;
+  font-weight: 400;
+  letter-spacing: -0.374px;
+  border: 1px solid var(--hairline);
+  border-radius: 9999px;
+  padding: 0 40px 0 44px;
   outline: none;
-  transition: border-color 0.2s;
+  transition: border-color 0.15s ease;
 }
 
 .searchInput:focus {
-  border-color: #38bdf8;
+  border-color: var(--primary-focus);
+  outline: 2px solid var(--primary-focus);
+  outline-offset: 1px;
 }
 
 .clearSearchBtn {
   position: absolute;
-  right: 10px;
+  right: 14px;
   top: 50%;
   transform: translateY(-50%);
   background: none;
   border: none;
-  color: #64748b;
+  color: var(--ink-muted-48);
   cursor: pointer;
+  padding: 4px;
 }
 
+/* Pill Filter Buttons */
 .pillGroup {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   overflow-x: auto;
-  padding-bottom: 2px;
+  padding: 4px 0;
   scrollbar-width: none;
 }
 
@@ -343,446 +340,287 @@
   display: none;
 }
 
-.pill {
-  background: rgba(30, 41, 59, 0.5);
-  border: 1px solid rgba(148, 163, 184, 0.15);
-  color: #94a3b8;
-  padding: 6px 12px;
-  border-radius: 999px;
-  font-size: 12px;
+.optionChip {
+  background-color: var(--canvas);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: -0.224px;
+  border: 1px solid var(--hairline);
+  border-radius: 9999px;
+  padding: 8px 16px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.optionChipSelected {
+  background-color: var(--canvas);
+  color: var(--primary);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  font-size: 14px;
   font-weight: 600;
-  white-space: nowrap;
+  letter-spacing: -0.224px;
+  border: 2px solid var(--primary);
+  border-radius: 9999px;
+  padding: 7px 15px;
   cursor: pointer;
-  transition: all 0.2s;
+  white-space: nowrap;
 }
 
-.activePill {
-  background: #0284c7;
-  border: 1px solid #38bdf8;
-  color: #ffffff;
-  padding: 6px 12px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 700;
-  white-space: nowrap;
-  cursor: pointer;
+/* ==========================================================================
+   Utility Cards (Store & Warehouse Grid)
+   ========================================================================== */
+
+.cardGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
 }
 
-/* Stop Card & Pick Card */
-.stopsList {
+@media (min-width: 768px) {
+  .cardGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.utilityCard {
+  background-color: var(--canvas);
+  color: var(--ink);
+  border: 1px solid var(--hairline);
+  border-radius: 18px;
+  padding: 24px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
+  transition: border-color 0.15s ease;
 }
 
-.stopCard {
-  background: #0f172a;
-  border: 1px solid rgba(148, 163, 184, 0.14);
-  border-radius: 14px;
-  padding: 14px;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
-  transition: transform 0.15s ease, border-color 0.15s ease;
+.utilityCardDone {
+  background-color: var(--surface-pearl);
+  border-color: #d1fae5;
 }
 
-.stopCard:active {
-  transform: scale(0.99);
-}
-
-.stopDelivered {
-  border-color: rgba(52, 211, 153, 0.3);
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.9) 0%, rgba(6, 78, 59, 0.15) 100%);
-}
-
-.stopEnRoute {
-  border-color: rgba(245, 158, 11, 0.4);
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.9) 0%, rgba(120, 53, 15, 0.15) 100%);
-}
-
-.stopArrived {
-  border-color: rgba(56, 189, 248, 0.4);
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.9) 0%, rgba(12, 74, 110, 0.15) 100%);
-}
-
-.stopFailed {
-  border-color: rgba(248, 113, 113, 0.3);
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.9) 0%, rgba(127, 29, 29, 0.15) 100%);
-}
-
-.stopWarning {
-  border-color: rgba(248, 113, 113, 0.35);
-}
-
-.stopCardTop {
+.cardHeaderRow {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
 }
 
-.stopSequenceBadge {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  background: rgba(56, 189, 248, 0.15);
-  color: #38bdf8;
+.cardSequenceBadge {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
   font-size: 12px;
-  font-weight: 800;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid rgba(56, 189, 248, 0.3);
+  font-weight: 600;
+  color: var(--ink-muted-80);
+  background: var(--canvas-parchment);
+  border: 1px solid var(--hairline);
+  padding: 3px 8px;
+  border-radius: 6px;
 }
 
-.stopHeaderInfo {
-  flex: 1;
-}
-
-.stopCustomerName {
+.cardTitle {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.24;
+  letter-spacing: -0.374px;
+  color: var(--ink);
   margin: 0;
-  font-size: 15px;
-  font-weight: 700;
-  color: #f8fafc;
 }
 
-.stopOrderMeta {
+.cardSub {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--ink-muted-48);
+  letter-spacing: -0.224px;
   margin: 2px 0 0 0;
-  font-size: 12px;
-  color: #64748b;
 }
 
-.stopAddressRow {
+.cardAddress {
+  font-size: 15px;
+  color: var(--ink-muted-80);
   display: flex;
   align-items: flex-start;
   gap: 6px;
-  margin-top: 8px;
-  font-size: 13px;
-  color: #cbd5e1;
   line-height: 1.4;
 }
 
-.stopIcon {
-  color: #94a3b8;
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-
-.stopInstructionBox {
-  margin-top: 8px;
-  padding: 8px 10px;
-  background: rgba(245, 158, 11, 0.1);
-  border: 1px solid rgba(245, 158, 11, 0.2);
-  border-radius: 8px;
-  font-size: 12px;
-  color: #fbbf24;
-}
-
-.stopMetricsRow {
+.cardMetadataRow {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 10px;
-}
-
-.stopMetricTag {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  background: rgba(30, 41, 59, 0.6);
-  border: 1px solid rgba(148, 163, 184, 0.12);
-  padding: 4px 8px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 600;
-  color: #cbd5e1;
-}
-
-.stopActionRow {
-  display: flex;
   gap: 8px;
-  margin-top: 12px;
-  padding-top: 10px;
-  border-top: 1px solid rgba(148, 163, 184, 0.08);
+  margin-top: 4px;
 }
 
-/* Badges & Status Pills */
-.badgePrimary {
-  font-size: 11px;
-  font-weight: 700;
-  background: rgba(56, 189, 248, 0.15);
-  color: #38bdf8;
-  border: 1px solid rgba(56, 189, 248, 0.3);
-  padding: 3px 8px;
-  border-radius: 6px;
-}
-
-.badgeDanger {
-  font-size: 11px;
-  font-weight: 700;
-  background: rgba(239, 68, 68, 0.15);
-  color: #f87171;
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  padding: 3px 8px;
-  border-radius: 6px;
-}
-
-.statusPillDefault {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: capitalize;
-  background: rgba(148, 163, 184, 0.12);
-  color: #94a3b8;
-  padding: 3px 8px;
-  border-radius: 6px;
-}
-
-.statusPillSuccess {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: capitalize;
-  background: rgba(52, 211, 153, 0.15);
-  color: #34d399;
-  border: 1px solid rgba(52, 211, 153, 0.3);
-  padding: 3px 8px;
-  border-radius: 6px;
-}
-
-.statusPillWarning {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: capitalize;
-  background: rgba(245, 158, 11, 0.15);
-  color: #fbbf24;
-  border: 1px solid rgba(245, 158, 11, 0.3);
-  padding: 3px 8px;
-  border-radius: 6px;
-}
-
-.statusPillInfo {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: capitalize;
-  background: rgba(56, 189, 248, 0.15);
-  color: #38bdf8;
-  border: 1px solid rgba(56, 189, 248, 0.3);
-  padding: 3px 8px;
-  border-radius: 6px;
-}
-
-.statusPillDanger {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: capitalize;
-  background: rgba(239, 68, 68, 0.15);
-  color: #f87171;
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  padding: 3px 8px;
-  border-radius: 6px;
-}
-
-/* Pick Item Card (Warehouse) */
-.pickItemCard {
-  background: #0f172a;
-  border: 1px solid rgba(148, 163, 184, 0.15);
-  border-radius: 12px;
-  padding: 12px 14px;
-}
-
-.pickItemDone {
-  border-color: rgba(52, 211, 153, 0.3);
-  background: linear-gradient(180deg, #0f172a 0%, rgba(6, 78, 59, 0.12) 100%);
-}
-
-.pickItemTop {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.binLocationTag {
+.cardTag {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ink-muted-80);
+  background: var(--canvas-parchment);
+  padding: 4px 10px;
+  border-radius: 9999px;
+  border: 1px solid var(--hairline);
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  background: rgba(56, 189, 248, 0.12);
-  color: #38bdf8;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 3px 7px;
-  border-radius: 6px;
-  border: 1px solid rgba(56, 189, 248, 0.25);
 }
 
-.skuTag {
-  font-family: monospace;
+.cardTagHighlight {
   font-size: 12px;
   font-weight: 600;
-  color: #e2e8f0;
-  background: rgba(255, 255, 255, 0.06);
-  padding: 2px 6px;
-  border-radius: 4px;
+  color: var(--primary);
+  background: rgba(0, 102, 204, 0.08);
+  padding: 4px 10px;
+  border-radius: 9999px;
+  border: 1px solid rgba(0, 102, 204, 0.2);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
-.pickItemName {
-  margin: 6px 0 0 0;
+/* Product Imagery with Signature Drop Shadow */
+.productImageContainer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 16px 0;
+}
+
+.productImageShadow {
+  box-shadow: var(--product-shadow);
+  border-radius: 8px;
+  max-width: 100%;
+  height: auto;
+}
+
+/* ==========================================================================
+   Buttons (Pills & Utilities)
+   ========================================================================== */
+
+.buttonPrimary {
+  background-color: var(--primary);
+  color: var(--on-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  font-size: 17px;
+  font-weight: 400;
+  line-height: 1.47;
+  letter-spacing: -0.374px;
+  border-radius: 9999px;
+  padding: 11px 22px;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.buttonPrimary:focus {
+  outline: 2px solid var(--primary-focus);
+  outline-offset: 2px;
+}
+
+.buttonSecondaryPill {
+  background-color: transparent;
+  color: var(--primary);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  font-size: 17px;
+  font-weight: 400;
+  line-height: 1.47;
+  letter-spacing: -0.374px;
+  border-radius: 9999px;
+  padding: 11px 22px;
+  border: 1px solid var(--primary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.buttonDarkUtility {
+  background-color: var(--ink);
+  color: var(--on-dark);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
   font-size: 14px;
-  font-weight: 600;
-  color: #f8fafc;
-}
-
-.pickQtyRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 10px;
-  padding-top: 8px;
-  border-top: 1px solid rgba(148, 163, 184, 0.08);
-}
-
-.pickQtyDisplay {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-}
-
-.pickQtyLabel {
-  font-size: 12px;
-  color: #64748b;
-}
-
-.pickQtyValue {
-  font-size: 16px;
-  font-weight: 800;
-}
-
-.pickActionButtons {
-  display: flex;
-  gap: 6px;
-}
-
-.pickIncrementBtn {
+  font-weight: 400;
+  line-height: 1.29;
+  letter-spacing: -0.224px;
+  border-radius: 8px;
+  padding: 8px 15px;
+  border: none;
+  cursor: pointer;
   display: inline-flex;
   align-items: center;
-  gap: 2px;
-  padding: 6px 10px;
-  border-radius: 8px;
-  background: #1e293b;
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  color: #f8fafc;
-  font-size: 12px;
-  font-weight: 700;
+  gap: 6px;
+}
+
+.buttonPearlCapsule {
+  background-color: var(--surface-pearl);
+  color: var(--ink-muted-80);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: -0.224px;
+  border-radius: 11px;
+  padding: 8px 14px;
+  border: 1px solid var(--divider-soft);
   cursor: pointer;
-  transition: all 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
-.pickIncrementBtn:active:not(:disabled) {
-  transform: scale(0.94);
-  background: #0284c7;
+.buttonIconCircular {
+  width: 44px;
+  height: 44px;
+  border-radius: 9999px;
+  background-color: var(--surface-chip-translucent);
+  color: var(--ink);
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
 }
 
-.pickIncrementBtn:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
-
-.pickAllBtn {
+.textLink {
+  color: var(--primary);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  font-size: 17px;
+  font-weight: 400;
+  letter-spacing: -0.374px;
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 6px 12px;
-  border-radius: 8px;
-  background: #059669;
-  border: 1px solid #10b981;
-  color: #ffffff;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.15s;
 }
 
-.pickAllBtn:active:not(:disabled) {
-  transform: scale(0.94);
-}
-
-.pickAllBtn:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
-
-/* Action Buttons */
-.actionBtnPrimary {
+.textLinkOnDark {
+  color: var(--primary-on-dark);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  font-size: 17px;
+  font-weight: 400;
+  letter-spacing: -0.374px;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
-  border-radius: 8px;
-  background: #0284c7;
-  border: 1px solid #38bdf8;
-  color: #ffffff;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s;
+  gap: 4px;
 }
 
-.actionBtnPrimary:active {
-  transform: scale(0.97);
-}
+/* ==========================================================================
+   Modals & Drawers
+   ========================================================================== */
 
-.actionBtnSecondary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 8px 12px;
-  border-radius: 8px;
-  background: rgba(30, 41, 59, 0.8);
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  color: #e2e8f0;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.actionBtnSecondary:hover {
-  background: #1e293b;
-}
-
-.iconBtn {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #cbd5e1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-
-.scannerTriggerBtn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 12px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
-  border: 1px solid #38bdf8;
-  color: #ffffff;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  box-shadow: 0 2px 8px rgba(2, 132, 199, 0.3);
-}
-
-/* Modals & Drawers */
 .modalOverlay {
   position: fixed;
   inset: 0;
   z-index: 100;
-  background: rgba(2, 6, 23, 0.85);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -796,200 +634,50 @@
 }
 
 .modalContent {
-  background: #0f172a;
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  border-top-left-radius: 20px;
-  border-top-right-radius: 20px;
+  background: var(--canvas);
+  border: 1px solid var(--hairline);
+  border-top-left-radius: 18px;
+  border-top-right-radius: 18px;
   width: 100%;
   max-width: 580px;
   max-height: 90vh;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.6);
 }
 
 @media (min-width: 640px) {
   .modalContent {
-    border-radius: 20px;
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+    border-radius: 18px;
   }
 }
 
 .modalHeader {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  padding: 16px 20px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--hairline);
   position: sticky;
   top: 0;
-  background: #0f172a;
+  background: var(--canvas);
   z-index: 10;
 }
 
 .modalTitle {
-  margin: 4px 0 0 0;
-  font-size: 17px;
-  font-weight: 700;
-  color: #f8fafc;
-}
-
-.modalSub {
-  margin: 2px 0 0 0;
-  font-size: 12px;
-  color: #94a3b8;
-}
-
-.closeBtn {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.08);
-  border: none;
-  color: #94a3b8;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: 0.231px;
+  color: var(--ink);
+  margin: 0;
 }
 
 .modalBody {
-  padding: 16px 20px 24px 20px;
+  padding: 24px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
-}
-
-/* Detail Blocks */
-.detailBlock {
-  background: #1e293b;
-  border-radius: 12px;
-  padding: 12px 14px;
-  border: 1px solid rgba(148, 163, 184, 0.1);
-}
-
-.blockLabel {
-  font-size: 11px;
-  font-weight: 600;
-  color: #64748b;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  display: block;
-  margin-bottom: 4px;
-}
-
-.blockValue {
-  margin: 0;
-  font-size: 14px;
-  color: #f8fafc;
-  font-weight: 500;
-}
-
-.instructionsText {
-  margin: 0;
-  font-size: 13px;
-  color: #fbbf24;
-  line-height: 1.4;
-}
-
-.detailGrid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-}
-
-.detailGridItem {
-  background: #1e293b;
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid rgba(148, 163, 184, 0.08);
-}
-
-.detailGridValue {
-  font-size: 14px;
-  font-weight: 700;
-  color: #f8fafc;
-}
-
-/* Workflow Actions */
-.workflowSection {
-  margin-top: 4px;
-}
-
-.workflowGrid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-top: 6px;
-}
-
-.workflowBtn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 12px;
-  border-radius: 10px;
-  background: #1e293b;
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  color: #cbd5e1;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.workflowBtnActive {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 12px;
-  border-radius: 10px;
-  background: #0284c7;
-  border: 1px solid #38bdf8;
-  color: #ffffff;
-  font-size: 13px;
-  font-weight: 700;
-  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.35);
-}
-
-.deliverPrimaryBtn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 14px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #059669 0%, #047857 100%);
-  border: 1px solid #10b981;
-  color: #ffffff;
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
-}
-
-.exceptionSecondaryBtn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 14px;
-  border-radius: 12px;
-  background: rgba(239, 68, 68, 0.15);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  color: #f87171;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.deliveredProofCard {
-  background: rgba(6, 78, 59, 0.2);
-  border: 1px solid rgba(52, 211, 153, 0.3);
-  border-radius: 12px;
-  padding: 14px;
+  gap: 16px;
 }
 
 /* Forms */
@@ -1000,300 +688,124 @@
 }
 
 .formLabel {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
-  color: #94a3b8;
+  letter-spacing: -0.224px;
+  color: var(--ink-muted-80);
 }
 
 .textInput,
 .selectInput,
 .textArea {
   width: 100%;
-  padding: 12px 14px;
-  background: #1e293b;
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  border-radius: 10px;
-  color: #f8fafc;
-  font-size: 14px;
+  padding: 12px 16px;
+  background: var(--canvas);
+  border: 1px solid var(--hairline);
+  border-radius: 11px;
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  font-size: 17px;
   outline: none;
 }
 
 .textInput:focus,
 .selectInput:focus,
 .textArea:focus {
-  border-color: #38bdf8;
+  border-color: var(--primary-focus);
+  outline: 2px solid var(--primary-focus);
 }
 
-.codCard {
-  background: rgba(245, 158, 11, 0.12);
-  border: 1px solid rgba(245, 158, 11, 0.3);
-  border-radius: 12px;
-  padding: 12px 14px;
-}
+/* ==========================================================================
+   Floating Sticky Bottom Bar
+   ========================================================================== */
 
-/* Banners */
-.errorBanner {
-  background: rgba(239, 68, 68, 0.15);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  border-radius: 10px;
-  padding: 10px 14px;
-  color: #fca5a5;
-  font-size: 13px;
-}
-
-.successBanner {
-  background: rgba(52, 211, 153, 0.15);
-  border: 1px solid rgba(52, 211, 153, 0.3);
-  border-radius: 10px;
-  padding: 10px 14px;
-  color: #34d399;
-  font-size: 13px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-/* Empty States */
-.emptyCard {
-  background: #0f172a;
-  border: 1px dashed rgba(148, 163, 184, 0.2);
-  border-radius: 16px;
-  padding: 40px 20px;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  margin-top: 20px;
-}
-
-.emptyIcon {
-  color: #64748b;
-  margin-bottom: 12px;
-}
-
-.emptySearchCard {
-  background: #0f172a;
-  border-radius: 12px;
-  padding: 24px;
-  text-align: center;
-  color: #64748b;
-  font-size: 13px;
-}
-
-/* Bottom Navigation */
-.bottomNav {
+.floatingStickyBar {
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
-  z-index: 50;
-  height: 68px;
-  background: rgba(15, 23, 42, 0.92);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-top: 1px solid rgba(148, 163, 184, 0.15);
+  height: 64px;
+  background-color: rgba(245, 245, 247, 0.88);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-top: 1px solid var(--hairline);
   display: flex;
   align-items: center;
   justify-content: space-around;
-  padding: 0 8px;
-  max-width: 680px;
+  padding: 0 20px;
+  z-index: 50;
+  max-width: 980px;
   margin: 0 auto;
 }
 
-.navItem {
-  flex: 1;
+.bottomNavBtn {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 4px;
-  height: 100%;
+  gap: 3px;
   background: transparent;
   border: none;
-  color: #64748b;
+  color: var(--ink-muted-48);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: -0.12px;
+  cursor: pointer;
+  position: relative;
+  transition: color 0.15s ease;
+}
+
+.bottomNavBtnActive {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  background: transparent;
+  border: none;
+  color: var(--primary);
   font-size: 11px;
   font-weight: 600;
+  letter-spacing: -0.12px;
   cursor: pointer;
-  transition: color 0.15s;
-}
-
-.navItemActive {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  height: 100%;
-  background: transparent;
-  border: none;
-  color: #38bdf8;
-  font-size: 11px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.navIconWrap {
   position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .navBadge {
   position: absolute;
-  top: -6px;
-  right: -10px;
-  background: #ef4444;
-  color: #ffffff;
+  top: -4px;
+  right: -8px;
+  background: var(--primary);
+  color: var(--on-primary);
   font-size: 10px;
-  font-weight: 800;
-  padding: 1px 5px;
-  border-radius: 999px;
-  border: 2px solid #0f172a;
-}
-
-/* Primary, Secondary & Danger Buttons */
-.primaryBtn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 12px 18px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
-  border: 1px solid #38bdf8;
-  color: #ffffff;
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.secondaryBtn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 12px 16px;
-  border-radius: 10px;
-  background: #1e293b;
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  color: #e2e8f0;
-  font-size: 14px;
   font-weight: 600;
-  cursor: pointer;
+  padding: 1px 5px;
+  border-radius: 9999px;
 }
 
-.dangerBtn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 12px 18px;
-  border-radius: 10px;
-  background: #b91c1c;
-  border: 1px solid #ef4444;
-  color: #ffffff;
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-/* Authentication Page */
-.authShell {
+/* Auth Page */
+.authContainer {
   max-width: 440px;
-  margin: 40px auto 20px auto;
-  padding: 24px;
+  margin: 64px auto 32px auto;
+  padding: 0 20px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  width: 100%;
+  gap: 28px;
 }
 
 .authHero {
   text-align: center;
-}
-
-.authIcon {
-  width: 56px;
-  height: 56px;
-  border-radius: 16px;
-  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
-  color: #ffffff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0 auto 16px auto;
-  box-shadow: 0 8px 20px rgba(2, 132, 199, 0.4);
-}
-
-.authTitle {
-  margin: 0;
-  font-size: 24px;
-  font-weight: 800;
-  color: #f8fafc;
-  letter-spacing: -0.02em;
-}
-
-.authCopy {
-  margin: 8px 0 0 0;
-  font-size: 13px;
-  color: #94a3b8;
-  line-height: 1.5;
-}
-
-.demoPresetsCard {
-  background: #0f172a;
-  border: 1px solid rgba(148, 163, 184, 0.15);
-  border-radius: 14px;
-  padding: 14px;
-}
-
-.demoPresetsTitle {
-  margin: 0 0 8px 0;
-  font-size: 12px;
-  font-weight: 700;
-  color: #64748b;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.demoButtonsGrid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
-}
-
-.demoBtn {
-  background: #1e293b;
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  border-radius: 8px;
-  padding: 8px 6px;
-  color: #cbd5e1;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  transition: all 0.15s;
+  gap: 8px;
 }
 
-.demoBtn:hover {
-  background: #334155;
-  border-color: #38bdf8;
-  color: #f8fafc;
-}
-
-.authFormCard {
-  background: #0f172a;
-  border: 1px solid rgba(148, 163, 184, 0.15);
-  border-radius: 16px;
-  padding: 20px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+.authCard {
+  background: var(--canvas);
+  border: 1px solid var(--hairline);
+  border-radius: 18px;
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
 }
 
 /* Animations */
@@ -1302,22 +814,12 @@
 }
 
 @keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 @keyframes scanSweep {
-  0% {
-    top: 10%;
-  }
-  50% {
-    top: 90%;
-  }
-  100% {
-    top: 10%;
-  }
+  0% { top: 10%; }
+  50% { top: 90%; }
+  100% { top: 10%; }
 }

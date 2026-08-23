@@ -3,14 +3,20 @@ import { NextRequest, NextResponse } from "next/server"
 import { consumeLinkCode, lookupIdentity } from "@/lib/agent/channels/identity"
 import {
   answerCallbackQuery,
+  downloadTelegramFile,
   isTelegramConfigured,
   logTelegramMessage,
+  sendRecordVoiceAction,
   sendTelegramMessage,
+  sendTelegramVoice,
   sendTypingIndicator,
   verifyTelegramSecret,
 } from "@/lib/agent/channels/telegram"
 import { resolveProposal, runAgentTurn, type PendingApproval } from "@/lib/agent/runtime"
 import { db } from "@/lib/db"
+import { processDocumentOcr } from "@/lib/ocr/engine"
+import { transcribeAudio } from "@/lib/voice/transcribe"
+import { synthesizeSpeech } from "@/lib/voice/tts"
 
 /**
  * Telegram webhook.
@@ -23,12 +29,77 @@ import { db } from "@/lib/db"
 
 const CHANNEL = "telegram"
 
+/** Cached bot username, resolved on first use from TELEGRAM_BOT_TOKEN's getMe. */
+let botUsername = "SupplySureOSBot"
+let botId: number | null = null
+
+async function ensureBotInfo() {
+  if (botId) return
+  try {
+    const { getTelegramMe } = await import("@/lib/agent/channels/telegram")
+    const me = await getTelegramMe()
+    if (me) {
+      botUsername = me.username || botUsername
+      botId = me.id
+    }
+  } catch { /* use defaults */ }
+}
+
+type MessageLike = NonNullable<TelegramUpdate["message"]>
+
+/** True if any @-mention entity in the message points at the bot. */
+function isBotMentioned(message: MessageLike): boolean {
+  if (!message.entities) return false
+  const text = message.text || ""
+  for (const entity of message.entities) {
+    if (entity.type === "mention") {
+      const mentionText = text.slice(entity.offset, entity.offset + entity.length)
+      if (mentionText.toLowerCase() === `@${botUsername.toLowerCase()}`) return true
+    }
+    if (entity.type === "text_mention" && entity.user?.id === botId) return true
+  }
+  return false
+}
+
+/** True if the message is a reply to one of the bot's own messages. */
+function isReplyToBot(message: MessageLike): boolean {
+  if (!message.reply_to_message?.from) return false
+  if (botId && message.reply_to_message.from.id === botId) return true
+  if (message.reply_to_message.from.is_bot && message.reply_to_message.from.username?.toLowerCase() === botUsername.toLowerCase()) return true
+  return false
+}
+
+/** Auto-register a Telegram group as an AgentGroupChannel if it doesn't exist yet. */
+async function autoRegisterGroup(chatId: string, title: string) {
+  await db.agentGroupChannel.upsert({
+    where: { channel_externalId: { channel: CHANNEL, externalId: chatId } },
+    create: {
+      channel: CHANNEL,
+      externalId: chatId,
+      name: title,
+      purpose: "general",
+      status: "active",
+    },
+    update: {
+      name: title,
+    },
+  })
+}
+
 interface TelegramUpdate {
   message?: {
     message_id: number
-    chat: { id: number; type: string }
+    chat: { id: number; type: string; title?: string }
     from?: { id: number; first_name?: string; username?: string }
     text?: string
+    caption?: string
+    voice?: { file_id: string; duration?: number; mime_type?: string }
+    audio?: { file_id: string; duration?: number; mime_type?: string }
+    photo?: Array<{ file_id: string; width: number; height: number }>
+    document?: { file_id: string; file_name?: string; mime_type?: string }
+    reply_to_message?: { from?: { id: number; is_bot?: boolean; username?: string } }
+    entities?: Array<{ type: string; offset: number; length: number; user?: { id: number; username?: string } }>
+    new_chat_members?: Array<{ id: number; is_bot?: boolean; username?: string }>
   }
   callback_query?: {
     id: string
@@ -60,6 +131,31 @@ function helpText() {
   ].join("\n")
 }
 
+export async function processTelegramUpdate(update: TelegramUpdate) {
+  await ensureBotInfo()
+  try {
+    if (update.callback_query) {
+      await handleCallback(update.callback_query)
+      return { ok: true }
+    }
+
+    if (update.message) {
+      await handleMessage(update.message)
+      return { ok: true }
+    }
+  } catch (error) {
+    console.error("Telegram update failed:", error)
+
+    const chatId = update.message?.chat.id || update.callback_query?.message?.chat.id
+    if (chatId) {
+      await sendTelegramMessage(chatId, "Something went wrong handling that. Try again in a moment.")
+    }
+    return { ok: false, error }
+  }
+
+  return { ok: true }
+}
+
 export async function POST(request: NextRequest) {
   if (!isTelegramConfigured()) {
     return NextResponse.json({ ok: true, skipped: "not_configured" })
@@ -77,89 +173,217 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true })
   }
 
-  try {
-    if (update.callback_query) {
-      await handleCallback(update.callback_query)
-      return NextResponse.json({ ok: true })
-    }
-
-    if (update.message) {
-      await handleMessage(update.message)
-    }
-  } catch (error) {
-    console.error("Telegram update failed:", error)
-
-    const chatId = update.message?.chat.id || update.callback_query?.message?.chat.id
-    if (chatId) {
-      await sendTelegramMessage(chatId, "Something went wrong handling that. Try again in a moment.")
-    }
-  }
-
+  await processTelegramUpdate(update)
   return NextResponse.json({ ok: true })
 }
 
 async function handleMessage(message: NonNullable<TelegramUpdate["message"]>) {
   const chatId = String(message.chat.id)
-  const text = (message.text || "").trim()
+  const chatType = message.chat.type // "private", "group", "supergroup", "channel"
+  const isGroup = chatType === "group" || chatType === "supergroup"
+  let text = (message.text || message.caption || "").trim()
   const displayName = message.from?.first_name || message.from?.username
+  const senderId = message.from?.id ? String(message.from.id) : null
+
+  // ── Handle bot being added to a group ──
+  if (isGroup && message.new_chat_members?.some((m) => m.is_bot && m.username === botUsername)) {
+    await autoRegisterGroup(chatId, message.chat.title || "Unnamed Group")
+    await sendTelegramMessage(
+      chatId,
+      [
+        `👋 Hey team! I'm your SupplySure OS AI assistant, now active in this group.`,
+        ``,
+        `Here's how to talk to me:`,
+        `• **@${botUsername}** followed by your question`,
+        `• **Reply** to any of my messages`,
+        `• **/ask** followed by your question`,
+        ``,
+        `Examples:`,
+        `• @${botUsername} what's our stock on roma tomatoes?`,
+        `• /ask who's overdue and by how much?`,
+        `• /ask how are we tracking today?`,
+        ``,
+        `I can do everything I do in DMs — orders, inventory, finance, CRM, you name it. 🚀`,
+        ``,
+        `Use **/channel** to configure this group's purpose (e.g. /channel operations).`,
+      ].join("\n")
+    )
+    return
+  }
+
+  // ── Group message filtering: only respond when addressed ──
+  if (isGroup) {
+    const groupChannel = await db.agentGroupChannel.findUnique({
+      where: { channel_externalId: { channel: CHANNEL, externalId: chatId } },
+    })
+
+    // If group not registered, auto-register silently (no spam)
+    if (!groupChannel) {
+      await autoRegisterGroup(chatId, message.chat.title || "Unnamed Group")
+    }
+
+    const activeGroup = groupChannel || await db.agentGroupChannel.findUnique({
+      where: { channel_externalId: { channel: CHANNEL, externalId: chatId } },
+    })
+
+    // Handle /channel command to configure this group
+    if (text.toLowerCase().startsWith("/channel")) {
+      const purpose = text.split(/\s+/).slice(1).join(" ").trim()
+      if (purpose && activeGroup) {
+        await db.agentGroupChannel.update({
+          where: { id: activeGroup.id },
+          data: { purpose, name: message.chat.title || activeGroup.name },
+        })
+        await sendTelegramMessage(chatId, `✅ Group channel purpose updated to: **${purpose}**`)
+      } else {
+        await sendTelegramMessage(
+          chatId,
+          `Current purpose: **${activeGroup?.purpose || "general"}**\n\nUsage: /channel <purpose>\nExamples: /channel operations, /channel sales, /channel warehouse`
+        )
+      }
+      return
+    }
+
+    // Handle /ask command
+    if (text.toLowerCase().startsWith("/ask")) {
+      text = text.slice(4).trim()
+      if (!text) {
+        await sendTelegramMessage(chatId, `Usage: /ask <your question>\nExample: /ask what orders need dispatching today?`)
+        return
+      }
+      // Fall through to process the question
+    }
+    // Check if bot is @-mentioned
+    else if (isBotMentioned(message)) {
+      // Strip the @mention from the text
+      text = text.replace(new RegExp(`@${botUsername}\\b`, "gi"), "").trim()
+      if (!text) {
+        await sendTelegramMessage(chatId, `Yes? Ask me anything! 😊`)
+        return
+      }
+    }
+    // Check if this is a reply to one of the bot's messages
+    else if (isReplyToBot(message)) {
+      // Use the text as-is, it's a reply to the bot
+    }
+    // Check if autoReply is enabled
+    else if (activeGroup?.autoReply) {
+      // Fall through to process
+    }
+    // Otherwise, ignore the message (don't respond to every group message)
+    else {
+      return
+    }
+
+    // Prefix group context for the AI
+    const groupLabel = activeGroup?.purpose || "general"
+    text = `[Group Channel: ${message.chat.title || "Team Chat"} (${groupLabel})] [From: ${displayName || "Unknown"}] ${text}`
+  }
+
+  // 1. Process Voice Notes / Audio messages
+  if (!text && (message.voice || message.audio)) {
+    const audioObj = message.voice || message.audio!
+    await sendTypingIndicator(chatId)
+    const downloaded = await downloadTelegramFile(audioObj.file_id)
+    if (downloaded) {
+      try {
+        const transcript = await transcribeAudio({
+          audioBuffer: downloaded.buffer,
+          mimeType: downloaded.mimeType || audioObj.mime_type || "audio/ogg",
+        })
+        if (transcript.text) {
+          text = `🎙️ Voice Note: "${transcript.text}"`
+        }
+      } catch (err) {
+        console.error("Telegram voice transcription failed:", err)
+      }
+    }
+  }
+
+  // 2. Process Document / Photo Scans
+  if (Array.isArray(message.photo) && message.photo.length > 0) {
+    await sendTypingIndicator(chatId)
+    const largestPhoto = message.photo[message.photo.length - 1]
+    const downloaded = await downloadTelegramFile(largestPhoto.file_id)
+    if (downloaded) {
+      try {
+        const ocr = await processDocumentOcr({
+          imageBase64: downloaded.buffer.toString("base64"),
+          mimeType: downloaded.mimeType || "image/jpeg",
+        })
+        const itemsSummary = ocr.items?.map((i) => `${i.quantity}x ${i.description} ($${i.lineTotal})`).join(", ")
+        const docSummary = `📄 [Scanned ${ocr.documentType?.replace(/_/g, " ").toUpperCase()}]: ${ocr.vendorName || "Vendor"} #${ocr.documentNumber || "N/A"} · Total: $${ocr.totalAmount || 0} (${ocr.items?.length || 0} items: ${itemsSummary || "None"})`
+        text = text ? `${text}\n\n${docSummary}` : docSummary
+      } catch (err) {
+        console.error("Telegram OCR scan failed:", err)
+      }
+    }
+  }
 
   if (!text) {
     return
   }
 
-  if (text.toLowerCase().startsWith("/start")) {
-    const rawArg = text.split(/\s+/)[1]
-    if (rawArg) {
-      const code = rawArg.replace(/^connect_/i, "").trim().toUpperCase()
-      const result = await consumeLinkCode({ channel: CHANNEL, externalId: chatId, code, displayName })
+  // ── Private chat commands ──
+  if (!isGroup) {
+    if (text.toLowerCase().startsWith("/start")) {
+      const rawArg = text.split(/\s+/)[1]
+      if (rawArg) {
+        const code = rawArg.replace(/^connect_/i, "").trim().toUpperCase()
+        const result = await consumeLinkCode({ channel: CHANNEL, externalId: chatId, code, displayName })
 
-      if (result.status === "linked") {
-        await sendTelegramMessage(
-          chatId,
-          `🎉 Account Connected!\n\nWelcome to SupplySure OS AI, ${result.identity.principal.name}.\n\nYou can now query operations, review live stock, approve purchase/sales orders, and look up customer accounts directly from Telegram.\n\nTry asking: "What needs attention today?" or "Check inventory on roma tomatoes"`
-        )
-        return
-      } else {
-        await sendTelegramMessage(
-          chatId,
-          "⚠️ That connection QR code is invalid or has expired. Please open SupplySure OS Settings → Telegram and scan a new QR code."
-        )
+        if (result.status === "linked") {
+          await sendTelegramMessage(
+            chatId,
+            `🎉 Account Connected!\n\nWelcome to SupplySure OS AI, ${result.identity.principal.name}.\n\nYou can now query operations, review live stock, approve purchase/sales orders, and look up customer accounts directly from Telegram.\n\nTry asking: "What needs attention today?" or "Check inventory on roma tomatoes"`
+          )
+          return
+        } else {
+          await sendTelegramMessage(
+            chatId,
+            "⚠️ That connection QR code is invalid or has expired. Please open SupplySure OS Settings → Telegram and scan a new QR code."
+          )
+          return
+        }
+      }
+
+      await sendTelegramMessage(chatId, helpText())
+      return
+    }
+
+    if (text === "/help") {
+      await sendTelegramMessage(chatId, helpText())
+      return
+    }
+
+    if (text.toLowerCase().startsWith("/link")) {
+      const code = text.split(/\s+/)[1]
+
+      if (!code) {
+        await sendTelegramMessage(chatId, "Send /link followed by your code, e.g. /link A1B2C3")
         return
       }
-    }
 
-    await sendTelegramMessage(chatId, helpText())
-    return
-  }
+      const result = await consumeLinkCode({ channel: CHANNEL, externalId: chatId, code, displayName })
 
-  if (text === "/help") {
-    await sendTelegramMessage(chatId, helpText())
-    return
-  }
+      if (result.status !== "linked") {
+        await sendTelegramMessage(chatId, "That code is not valid or has expired. Generate a new one in Settings → Agent.")
+        return
+      }
 
-  if (text.toLowerCase().startsWith("/link")) {
-    const code = text.split(/\s+/)[1]
-
-    if (!code) {
-      await sendTelegramMessage(chatId, "Send /link followed by your code, e.g. /link A1B2C3")
+      await sendTelegramMessage(
+        chatId,
+        `🎉 Account Connected!\n\nWelcome to SupplySure OS AI, ${result.identity.principal.name}.\n\nYou can now ask me anything about the business or execute staff actions.`
+      )
       return
     }
-
-    const result = await consumeLinkCode({ channel: CHANNEL, externalId: chatId, code, displayName })
-
-    if (result.status !== "linked") {
-      await sendTelegramMessage(chatId, "That code is not valid or has expired. Generate a new one in Settings → Agent.")
-      return
-    }
-
-    await sendTelegramMessage(
-      chatId,
-      `🎉 Account Connected!\n\nWelcome to SupplySure OS AI, ${result.identity.principal.name}.\n\nYou can now ask me anything about the business or execute staff actions.`
-    )
-    return
   }
 
-  const lookup = await lookupIdentity({ channel: CHANNEL, externalId: chatId, displayName })
+  // ── Identity resolution ──
+  // In groups: resolve by the sender's personal user ID (not group chat ID)
+  // In private: resolve by the chat ID (which equals user ID for private chats)
+  const identityKey = isGroup && senderId ? senderId : chatId
+  const lookup = await lookupIdentity({ channel: CHANNEL, externalId: identityKey, displayName })
 
   if (lookup.status === "blocked") {
     await sendTelegramMessage(chatId, "This account is not active. Talk to your administrator.")
@@ -167,14 +391,19 @@ async function handleMessage(message: NonNullable<TelegramUpdate["message"]>) {
   }
 
   if (lookup.status === "unlinked") {
-    await sendTelegramMessage(
-      chatId,
-      "You're not linked to a SupplySure account yet. Open Settings → Agent in the app, generate a code, then send me /link YOURCODE."
-    )
+    if (isGroup) {
+      await sendTelegramMessage(
+        chatId,
+        `Hey ${displayName || "there"} — I don't recognise your account yet. DM me @${botUsername} and send /link YOURCODE to connect first, then you can talk to me here in the group. 🔗`
+      )
+    } else {
+      await sendTelegramMessage(
+        chatId,
+        "You're not linked to a SupplySure account yet. Open Settings → Agent in the app, generate a code, then send me /link YOURCODE."
+      )
+    }
     return
   }
-
-  await sendTypingIndicator(chatId)
 
   const { principal, identityId } = lookup.identity
 
@@ -186,21 +415,67 @@ async function handleMessage(message: NonNullable<TelegramUpdate["message"]>) {
     externalId: String(message.message_id),
   })
 
-  const turn = await runAgentTurn({
-    principal,
-    channel: CHANNEL,
-    threadKey: chatId,
-    userMessage: text,
-    identityId,
-  })
+  const isVoiceRequest = Boolean(
+    message.voice ||
+    message.audio ||
+    text.startsWith("🎙️ Voice Note:") ||
+    text.toLowerCase().includes("voice note") ||
+    text.toLowerCase().includes("voice reply") ||
+    text.toLowerCase().includes("reply in voice") ||
+    text.toLowerCase().includes("speak to me") ||
+    text.toLowerCase().includes("say it")
+  )
+
+  // Show immediate & continuous typing / recording indicator
+  if (isVoiceRequest) {
+    sendRecordVoiceAction(chatId).catch(() => {})
+  } else {
+    sendTypingIndicator(chatId).catch(() => {})
+  }
+  const typingTimer = setInterval(() => {
+    if (isVoiceRequest) {
+      sendRecordVoiceAction(chatId).catch(() => {})
+    } else {
+      sendTypingIndicator(chatId).catch(() => {})
+    }
+  }, 4000)
+
+  let turn
+  try {
+    turn = await runAgentTurn({
+      principal,
+      channel: CHANNEL,
+      threadKey: isGroup ? `group:${chatId}` : chatId,
+      userMessage: text,
+      identityId,
+    })
+  } finally {
+    clearInterval(typingTimer)
+  }
 
   const reply = turn.text || (turn.pendingApprovals.length ? "That needs your approval:" : "Done.")
 
+  // 1. Send text reply immediately so the user gets it right away
   await sendTelegramMessage(
     chatId,
     reply,
     turn.pendingApprovals.length ? approvalButtons(turn.pendingApprovals) : undefined
   )
+
+  // 2. Concurrently synthesize and dispatch spoken audio voice note in background
+  if (isVoiceRequest && reply) {
+    (async () => {
+      try {
+        await sendRecordVoiceAction(chatId)
+        const speech = await synthesizeSpeech({ text: reply })
+        if (speech?.buffer) {
+          await sendTelegramVoice(chatId, speech.buffer)
+        }
+      } catch (voiceError) {
+        console.warn("Failed to generate voice note reply for Telegram:", voiceError)
+      }
+    })().catch(() => {})
+  }
 
   await logTelegramMessage({
     customerId: principal.kind === "customer" ? principal.customerId : null,

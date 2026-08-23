@@ -100,17 +100,35 @@ function toolLabel(toolName: string) {
   return labels[toolName] || `Running ${toolName}`
 }
 
+const CHAT_MODEL_PRESETS = [
+  { label: "Auto / Purpose Default", value: "" },
+  { label: "Stealth OX Alpha", value: "stealth/ox-alpha" },
+  { label: "GLM 5.2 (Free)", value: "z-ai/glm-5.2:free" },
+  { label: "Nemotron 3 Ultra 550B (Free)", value: "nvidia/nemotron-3-ultra-550b-a55b:free" },
+  { label: "Nemotron 3 Super 120B (Free)", value: "nvidia/nemotron-3-super-120b-a12b:free" },
+  { label: "Nemotron 3.5 Lightning (Free)", value: "nvidia/nemotron-3.5-lightning:free" },
+  { label: "Nemotron Nano 12B VL (Free)", value: "nvidia/nemotron-nano-12b-v2-vl:free" },
+  { label: "DeepSeek Chat", value: "deepseek/deepseek-chat" },
+  { label: "Llama 3.3 70B", value: "meta-llama/llama-3.3-70b-instruct" },
+  { label: "Claude 3.5 Sonnet", value: "anthropic/claude-3.5-sonnet" },
+]
+
 export function AgentChat({ threadKey, suggestions, pageContext, compact }: AgentChatProps) {
   const [input, setInput] = useState("")
   const [runtime, setRuntime] = useState<RuntimeInfo | null>(null)
+  const [selectedModel, setSelectedModel] = useState("")
   const [files, setFiles] = useState<FileList | undefined>()
+  const [scanningOcr, setScanningOcr] = useState(false)
   const [listening, setListening] = useState(false)
+  const [recordingAudio, setRecordingAudio] = useState(false)
   const [voiceSupported, setVoiceSupported] = useState(() =>
-    typeof window !== "undefined" ? Boolean(getSpeechRecognition()) : false
+    typeof window !== "undefined" ? Boolean(getSpeechRecognition() || navigator?.mediaDevices?.getUserMedia) : false
   )
   const endRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const audioChunksRef = useRef<Blob[]>([])
 
   // Reading replies aloud completes the hands-free loop dictation started:
   // useful in a van or on a warehouse floor, where reading a screen is the
@@ -121,13 +139,15 @@ export function AgentChat({ threadKey, suggestions, pageContext, compact }: Agen
     typeof window !== "undefined" && typeof window.speechSynthesis !== "undefined"
   const spokenRef = useRef<string | null>(null)
 
+  const activeModelParam = selectedModel || undefined
+
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
         api: "/api/agent/chat",
-        body: { threadKey },
+        body: { threadKey, model: activeModelParam },
       }),
-    [threadKey]
+    [threadKey, activeModelParam]
   )
 
   const { messages, sendMessage, status, error, addToolApprovalResponse, setMessages } = useChat({
@@ -135,7 +155,7 @@ export function AgentChat({ threadKey, suggestions, pageContext, compact }: Agen
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
   })
 
-  const busy = status === "submitted" || status === "streaming"
+  const busy = status === "submitted" || status === "streaming" || scanningOcr
 
   useEffect(() => {
     if (!speaking || !speechSupported || busy) {
@@ -199,38 +219,109 @@ export function AgentChat({ threadKey, suggestions, pageContext, compact }: Agen
     return () => recognitionRef.current?.stop()
   }, [])
 
-  // Dictation for the warehouse and the van, where typing is impractical.
-  function toggleDictation() {
+  async function startAudioRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      audioChunksRef.current = []
+      const recorder = new MediaRecorder(stream)
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) audioChunksRef.current.push(event.data)
+      }
+      recorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" })
+        stream.getTracks().forEach((track) => track.stop())
+        setRecordingAudio(false)
+
+        try {
+          const formData = new FormData()
+          formData.append("file", audioBlob, "voice_input.webm")
+          const res = await fetch("/api/voice/transcribe", { method: "POST", body: formData })
+          const payload = await res.json()
+          if (payload.success && payload.data?.text) {
+            setInput((prev) => (prev ? `${prev} ${payload.data.text}` : payload.data.text))
+          }
+        } catch (err) {
+          console.error("Transcription error:", err)
+        }
+      }
+      mediaRecorderRef.current = recorder
+      recorder.start()
+      setRecordingAudio(true)
+    } catch (err) {
+      console.warn("MediaRecorder audio error:", err)
+    }
+  }
+
+  function stopAudioRecording() {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop()
+    }
+    setRecordingAudio(false)
+  }
+
+  function toggleVoice() {
     if (listening) {
       recognitionRef.current?.stop()
+      setListening(false)
+      return
+    }
+
+    if (recordingAudio) {
+      stopAudioRecording()
       return
     }
 
     const SpeechRecognition = getSpeechRecognition()
-    if (!SpeechRecognition) {
+    if (SpeechRecognition) {
+      const recognition = new SpeechRecognition()
+      recognition.lang = "en-AU"
+      recognition.interimResults = true
+      recognition.continuous = false
+
+      recognition.onresult = (event) => {
+        const transcript = Array.from(event.results)
+          .map((result) => result[0]?.transcript || "")
+          .join(" ")
+          .trim()
+        setInput(transcript)
+      }
+      recognition.onend = () => setListening(false)
+      recognition.onerror = () => setListening(false)
+
+      recognitionRef.current = recognition
+      setListening(true)
+      recognition.start()
+    } else if (navigator?.mediaDevices?.getUserMedia) {
+      void startAudioRecording()
+    }
+  }
+
+  async function handleFileAttachment(fileList: FileList | null) {
+    if (!fileList || !fileList.length) {
+      setFiles(undefined)
       return
     }
+    setFiles(fileList)
 
-    const recognition = new SpeechRecognition()
-    recognition.lang = "en-AU"
-    recognition.interimResults = true
-    recognition.continuous = false
-
-    recognition.onresult = (event) => {
-      const transcript = Array.from(event.results)
-        .map((result) => result[0]?.transcript || "")
-        .join(" ")
-        .trim()
-
-      setInput(transcript)
+    const firstFile = fileList[0]
+    if (firstFile && (firstFile.type.startsWith("image/") || firstFile.type === "application/pdf")) {
+      setScanningOcr(true)
+      try {
+        const formData = new FormData()
+        formData.append("file", firstFile)
+        const response = await fetch("/api/ocr/scan", { method: "POST", body: formData })
+        const payload = await response.json()
+        if (payload.success && payload.data) {
+          const doc = payload.data
+          const summary = `[Scanned ${doc.documentType?.replace(/_/g, " ")}: ${doc.vendorName || "Vendor"} #${doc.documentNumber || "N/A"} · $${doc.totalAmount || 0} (${doc.items?.length || 0} items)]`
+          setInput((prev) => (prev ? `${prev}\n${summary}` : summary))
+        }
+      } catch (err) {
+        console.warn("OCR attach error:", err)
+      } finally {
+        setScanningOcr(false)
+      }
     }
-
-    recognition.onend = () => setListening(false)
-    recognition.onerror = () => setListening(false)
-
-    recognitionRef.current = recognition
-    setListening(true)
-    recognition.start()
   }
 
   const promptSuggestions = useMemo(() => suggestions || DEFAULT_SUGGESTIONS, [suggestions])
@@ -260,6 +351,24 @@ export function AgentChat({ threadKey, suggestions, pageContext, compact }: Agen
 
   return (
     <div className="flex h-full flex-col">
+      {/* Model Selector Bar */}
+      <div className="mb-2 flex items-center justify-between gap-2 rounded-lg border bg-muted/40 px-2.5 py-1.5 text-xs">
+        <div className="flex items-center gap-1.5">
+          <Cpu className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="font-medium text-muted-foreground">Model:</span>
+        </div>
+        <select
+          value={selectedModel}
+          onChange={(e) => setSelectedModel(e.target.value)}
+          className="h-6 rounded border bg-background px-2 text-[11px] font-mono outline-none"
+        >
+          {CHAT_MODEL_PRESETS.map((preset) => (
+            <option key={preset.value} value={preset.value}>
+              {preset.label} {preset.value ? `(${preset.value.split("/")[1] || preset.value})` : ""}
+            </option>
+          ))}
+        </select>
+      </div>
       {runtime && !runtime.configured ? (
         <Card className="mb-4 border-amber-300 bg-amber-50 dark:bg-amber-950/30">
           <CardContent className="flex gap-3 p-4 text-sm">
@@ -446,13 +555,20 @@ export function AgentChat({ threadKey, suggestions, pageContext, compact }: Agen
           </div>
         ) : null}
 
+        {scanningOcr ? (
+          <div className="flex items-center gap-2 pb-2 text-xs text-muted-foreground">
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+            <span>Scanning document with Vision OCR...</span>
+          </div>
+        ) : null}
+
         <input
           ref={fileInputRef}
           type="file"
           multiple
           accept="image/*,application/pdf"
           className="hidden"
-          onChange={(event) => setFiles(event.target.files || undefined)}
+          onChange={(event) => void handleFileAttachment(event.target.files)}
         />
 
         <div className="flex gap-2">
@@ -461,7 +577,7 @@ export function AgentChat({ threadKey, suggestions, pageContext, compact }: Agen
             variant="outline"
             className="h-11 w-11 shrink-0"
             onClick={() => fileInputRef.current?.click()}
-            title="Attach a photo of an invoice or written order"
+            title="Attach a photo of an invoice, receipt or delivery docket"
           >
             <Paperclip className="h-4 w-4" />
           </Button>
@@ -474,19 +590,21 @@ export function AgentChat({ threadKey, suggestions, pageContext, compact }: Agen
                 submit(input)
               }
             }}
-            placeholder="Ask anything, or tell the agent what to do…"
-            className="max-h-40 min-h-[44px] resize-none"
+            placeholder={recordingAudio || listening ? "Listening to your voice..." : "Ask anything, or scan an invoice..."}
+            className={`max-h-40 min-h-[44px] resize-none ${
+              recordingAudio || listening ? "border-red-500/50 bg-red-500/5" : ""
+            }`}
             rows={1}
           />
           {voiceSupported ? (
             <Button
               size="icon"
-              variant={listening ? "default" : "outline"}
+              variant={listening || recordingAudio ? "destructive" : "outline"}
               className="h-11 w-11 shrink-0"
-              onClick={toggleDictation}
-              title={listening ? "Stop dictation" : "Dictate"}
+              onClick={toggleVoice}
+              title={listening || recordingAudio ? "Stop recording" : "Record voice query"}
             >
-              <Mic className="h-4 w-4" />
+              <Mic className={`h-4 w-4 ${listening || recordingAudio ? "animate-pulse" : ""}`} />
             </Button>
           ) : null}
           {speechSupported ? (

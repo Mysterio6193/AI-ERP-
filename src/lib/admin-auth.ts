@@ -34,6 +34,17 @@ interface AdminSessionTokenPayload {
 async function getAuthBypassUser(): Promise<AdminUserSession | null> {
   const user =
     (await db.user.findFirst({
+      where: {
+        role: "admin",
+        status: "active",
+        OR: [
+          { email: { contains: "supplysure", mode: "insensitive" } },
+          { email: { contains: "freshdist", mode: "insensitive" } },
+        ],
+      },
+      select: { id: true, name: true, email: true, role: true, status: true, avatar: true },
+    })) ??
+    (await db.user.findFirst({
       where: { role: "admin", status: "active" },
       orderBy: { createdAt: "asc" },
       select: { id: true, name: true, email: true, role: true, status: true, avatar: true },
@@ -124,6 +135,9 @@ export async function getAdminUserFromRequest(request: NextRequest) {
   })
 
   if (!user || user.status !== "active") {
+    if (isAuthBypassEnabled()) {
+      return getAuthBypassUser()
+    }
     return null
   }
 

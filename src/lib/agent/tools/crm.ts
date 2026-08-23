@@ -52,6 +52,110 @@ export function buildCrmTools(principal: AgentPrincipal) {
       },
     }),
 
+    createCustomer: defineTool({
+      description:
+        "Create a new customer account or trade profile in SupplySure OS. Use this when a user provides customer/business details (name, contact, email, phone, address, etc.) to set up a new account.",
+      inputSchema: z.object({
+        name: z.string().describe("Business or trade account name, e.g. 'Bella Italia Pizzeria'"),
+        tradingName: z.string().optional().describe("Trading name if different"),
+        contactPerson: z.string().optional().describe("Primary contact full name"),
+        email: z.string().optional().describe("Email address for invoices/orders"),
+        phone: z.string().optional().describe("Contact phone number"),
+        customerType: z.enum(["wholesale", "retail", "business"]).optional().default("wholesale"),
+        creditLimit: z.number().nonnegative().optional().default(0),
+        paymentTerms: z.number().int().min(0).max(180).optional().default(30),
+        address: z.string().optional().describe("Street address"),
+        city: z.string().optional().describe("City or Suburb"),
+        state: z.string().optional().describe("State/Province"),
+        postcode: z.string().optional().describe("Postal/ZIP code"),
+        deliveryNotes: z.string().optional().describe("Delivery instructions or loading dock access"),
+      }),
+      execute: async (input) => {
+        const customer = await db.customer.create({
+          data: {
+            name: input.name.trim(),
+            tradingName: input.tradingName?.trim() || null,
+            contactPerson: input.contactPerson?.trim() || null,
+            email: input.email?.trim() || null,
+            phone: input.phone?.trim() || null,
+            customerType: input.customerType || "wholesale",
+            creditLimit: input.creditLimit || 0,
+            paymentTerms: input.paymentTerms || 30,
+            salesRepId: principal.kind === "staff" && principal.role === "sales" ? principal.userId : null,
+            status: "active",
+            locations: input.address && input.city && input.state && input.postcode ? {
+              create: {
+                label: "Main Location",
+                address: input.address,
+                city: input.city,
+                state: input.state,
+                postcode: input.postcode,
+                contactName: input.contactPerson || null,
+                phone: input.phone || null,
+                email: input.email || null,
+                deliveryNotes: input.deliveryNotes || null,
+                isDefault: true,
+                isBilling: true,
+                isShipping: true,
+              }
+            } : undefined,
+          },
+          select: {
+            id: true,
+            name: true,
+            contactPerson: true,
+            email: true,
+            phone: true,
+            creditLimit: true,
+            paymentTerms: true,
+            status: true,
+          },
+        })
+
+        return {
+          ok: true as const,
+          customer,
+          message: `Created customer account "${customer.name}" with ID ${customer.id}.`,
+        }
+      },
+    }),
+
+    updateCustomer: defineTool({
+      description: "Update an existing customer's contact details, credit terms, or status.",
+      inputSchema: z.object({
+        customerId: z.string(),
+        name: z.string().optional(),
+        contactPerson: z.string().optional(),
+        email: z.string().optional(),
+        phone: z.string().optional(),
+        creditLimit: z.number().nonnegative().optional(),
+        paymentTerms: z.number().int().min(0).max(180).optional(),
+        status: z.enum(["active", "inactive", "blocked"]).optional(),
+      }),
+      execute: async ({ customerId, ...patch }) => {
+        const customer = await db.customer.update({
+          where: { id: customerId },
+          data: patch,
+          select: {
+            id: true,
+            name: true,
+            contactPerson: true,
+            email: true,
+            phone: true,
+            creditLimit: true,
+            paymentTerms: true,
+            status: true,
+          },
+        })
+
+        return {
+          ok: true as const,
+          customer,
+          message: `Updated customer "${customer.name}".`,
+        }
+      },
+    }),
+
     getCustomer: defineTool({
       description:
         "A full 360 view of one customer: credit position, ordering rhythm, recent orders, unpaid invoices and open tasks. Read this before advising on an account.",

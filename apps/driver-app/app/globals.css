@@ -1,31 +1,53 @@
 :root {
   color-scheme: light;
-  --bg: #f4f6fb;
-  --surface: #ffffff;
-  --surface-muted: #f8fafc;
-  --border: #dbe3f0;
-  --text: #0f172a;
-  --muted: #5b6474;
-  --brand: #0f766e;
-  --brand-strong: #115e59;
-  --info: #1d4ed8;
-  --success: #15803d;
-  --danger: #b91c1c;
-  --warning: #b45309;
-  --shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+  
+  /* Apple Design Tokens */
+  --primary: #0066cc;
+  --primary-focus: #0071e3;
+  --primary-on-dark: #2997ff;
+  
+  --ink: #1d1d1f;
+  --body: #1d1d1f;
+  --body-on-dark: #ffffff;
+  --body-muted: #cccccc;
+  --ink-muted-80: #333333;
+  --ink-muted-48: #7a7a7a;
+  
+  --divider-soft: #f0f0f0;
+  --hairline: #e0e0e0;
+  
+  --canvas: #ffffff;
+  --canvas-parchment: #f5f5f7;
+  --surface-pearl: #fafafc;
+  --surface-tile-1: #272729;
+  --surface-tile-2: #2a2a2c;
+  --surface-tile-3: #252527;
+  --surface-black: #000000;
+  --surface-chip-translucent: rgba(210, 210, 215, 0.64);
+  
+  --on-primary: #ffffff;
+  --on-dark: #ffffff;
+  
+  /* Signature Product Drop Shadow (only for product imagery on surface) */
+  --product-shadow: rgba(0, 0, 0, 0.22) 3px 5px 30px 0px;
 }
 
 * {
   box-sizing: border-box;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 html,
 body {
   margin: 0;
   padding: 0;
-  background: radial-gradient(circle at top, #ecfeff 0%, var(--bg) 28%, #eef2ff 100%);
-  color: var(--text);
-  font-family: "SF Pro Display", "Segoe UI", sans-serif;
+  background-color: var(--canvas-parchment);
+  color: var(--body);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 17px;
+  line-height: 1.47;
+  letter-spacing: -0.374px;
 }
 
 button,
@@ -33,9 +55,19 @@ input,
 textarea,
 select {
   font: inherit;
+  letter-spacing: inherit;
+}
+
+button:active {
+  transform: scale(0.95);
+  transition: transform 0.1s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 a {
-  color: inherit;
+  color: var(--primary);
   text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
 }

@@ -1,20 +1,17 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import {
   Boxes,
-  CheckCircle2,
-  ChevronDown,
+  Database,
   LogOut,
-  Moon,
-  Package,
-  Route,
-  Shield,
-  Sun,
+  RefreshCw,
+  Sparkles,
   Truck,
-  User,
   Wifi,
   WifiOff,
 } from "lucide-react"
+import { offlineSync, QueuedAction } from "../ui/OfflineSync"
 import styles from "../../page.module.css"
 
 export interface UserProfile {
@@ -42,6 +39,8 @@ interface ModeHeaderProps {
   onModeChange: (mode: "driver" | "warehouse") => void
   onSignOut: () => void
   isOnline: boolean
+  onSeedDemo?: () => void
+  seeding?: boolean
 }
 
 export function ModeHeader({
@@ -51,72 +50,137 @@ export function ModeHeader({
   onModeChange,
   onSignOut,
   isOnline,
+  onSeedDemo,
+  seeding,
 }: ModeHeaderProps) {
-  const brandTitle = company?.tradingName || company?.name || "SupplySure OS"
+  const brandTitle = company?.tradingName || company?.name || "SupplySure"
   const canSwitchModes = user.role === "admin" || user.role === "warehouse" || user.role === "driver"
+  const [queue, setQueue] = useState<QueuedAction[]>([])
+  const [syncing, setSyncing] = useState(false)
+
+  useEffect(() => {
+    return offlineSync.subscribe((q) => {
+      setQueue(q)
+    })
+  }, [])
+
+  async function handleManualSync() {
+    try {
+      setSyncing(true)
+      await offlineSync.syncAll()
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   return (
-    <header className={styles.appHeader}>
-      <div className={styles.headerTop}>
-        <div className={styles.headerBrand}>
-          <div className={styles.brandLogoIcon}>
-            {activeMode === "driver" ? <Truck size={20} /> : <Boxes size={20} />}
-          </div>
-          <div>
-            <h1 className={styles.brandName}>{brandTitle}</h1>
-            <div className={styles.userRoleTag}>
-              <span className={styles.roleBadge}>{user.role.toUpperCase()}</span>
-              <span className={styles.userNameText}>{user.name}</span>
-            </div>
-          </div>
+    <>
+      {/* Apple 44px Global Nav (Pure Black) */}
+      <nav className={styles.globalNav}>
+        <div className={styles.globalNavLeft}>
+          <span className={styles.globalNavLogo}>{brandTitle}</span>
+          <span style={{ color: "var(--ink-muted-48)" }}>|</span>
+          <span style={{ color: "var(--body-muted)" }}>{user.name}</span>
+          <span
+            style={{
+              fontSize: "10px",
+              fontWeight: 600,
+              textTransform: "uppercase",
+              padding: "1px 5px",
+              borderRadius: "4px",
+              background: "rgba(255, 255, 255, 0.15)",
+              color: "#ffffff",
+            }}
+          >
+            {user.role}
+          </span>
         </div>
 
-        <div className={styles.headerActions}>
-          {/* Online/Offline Status Indicator */}
-          <div
-            className={isOnline ? styles.onlineIndicator : styles.offlineIndicator}
-            title={isOnline ? "Connected to Core Platform" : "Working Offline"}
-          >
-            {isOnline ? <Wifi size={14} /> : <WifiOff size={14} />}
-            <span>{isOnline ? "Live" : "Offline"}</span>
+        <div className={styles.globalNavRight}>
+          {/* 1-Click Demo Seed Button */}
+          {onSeedDemo && (
+            <button
+              type="button"
+              onClick={onSeedDemo}
+              disabled={seeding}
+              className={styles.globalNavUtilityBtn}
+              style={{ background: "rgba(0, 102, 204, 0.3)", color: "var(--primary-on-dark)", border: "1px solid rgba(0, 102, 204, 0.4)" }}
+              title="Populate fresh demo inventory, orders & routes"
+            >
+              <Sparkles size={11} className={seeding ? styles.spin : ""} />
+              <span>{seeding ? "Seeding..." : "Demo Data"}</span>
+            </button>
+          )}
+
+          {/* Offline Queue Badge */}
+          {queue.length > 0 && (
+            <button
+              type="button"
+              onClick={handleManualSync}
+              disabled={syncing || !isOnline}
+              className={styles.globalNavUtilityBtn}
+              style={{ background: "#f59e0b", color: "#000000", fontWeight: 600 }}
+              title="Actions queued offline. Tap to sync."
+            >
+              <RefreshCw size={11} className={syncing ? styles.spin : ""} />
+              <span>{syncing ? "Syncing..." : `${queue.length} Queued`}</span>
+            </button>
+          )}
+
+          <div className={styles.globalNavStatus}>
+            {isOnline ? (
+              <>
+                <Wifi size={12} style={{ color: "#34d399" }} />
+                <span>Online</span>
+              </>
+            ) : (
+              <>
+                <WifiOff size={12} style={{ color: "#f87171" }} />
+                <span>Offline</span>
+              </>
+            )}
           </div>
 
-          {/* Sign Out Button */}
           <button
             type="button"
             onClick={onSignOut}
-            className={styles.signOutBtn}
+            className={styles.globalNavUtilityBtn}
             title="Sign Out"
           >
-            <LogOut size={16} />
+            <LogOut size={12} />
+            <span>Sign Out</span>
           </button>
         </div>
-      </div>
+      </nav>
 
-      {/* Mode Switcher Toggle Pill */}
-      {canSwitchModes && (
-        <div className={styles.modeSwitcherContainer}>
-          <div className={styles.modeSwitcher}>
+      {/* Apple 52px Frosted Sub-Nav */}
+      <header className={styles.subNavFrosted}>
+        <h2 className={styles.subNavCategory}>
+          {activeMode === "driver" ? "Driver Operations" : "Warehouse Floor"}
+        </h2>
+
+        {canSwitchModes && (
+          <div className={styles.modeTogglePill}>
             <button
               type="button"
               onClick={() => onModeChange("driver")}
-              className={activeMode === "driver" ? styles.modeTabActive : styles.modeTab}
+              className={activeMode === "driver" ? styles.modePillBtnActive : styles.modePillBtn}
             >
-              <Truck size={16} />
-              <span>Driver Mode</span>
+              <Truck size={14} />
+              <span>Driver</span>
             </button>
 
             <button
               type="button"
               onClick={() => onModeChange("warehouse")}
-              className={activeMode === "warehouse" ? styles.modeTabActive : styles.modeTab}
+              className={activeMode === "warehouse" ? styles.modePillBtnActive : styles.modePillBtn}
             >
-              <Boxes size={16} />
-              <span>Warehouse Mode</span>
+              <Boxes size={14} />
+              <span>Warehouse</span>
             </button>
           </div>
-        </div>
-      )}
-    </header>
+        )}
+      </header>
+    </>
   )
 }

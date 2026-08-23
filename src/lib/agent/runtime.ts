@@ -122,8 +122,14 @@ export async function buildAgent(
   // are the global set the definition was already layered over.
   const effective = definition ? definition.thresholds : thresholds
 
+  const agentModel = resolveAgentModel({
+    model: resolved.model,
+    purpose: channel === "telegram" ? "telegram" : resolved.slug,
+    tier: "chat",
+  })
+
   return new ToolLoopAgent({
-    model: resolveAgentModel("chat"),
+    model: agentModel,
     instructions: [
       // First, so the agent knows who it is before it knows what it does.
       formatIdentity(identity),
@@ -185,10 +191,13 @@ export async function loadThread(input: {
 
   const stored = await db.agentMessage.findMany({
     where: { threadId: thread.id, rawJson: { not: null } },
-    orderBy: { createdAt: "asc" },
-    take: 60,
+    orderBy: { createdAt: "desc" },
+    take: input.channel === "telegram" ? 8 : 14,
     select: { rawJson: true },
   })
+
+  // Reverse to chronological order
+  stored.reverse()
 
   const messages = stored
     .map((row) => {
@@ -219,8 +228,27 @@ export async function persistMessages(threadId: string, runId: string, messages:
   })
 }
 
-function textFrom(result: { text?: string }) {
-  return (result.text || "").trim()
+function textFrom(result: { text?: string; steps?: any[]; content?: any[] }) {
+  if (result.text && result.text.trim()) {
+    return result.text.trim()
+  }
+
+  if (Array.isArray(result.steps)) {
+    for (const step of result.steps) {
+      if (step.text && step.text.trim()) {
+        return step.text.trim()
+      }
+      if (Array.isArray(step.toolResults)) {
+        for (const tr of step.toolResults) {
+          if (tr.result && typeof tr.result === "object" && (tr.result as any).message) {
+            return (tr.result as any).message
+          }
+        }
+      }
+    }
+  }
+
+  return ""
 }
 
 export async function finishRun(runId: string, patch: Record<string, unknown>) {
@@ -228,6 +256,95 @@ export async function finishRun(runId: string, patch: Record<string, unknown>) {
     where: { id: runId },
     data: { finishedAt: new Date(), ...patch },
   })
+}
+
+export function repairToolMessages(messages: ModelMessage[]): ModelMessage[] {
+  const availableResultIds = new Set<string>()
+  for (const msg of messages) {
+    if (msg.role === "tool" && Array.isArray(msg.content)) {
+      for (const part of msg.content as any[]) {
+        if (part && typeof part === "object" && (part.type === "tool-result" || part.type === "tool-approval-response") && part.toolCallId) {
+          availableResultIds.add(part.toolCallId)
+        }
+      }
+    }
+  }
+
+  const repaired: ModelMessage[] = []
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i]
+    if (msg.role === "assistant" && Array.isArray(msg.content)) {
+      const filteredParts: any[] = []
+      for (const part of msg.content as any[]) {
+        if (part && typeof part === "object" && part.type === "tool-call") {
+          if (!availableResultIds.has(part.toolCallId)) {
+            filteredParts.push({
+              type: "text",
+              text: `[Called ${part.toolName}]`,
+            })
+          } else {
+            filteredParts.push(part)
+          }
+        } else if (part && typeof part === "object" && part.type === "tool-approval-request") {
+          if (part.toolCallId && !availableResultIds.has(part.toolCallId)) {
+            // Drop dangling approval request without response
+          } else {
+            filteredParts.push(part)
+          }
+        } else {
+          filteredParts.push(part)
+        }
+      }
+      if (filteredParts.length > 0) {
+        repaired.push({ ...msg, content: filteredParts })
+      }
+    } else {
+      repaired.push(msg)
+    }
+  }
+
+  return repaired
+}
+
+export function sanitizeMessagesForModel(messages: ModelMessage[]): ModelMessage[] {
+  const cleaned: ModelMessage[] = []
+
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i]
+    if (msg.role === "user") {
+      const text = typeof msg.content === "string"
+        ? msg.content
+        : Array.isArray(msg.content)
+        ? (msg.content.find((p: any) => p.type === "text") as any)?.text || ""
+        : ""
+      if (text.trim()) {
+        cleaned.push({ role: "user", content: text })
+      }
+    } else if (msg.role === "assistant") {
+      if (typeof msg.content === "string" && msg.content.trim()) {
+        cleaned.push({ role: "assistant", content: msg.content })
+      } else if (Array.isArray(msg.content)) {
+        const textParts = msg.content
+          .filter((p: any) => p && typeof p === "object" && p.type === "text" && p.text?.trim())
+          .map((p: any) => p.text)
+          .join("\n")
+        if (textParts.trim()) {
+          cleaned.push({ role: "assistant", content: textParts })
+        }
+      }
+    }
+  }
+
+  // Ensure last user message is present
+  const lastMsg = messages[messages.length - 1]
+  if (lastMsg && lastMsg.role === "user" && (cleaned.length === 0 || cleaned[cleaned.length - 1] !== lastMsg)) {
+    const lastClean = cleaned[cleaned.length - 1]
+    if (!lastClean || lastClean.role !== "user" || lastClean.content !== lastMsg.content) {
+      cleaned.push(lastMsg)
+    }
+  }
+
+  return cleaned
 }
 
 /** Runs one turn of conversation and returns the reply plus anything awaiting approval. */
@@ -267,7 +384,7 @@ export async function runAgentTurn(input: {
   })
 
   const userMessage: ModelMessage = { role: "user", content: input.userMessage }
-  const conversation = [...messages, userMessage]
+  let conversation = sanitizeMessagesForModel([...messages, userMessage])
 
   try {
     const agent = await buildAgent(
@@ -277,7 +394,24 @@ export async function runAgentTurn(input: {
       definition,
       input.userMessage
     )
-    const result = await agent.generate({ messages: conversation })
+    
+    let result
+    try {
+      result = await agent.generate({ messages: conversation })
+    } catch (generateError: any) {
+      if (
+        generateError?.name === "AI_MissingToolResultsError" ||
+        String(generateError?.message || "").includes("missing tool result")
+      ) {
+        // Recover with simplified text-only message history
+        const simplifiedMessages = messages
+          .filter((m) => typeof m.content === "string")
+          .map((m) => ({ role: m.role, content: m.content })) as ModelMessage[]
+        result = await agent.generate({ messages: [...simplifiedMessages, userMessage] })
+      } else {
+        throw generateError
+      }
+    }
 
     await persistMessages(threadId, run.id, [userMessage, ...result.responseMessages])
 

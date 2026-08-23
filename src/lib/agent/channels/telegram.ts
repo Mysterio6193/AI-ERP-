@@ -46,6 +46,7 @@ async function call<T = unknown>(method: string, payload: Record<string, unknown
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(20000),
     })
 
     const data = (await response.json()) as { ok: boolean; result?: T; description?: string }
@@ -108,8 +109,87 @@ export async function sendTelegramMessage(
   }
 }
 
+export async function sendTelegramVoice(
+  chatId: string | number,
+  audioBuffer: Buffer,
+  caption?: string,
+  buttons?: TelegramButton[][]
+) {
+  const formData = new FormData()
+  formData.append("chat_id", String(chatId))
+  const blob = new Blob([audioBuffer], { type: "audio/mpeg" })
+  formData.append("voice", blob, "voice_reply.mp3")
+  if (caption) {
+    formData.append("caption", caption.slice(0, 1024))
+  }
+  if (buttons?.length) {
+    formData.append(
+      "reply_markup",
+      JSON.stringify({
+        inline_keyboard: buttons.map((row) =>
+          row.map((button) => ({ text: button.text, callback_data: button.callbackData }))
+        ),
+      })
+    )
+  }
+
+  try {
+    const response = await fetch(`${API_BASE}/bot${token()}/sendVoice`, {
+      method: "POST",
+      body: formData,
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error("sendVoice failed:", response.status, errorText)
+    }
+  } catch (error) {
+    console.error("Failed to send Telegram voice note:", error)
+  }
+}
+
+export async function sendTelegramDocument(
+  chatId: string | number,
+  fileBuffer: Buffer,
+  fileName: string,
+  caption?: string
+) {
+  const formData = new FormData()
+  formData.append("chat_id", String(chatId))
+  const blob = new Blob([fileBuffer], { type: "application/pdf" })
+  formData.append("document", blob, fileName)
+  if (caption) {
+    formData.append("caption", caption.slice(0, 1024))
+  }
+
+  try {
+    const response = await fetch(`${API_BASE}/bot${token()}/sendDocument`, {
+      method: "POST",
+      body: formData,
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error("sendDocument failed:", response.status, errorText)
+      return false
+    }
+    return true
+  } catch (error) {
+    console.error("Failed to send Telegram document:", error)
+    return false
+  }
+}
+
+export async function sendUploadDocumentAction(chatId: string | number) {
+  await call("sendChatAction", { chat_id: chatId, action: "upload_document" })
+}
+
 export async function sendTypingIndicator(chatId: string | number) {
   await call("sendChatAction", { chat_id: chatId, action: "typing" })
+}
+
+export async function sendRecordVoiceAction(chatId: string | number) {
+  await call("sendChatAction", { chat_id: chatId, action: "record_voice" })
 }
 
 export async function answerCallbackQuery(callbackQueryId: string, text?: string) {
@@ -130,6 +210,40 @@ export async function registerTelegramWebhook(url: string) {
     secret_token: process.env.TELEGRAM_WEBHOOK_SECRET || undefined,
     allowed_updates: ["message", "callback_query"],
   })
+}
+
+export async function deleteTelegramWebhook() {
+  return call<boolean>("deleteWebhook", { drop_pending_updates: false })
+}
+
+export async function getTelegramUpdates(offset?: number, timeout = 30) {
+  return call<Array<Record<string, unknown>>>("getUpdates", {
+    offset,
+    timeout,
+    allowed_updates: ["message", "callback_query"],
+  })
+}
+
+export async function getTelegramFileUrl(fileId: string): Promise<string | null> {
+  const result = await call<{ file_path: string }>("getFile", { file_id: fileId })
+  if (!result?.file_path) return null
+  return `${API_BASE}/file/bot${token()}/${result.file_path}`
+}
+
+export async function downloadTelegramFile(fileId: string): Promise<{ buffer: Buffer; mimeType?: string } | null> {
+  const fileUrl = await getTelegramFileUrl(fileId)
+  if (!fileUrl) return null
+
+  try {
+    const response = await fetch(fileUrl)
+    if (!response.ok) return null
+    const arrayBuffer = await response.arrayBuffer()
+    const mimeType = response.headers.get("content-type") || undefined
+    return { buffer: Buffer.from(arrayBuffer), mimeType }
+  } catch (error) {
+    console.error("Failed to download Telegram file:", error)
+    return null
+  }
 }
 
 export interface TelegramMe {

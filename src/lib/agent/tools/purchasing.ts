@@ -80,6 +80,72 @@ export function buildPurchasingTools(principal: AgentPrincipal) {
       },
     }),
 
+    createSupplier: defineTool({
+      description: "Create or register a new vendor/supplier in SupplySure OS.",
+      inputSchema: z.object({
+        name: z.string().describe("Supplier business name, e.g. 'Fresh Farm Dairy'"),
+        tradingName: z.string().optional(),
+        contactPerson: z.string().optional(),
+        email: z.string().optional(),
+        phone: z.string().optional(),
+        paymentTerms: z.number().int().min(0).max(180).optional().default(30),
+        leadTimeDays: z.number().int().min(0).optional().default(2),
+      }),
+      execute: async (input) => {
+        const supplier = await db.supplier.create({
+          data: {
+            name: input.name.trim(),
+            tradingName: input.tradingName || null,
+            contactPerson: input.contactPerson || null,
+            email: input.email || null,
+            phone: input.phone || null,
+            paymentTerms: input.paymentTerms ?? 30,
+            status: "active",
+          },
+          select: {
+            id: true,
+            name: true,
+            contactPerson: true,
+            email: true,
+            phone: true,
+            paymentTerms: true,
+          },
+        })
+
+        return {
+          ok: true as const,
+          supplier,
+          message: `Created supplier "${supplier.name}" (ID: ${supplier.id}).`,
+        }
+      },
+    }),
+
+    updateSupplier: defineTool({
+      description: "Update an existing supplier's details, payment terms, or status.",
+      inputSchema: z.object({
+        supplierId: z.string(),
+        name: z.string().optional(),
+        contactPerson: z.string().optional(),
+        email: z.string().optional(),
+        phone: z.string().optional(),
+        paymentTerms: z.number().int().min(0).max(180).optional(),
+        status: z.enum(["active", "inactive"]).optional(),
+      }),
+      execute: async ({ supplierId, ...patch }) => {
+        const supplier = await db.supplier.update({
+          where: { id: supplierId },
+          data: patch,
+          select: { id: true, name: true, contactPerson: true, status: true },
+        })
+
+        return {
+          ok: true as const,
+          supplier,
+          message: `Updated supplier "${supplier.name}".`,
+        }
+      },
+    }),
+
     reorderSuggestions: defineTool({
       description:
         "Products at or below their reorder level, with the suggested reorder quantity and the cheapest supplier for each. Use this before raising purchase orders.",

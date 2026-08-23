@@ -2,12 +2,11 @@
 
 import {
   Boxes,
-  ClipboardList,
   Download,
+  History,
   ListTodo,
   PackageCheck,
   PackageSearch,
-  Route,
   Send,
   Truck,
   User,
@@ -29,99 +28,94 @@ interface BottomNavProps {
 export function BottomNav({ mode, activeTab, onTabChange, badges }: BottomNavProps) {
   if (mode === "driver") {
     return (
-      <nav className={styles.bottomNav}>
+      <nav className={styles.floatingStickyBar}>
         <button
           type="button"
           onClick={() => onTabChange("route")}
-          className={activeTab === "route" ? styles.navItemActive : styles.navItem}
+          className={activeTab === "route" ? styles.bottomNavBtnActive : styles.bottomNavBtn}
         >
-          <div className={styles.navIconWrap}>
-            <Truck size={20} />
-            {typeof badges?.driverRoute === "number" && badges.driverRoute > 0 && (
-              <span className={styles.navBadge}>{badges.driverRoute}</span>
-            )}
-          </div>
-          <span>Run Sheet</span>
+          <Truck size={18} />
+          <span>Active Run</span>
+          {typeof badges?.driverRoute === "number" && badges.driverRoute > 0 && (
+            <span className={styles.navBadge}>{badges.driverRoute}</span>
+          )}
         </button>
 
         <button
           type="button"
           onClick={() => onTabChange("history")}
-          className={activeTab === "history" ? styles.navItemActive : styles.navItem}
+          className={activeTab === "history" ? styles.bottomNavBtnActive : styles.bottomNavBtn}
         >
-          <div className={styles.navIconWrap}>
-            <PackageCheck size={20} />
-          </div>
+          <PackageCheck size={18} />
           <span>Completed</span>
         </button>
 
         <button
           type="button"
           onClick={() => onTabChange("profile")}
-          className={activeTab === "profile" ? styles.navItemActive : styles.navItem}
+          className={activeTab === "profile" ? styles.bottomNavBtnActive : styles.bottomNavBtn}
         >
-          <div className={styles.navIconWrap}>
-            <User size={20} />
-          </div>
-          <span>Driver Info</span>
+          <User size={18} />
+          <span>Profile</span>
         </button>
       </nav>
     )
   }
 
   return (
-    <nav className={styles.bottomNav}>
+    <nav className={styles.floatingStickyBar}>
       <button
         type="button"
         onClick={() => onTabChange("picking")}
-        className={activeTab === "picking" ? styles.navItemActive : styles.navItem}
+        className={activeTab === "picking" ? styles.bottomNavBtnActive : styles.bottomNavBtn}
       >
-        <div className={styles.navIconWrap}>
-          <ListTodo size={20} />
-          {typeof badges?.warehousePick === "number" && badges.warehousePick > 0 && (
-            <span className={styles.navBadge}>{badges.warehousePick}</span>
-          )}
-        </div>
+        <ListTodo size={18} />
         <span>Picking</span>
+        {typeof badges?.warehousePick === "number" && badges.warehousePick > 0 && (
+          <span className={styles.navBadge}>{badges.warehousePick}</span>
+        )}
       </button>
 
       <button
         type="button"
         onClick={() => onTabChange("receiving")}
-        className={activeTab === "receiving" ? styles.navItemActive : styles.navItem}
+        className={activeTab === "receiving" ? styles.bottomNavBtnActive : styles.bottomNavBtn}
       >
-        <div className={styles.navIconWrap}>
-          <Download size={20} />
-          {typeof badges?.warehouseReceive === "number" && badges.warehouseReceive > 0 && (
-            <span className={styles.navBadge}>{badges.warehouseReceive}</span>
-          )}
-        </div>
+        <Download size={18} />
         <span>Receiving</span>
+        {typeof badges?.warehouseReceive === "number" && badges.warehouseReceive > 0 && (
+          <span className={styles.navBadge}>{badges.warehouseReceive}</span>
+        )}
       </button>
 
       <button
         type="button"
         onClick={() => onTabChange("inventory")}
-        className={activeTab === "inventory" ? styles.navItemActive : styles.navItem}
+        className={activeTab === "inventory" ? styles.bottomNavBtnActive : styles.bottomNavBtn}
       >
-        <div className={styles.navIconWrap}>
-          <PackageSearch size={20} />
-        </div>
-        <span>Stock / Bins</span>
+        <PackageSearch size={18} />
+        <span>Stock</span>
       </button>
 
       <button
         type="button"
         onClick={() => onTabChange("dispatch")}
-        className={activeTab === "dispatch" ? styles.navItemActive : styles.navItem}
+        className={activeTab === "dispatch" ? styles.bottomNavBtnActive : styles.bottomNavBtn}
       >
-        <div className={styles.navIconWrap}>
-          <Send size={20} />
-          {typeof badges?.warehouseDispatch === "number" && badges.warehouseDispatch > 0 && (
-            <span className={styles.navBadge}>{badges.warehouseDispatch}</span>
-          )}
-        </div>
+        <Send size={18} />
         <span>Dispatch</span>
+        {typeof badges?.warehouseDispatch === "number" && badges.warehouseDispatch > 0 && (
+          <span className={styles.navBadge}>{badges.warehouseDispatch}</span>
+        )}
+      </button>
+
+      <button
+        type="button"
+        onClick={() => onTabChange("activity")}
+        className={activeTab === "activity" ? styles.bottomNavBtnActive : styles.bottomNavBtn}
+      >
+        <History size={18} />
+        <span>Audit Log</span>
       </button>
     </nav>
   )

@@ -8,13 +8,19 @@ import { PrismaClient } from "@prisma/client"
 
 const prisma = new PrismaClient()
 
-async function main() {
+export async function seedCarriers() {
   console.log("🚚 Seeding carriers...")
 
   const company = await prisma.company.findFirst({
-    where: { tradingName: "RDM Pizza" },
+    where: {
+      OR: [
+        { tradingName: { contains: "Supply", mode: "insensitive" } },
+        { name: { contains: "Supply", mode: "insensitive" } },
+        { name: { contains: "Fresh", mode: "insensitive" } },
+      ],
+    },
     select: { id: true },
-  })
+  }) ?? await prisma.company.findFirst({ select: { id: true } })
 
   const companyId = company?.id ?? null
 
@@ -143,11 +149,13 @@ Notes: {{instructions}}`,
   console.log("✅ Created 3 carriers with 10 service areas")
 }
 
-main()
-  .catch((error) => {
-    console.error("❌ Carrier seed failed:", error)
-    process.exit(1)
-  })
-  .finally(async () => {
-    await prisma.$disconnect()
-  })
+if (require.main === module) {
+  seedCarriers()
+    .catch((error) => {
+      console.error("❌ Carrier seed failed:", error)
+      process.exit(1)
+    })
+    .finally(async () => {
+      await prisma.$disconnect()
+    })
+}

@@ -4,7 +4,7 @@ import { hash } from "bcryptjs"
 
 const prisma = new PrismaClient()
 
-async function main() {
+export async function seedAu() {
   console.log("🌱 Starting Australian database seed...")
 
   // Create company
@@ -570,11 +570,13 @@ async function main() {
   console.log("🎉 Australian database seed completed successfully!")
 }
 
-main()
-  .catch((e) => {
-    console.error("❌ Seed failed:", e)
-    process.exit(1)
-  })
-  .finally(async () => {
-    await prisma.$disconnect()
-  })
+if (require.main === module) {
+  seedAu()
+    .catch((e) => {
+      console.error("❌ Seed failed:", e)
+      process.exit(1)
+    })
+    .finally(async () => {
+      await prisma.$disconnect()
+    })
+}

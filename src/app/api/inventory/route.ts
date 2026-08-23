@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAdminUser } from "@/lib/admin-auth"
+import { getActiveCompanyId } from "@/lib/active-company"
 import { db } from "@/lib/db"
 
 // GET /api/inventory - List all inventory with filters
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireAdminUser(request, ["admin", "sales", "warehouse", "accounts"])
+    const auth = await requireAdminUser(request, ["admin", "sales", "warehouse", "accounts", "driver"])
     if (auth.response) {
       return auth.response
     }
 
+    const companyId = await getActiveCompanyId(request)
     const { searchParams } = new URL(request.url)
     const warehouseId = searchParams.get("warehouseId") || ""
     const lowStock = searchParams.get("lowStock") === "true"
@@ -17,6 +19,7 @@ export async function GET(request: NextRequest) {
     const inventory = await db.inventory.findMany({
       where: {
         AND: [
+          companyId ? { product: { companyId } } : {},
           warehouseId ? { warehouseId } : {},
         ],
       },
@@ -28,19 +31,26 @@ export async function GET(request: NextRequest) {
         },
         warehouse: true,
       },
-      orderBy: { product: { name: "asc" } },
+      orderBy: {
+        product: {
+          name: "asc",
+        },
+      },
     })
 
-    // Filter by low stock if requested
-    const filteredInventory = lowStock
-      ? inventory.filter((inv) => inv.quantity <= inv.reorderLevel)
-      : inventory
+    // Filter low stock in memory if requested
+    let filteredInventory = inventory
+    if (lowStock) {
+      filteredInventory = inventory.filter(
+        (item) => item.quantity <= item.reorderLevel
+      )
+    }
 
-    // Add low stock flag - use wholesalePrice for stock value
-    const inventoryWithFlags = filteredInventory.map((inv) => ({
-      ...inv,
-      isLowStock: inv.quantity <= inv.reorderLevel,
-      stockValue: inv.quantity * inv.product.wholesalePrice,
+    // Add isLowStock flag and stockValue to each item
+    const inventoryWithFlags = filteredInventory.map((item) => ({
+      ...item,
+      isLowStock: item.quantity <= item.reorderLevel,
+      stockValue: item.quantity * item.product.costPrice,
     }))
 
     return NextResponse.json({ success: true, data: inventoryWithFlags })
@@ -53,10 +63,10 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// PATCH /api/inventory - Update inventory (stock movement)
+// PATCH /api/inventory - Quick adjust stock for a product in a warehouse
 export async function PATCH(request: NextRequest) {
   try {
-    const auth = await requireAdminUser(request, ["admin", "warehouse"])
+    const auth = await requireAdminUser(request, ["admin", "warehouse", "driver"])
     if (auth.response) {
       return auth.response
     }
@@ -136,7 +146,7 @@ export async function PATCH(request: NextRequest) {
 // POST /api/inventory - Create stock movement
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireAdminUser(request, ["admin", "warehouse"])
+    const auth = await requireAdminUser(request, ["admin", "warehouse", "driver"])
     if (auth.response) {
       return auth.response
     }

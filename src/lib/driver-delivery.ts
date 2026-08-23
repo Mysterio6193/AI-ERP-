@@ -77,6 +77,10 @@ export async function buildRoutePayloads(
             include: {
               product: {
                 select: {
+                  id: true,
+                  name: true,
+                  sku: true,
+                  baseUnit: true,
                   weight: true,
                 },
               },
@@ -130,6 +134,16 @@ export async function buildRoutePayloads(
       const itemCount = order?.items.reduce((sum, item) => sum + item.quantity, 0) || 0
       const weight = order?.items.reduce((sum, item) => sum + (item.product.weight || 1) * item.quantity, 0) || 0
       const normalizedStatus = normalizeDeliveryStatus(delivery.status)
+      const lineItems = order?.items.map((item) => ({
+        id: item.id,
+        productId: item.productId,
+        productName: item.product.name,
+        sku: item.product.sku,
+        baseUnit: item.product.baseUnit || "unit",
+        quantity: item.quantity,
+        unitPrice: Number(item.unitPrice || 0),
+        totalPrice: Number(item.total || 0) || Number(item.unitPrice || 0) * item.quantity,
+      })) || []
 
       return {
         id: delivery.id,
@@ -168,6 +182,7 @@ export async function buildRoutePayloads(
         arrivedAt: delivery.arrivedAt,
         deliveredAt: delivery.deliveredAt,
         failedAt: delivery.failedAt,
+        lineItems,
       }
     })
 

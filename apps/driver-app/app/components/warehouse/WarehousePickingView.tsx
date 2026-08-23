@@ -2,26 +2,24 @@
 
 import { useMemo, useState } from "react"
 import {
-  ArrowRight,
+  AlertTriangle,
   Check,
-  CheckCircle2,
   ChevronRight,
   Clock,
-  Filter,
+  Map,
   MapPin,
   Package,
   Plus,
   RefreshCw,
   ScanLine,
   Search,
-  SlidersHorizontal,
-  Sparkles,
-  Truck,
-  User,
   X,
 } from "lucide-react"
 import { audioFeedback } from "../ui/AudioFeedback"
 import { ScannerModal } from "../ui/ScannerModal"
+import { WarehouseBinMap } from "./WarehouseBinMap"
+import { CartonPackingStationModal } from "./CartonPackingStationModal"
+import { ShortPickModal } from "./ShortPickModal"
 import styles from "../../page.module.css"
 
 export interface PickItem {
@@ -33,6 +31,8 @@ export interface PickItem {
   requiredQty: number
   pickedQty: number
   status: string
+  batchCode?: string
+  measuredWeight?: number
 }
 
 export interface PickList {
@@ -56,6 +56,7 @@ interface WarehousePickingViewProps {
   loading: boolean
   onRefresh: () => void
   onUpdatePickItem: (pickListId: string, itemId: string, incrementBy: number) => Promise<void>
+  onPackOrder?: (orderId: string, payload: Record<string, unknown>) => Promise<void>
 }
 
 export function WarehousePickingView({
@@ -63,13 +64,18 @@ export function WarehousePickingView({
   loading,
   onRefresh,
   onUpdatePickItem,
+  onPackOrder,
 }: WarehousePickingViewProps) {
+  const [viewTab, setViewTab] = useState<"items" | "map">("items")
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [selectedPick, setSelectedPick] = useState<PickList | null>(null)
+  const [packingOrder, setPackingOrder] = useState<PickList | null>(null)
+  const [shortPickItem, setShortPickItem] = useState<PickItem | null>(null)
   const [scannerOpen, setScannerOpen] = useState(false)
   const [savingItemId, setSavingItemId] = useState<string | null>(null)
   const [scanMessage, setScanMessage] = useState<string | null>(null)
+  const [successMsg, setSuccessMsg] = useState<string | null>(null)
 
   const filteredPickLists = useMemo(() => {
     return pickLists.filter((pick) => {
@@ -100,7 +106,6 @@ export function WarehousePickingView({
     })
   }, [pickLists, search, statusFilter])
 
-  // Sync selected pick if pickLists updates
   const activePick = useMemo(() => {
     if (!selectedPick) return null
     return pickLists.find((p) => p.id === selectedPick.id) || selectedPick
@@ -127,9 +132,26 @@ export function WarehousePickingView({
     }
   }
 
+  async function handleConfirmShortPick(payload: {
+    itemId: string
+    actualPickedQty: number
+    shortQty: number
+    reason: string
+    action: "backorder" | "cancel" | "alternate_bin"
+    alternateBin?: string
+  }) {
+    if (!activePick) return
+    const diff = payload.actualPickedQty - (shortPickItem?.pickedQty || 0)
+    if (diff !== 0) {
+      await onUpdatePickItem(activePick.id, payload.itemId, diff)
+    }
+    setSuccessMsg(`✓ Short pick logged (${payload.reason}) — Action: ${payload.action}`)
+    setShortPickItem(null)
+    onRefresh()
+  }
+
   function handleBarcodeScan(scannedCode: string) {
     if (!activePick) {
-      // Find matching pick list
       const matched = pickLists.find((p) =>
         p.items.some((it) => it.sku.toLowerCase() === scannedCode.toLowerCase())
       )
@@ -143,7 +165,6 @@ export function WarehousePickingView({
       return
     }
 
-    // Match item in active pick list
     const matchedItem = activePick.items.find(
       (it) => it.sku.toLowerCase() === scannedCode.toLowerCase()
     )
@@ -162,74 +183,152 @@ export function WarehousePickingView({
     }
   }
 
+  async function handleCompletePacking(packPayload: {
+    orderId: string
+    totalCartons: number
+    totalWeight: number
+  }) {
+    if (onPackOrder) {
+      await onPackOrder(packPayload.orderId, {
+        status: "packed",
+        totalCartons: packPayload.totalCartons,
+        totalWeight: packPayload.totalWeight,
+      })
+    }
+    setSuccessMsg(`✓ Order packed into ${packPayload.totalCartons} cartons and staged for dispatch!`)
+    setPackingOrder(null)
+    onRefresh()
+  }
+
   const pendingCount = pickLists.filter((p) => p.status === "pending").length
   const inProgressCount = pickLists.filter((p) => p.status === "in_progress").length
   const completedCount = pickLists.filter((p) => p.status === "completed").length
 
   return (
-    <div className={styles.routeContainer}>
-      {/* Pick List Overview / Active Pick Header */}
-      <div className={styles.summaryCard}>
-        <div className={styles.summaryTop}>
-          <div>
-            <span className={styles.badgePrimary}>Warehouse Fulfillment</span>
-            <h2 className={styles.summaryTitle}>
-              {activePick ? `Pick List #${activePick.pickNumber}` : "Order Picking Queue"}
-            </h2>
-            <p className={styles.summarySub}>
-              {activePick
-                ? `${activePick.customerName} • Order ${activePick.orderNumber}`
-                : `${pickLists.length} Total Pick Lists in Warehouse`}
-            </p>
-          </div>
-          <div style={{ display: "flex", gap: "8px" }}>
-            <button
-              type="button"
-              onClick={() => setScannerOpen(true)}
-              className={styles.scannerTriggerBtn}
-              title="Open Barcode Scanner"
-            >
-              <ScanLine size={18} />
-              <span>Scan</span>
-            </button>
-            <button type="button" onClick={onRefresh} disabled={loading} className={styles.iconBtn}>
-              <RefreshCw size={18} className={loading ? styles.spin : ""} />
-            </button>
-          </div>
+    <div className={styles.mainContent}>
+      {/* Apple Hero Tile Alternate: Dark Tile */}
+      <section className={styles.heroDarkTile}>
+        <div className={styles.heroHeaderStack}>
+          <span className={styles.heroTagline}>Fulfillment & Cartonization</span>
+          <h1 className={styles.heroDisplay}>
+            {activePick ? `Pick List #${activePick.pickNumber}` : "Order Picking & Packing Station"}
+          </h1>
+          <p className={styles.heroLead}>
+            {activePick
+              ? `${activePick.customerName} • Order ${activePick.orderNumber}`
+              : `${pickLists.length} Total pick lists active on warehouse floor`}
+          </p>
         </div>
 
-        {/* Metrics Grid */}
-        <div className={styles.metricsGrid}>
-          <div className={styles.metricItem}>
-            <span className={styles.metricLabel}>Pending</span>
-            <span className={styles.metricNumber} style={{ color: "#fbbf24" }}>
-              {pendingCount}
-            </span>
+        {/* Apple Stat Strip */}
+        <div className={styles.statStrip}>
+          <div className={styles.statItem}>
+            <span className={styles.statLabel}>Pending</span>
+            <span className={styles.statValue}>{pendingCount}</span>
           </div>
-          <div className={styles.metricItem}>
-            <span className={styles.metricLabel}>In Progress</span>
-            <span className={styles.metricNumber} style={{ color: "#38bdf8" }}>
+          <div className={styles.statItem}>
+            <span className={styles.statLabel}>In Progress</span>
+            <span className={styles.statValue} style={{ color: "var(--primary-on-dark)" }}>
               {inProgressCount}
             </span>
           </div>
-          <div className={styles.metricItem}>
-            <span className={styles.metricLabel}>Completed</span>
-            <span className={styles.metricNumber} style={{ color: "#34d399" }}>
+          <div className={styles.statItem}>
+            <span className={styles.statLabel}>Completed</span>
+            <span className={styles.statValue} style={{ color: "#34d399" }}>
               {completedCount}
             </span>
           </div>
+          <div className={styles.statItem}>
+            <span className={styles.statLabel}>Total Units</span>
+            <span className={styles.statValue}>
+              {pickLists.reduce((sum, p) => sum + p.items.reduce((s, it) => s + it.requiredQty, 0), 0)}
+            </span>
+          </div>
         </div>
-      </div>
+
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: "8px" }}>
+          {activePick ? (
+            <div className={styles.pillGroup}>
+              <button
+                type="button"
+                onClick={() => setViewTab("items")}
+                className={viewTab === "items" ? styles.optionChipSelected : styles.optionChip}
+                style={{ padding: "6px 14px", fontSize: "13px" }}
+              >
+                Line Items
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewTab("map")}
+                className={viewTab === "map" ? styles.optionChipSelected : styles.optionChip}
+                style={{ padding: "6px 14px", fontSize: "13px" }}
+              >
+                <Map size={13} style={{ display: "inline", marginRight: "4px" }} />
+                <span>Bin Map & Path</span>
+              </button>
+            </div>
+          ) : (
+            <div />
+          )}
+
+          <div style={{ display: "flex", gap: "8px", marginLeft: "auto" }}>
+            <button
+              type="button"
+              onClick={() => setScannerOpen(true)}
+              className={styles.buttonPrimary}
+              style={{ padding: "8px 18px", fontSize: "14px" }}
+            >
+              <ScanLine size={15} />
+              <span>Scan Barcode</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={onRefresh}
+              disabled={loading}
+              className={styles.buttonDarkUtility}
+            >
+              <RefreshCw size={14} className={loading ? styles.spin : ""} />
+              <span>Refresh</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {successMsg && (
+        <div
+          style={{
+            padding: "12px 16px",
+            background: "var(--canvas)",
+            border: "1px solid #10b981",
+            borderRadius: "11px",
+            color: "#047857",
+            fontSize: "14px",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <span>{successMsg}</span>
+          <button
+            type="button"
+            onClick={() => setSuccessMsg(null)}
+            style={{ background: "none", border: "none", color: "var(--ink-muted-48)", cursor: "pointer" }}
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
 
       {scanMessage && (
         <div
           style={{
-            background: "rgba(56, 189, 248, 0.15)",
-            border: "1px solid rgba(56, 189, 248, 0.3)",
-            borderRadius: "10px",
-            padding: "10px 14px",
-            color: "#38bdf8",
-            fontSize: "13px",
+            padding: "12px 16px",
+            background: "var(--canvas)",
+            border: "1px solid var(--primary)",
+            borderRadius: "11px",
+            color: "var(--primary)",
+            fontSize: "14px",
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
@@ -239,128 +338,161 @@ export function WarehousePickingView({
           <button
             type="button"
             onClick={() => setScanMessage(null)}
-            style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer" }}
+            style={{ background: "none", border: "none", color: "var(--ink-muted-48)", cursor: "pointer" }}
           >
             <X size={14} />
           </button>
         </div>
       )}
 
-      {/* If an active pick list is selected: Render Guided Item Picking View */}
+      {/* Guided Item Picking View */}
       {activePick ? (
-        <div className={styles.pickingDetailContainer}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <button
               type="button"
               onClick={() => setSelectedPick(null)}
-              className={styles.secondaryBtn}
-              style={{ padding: "8px 14px", fontSize: "13px" }}
+              className={styles.buttonSecondaryPill}
+              style={{ padding: "8px 16px", fontSize: "14px" }}
             >
               ← Back to All Pick Lists
             </button>
 
-            <span
-              className={
-                activePick.status === "completed"
-                  ? styles.statusPillSuccess
-                  : activePick.status === "in_progress"
-                  ? styles.statusPillInfo
-                  : styles.statusPillWarning
-              }
-            >
-              {activePick.status.replace("_", " ")}
-            </span>
-          </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span className={styles.cardTagHighlight}>
+                {activePick.progress}% Picked
+              </span>
 
-          {/* Progress Bar */}
-          <div className={styles.progressSection} style={{ marginBottom: "16px" }}>
-            <div className={styles.progressHeader}>
-              <span>Pick List Progress</span>
-              <span className={styles.progressValue}>{activePick.progress}% Complete</span>
-            </div>
-            <div className={styles.progressBarBg}>
-              <div className={styles.progressBarFill} style={{ width: `${activePick.progress}%` }} />
+              <button
+                type="button"
+                onClick={() => setPackingOrder(activePick)}
+                className={styles.buttonPrimary}
+                style={{ padding: "8px 16px", fontSize: "14px" }}
+              >
+                <Package size={14} />
+                <span>Pack Cartons</span>
+              </button>
             </div>
           </div>
 
-          {/* Item List */}
-          <div className={styles.stopsList}>
-            {activePick.items.map((item) => {
-              const isItemDone = item.pickedQty >= item.requiredQty
-              const isBusy = savingItemId === item.id
+          {viewTab === "map" ? (
+            <WarehouseBinMap
+              activePickList={activePick}
+              onSelectBin={(binCode) => {
+                setViewTab("items")
+                audioFeedback.playSuccessChime()
+              }}
+            />
+          ) : (
+            <div className={styles.cardGrid}>
+              {activePick.items.map((item) => {
+                const isItemDone = item.pickedQty >= item.requiredQty
+                const isBusy = savingItemId === item.id
 
-              return (
-                <div
-                  key={item.id}
-                  className={`${styles.pickItemCard} ${isItemDone ? styles.pickItemDone : ""}`}
-                >
-                  <div className={styles.pickItemTop}>
-                    <div className={styles.binLocationTag}>
-                      <MapPin size={13} />
-                      <span>{item.location || "Bin Unassigned"}</span>
-                    </div>
-                    <span className={styles.skuTag}>{item.sku}</span>
-                  </div>
-
-                  <h3 className={styles.pickItemName}>{item.productName}</h3>
-
-                  <div className={styles.pickQtyRow}>
-                    <div className={styles.pickQtyDisplay}>
-                      <span className={styles.pickQtyLabel}>Picked:</span>
-                      <span
-                        className={styles.pickQtyValue}
-                        style={{ color: isItemDone ? "#34d399" : "#38bdf8" }}
-                      >
-                        {item.pickedQty} / {item.requiredQty}
+                return (
+                  <div
+                    key={item.id}
+                    className={`${styles.utilityCard} ${isItemDone ? styles.utilityCardDone : ""}`}
+                  >
+                    <div className={styles.cardHeaderRow}>
+                      <span className={styles.cardTagHighlight}>
+                        <MapPin size={12} /> {item.location || "Bin Unassigned"}
                       </span>
+                      <span className={styles.cardSequenceBadge}>{item.sku}</span>
                     </div>
 
-                    {/* Quick increment buttons */}
-                    <div className={styles.pickActionButtons}>
-                      <button
-                        type="button"
-                        onClick={() => handlePickIncrement(item, 1)}
-                        disabled={isBusy || isItemDone}
-                        className={styles.pickIncrementBtn}
-                      >
-                        <Plus size={14} />
-                        <span>1</span>
-                      </button>
+                    <div>
+                      <h3 className={styles.cardTitle}>{item.productName}</h3>
+                      <p className={styles.cardSub}>
+                        Target: {item.requiredQty} Units | Picked: {item.pickedQty}
+                      </p>
+                    </div>
 
-                      {item.requiredQty > 5 && (
+                    {/* Pick Progress & Quick Buttons */}
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        paddingTop: "12px",
+                        borderTop: "1px solid var(--hairline)",
+                      }}
+                    >
+                      <div>
+                        <span className={styles.statLabel}>Picked Balance</span>
+                        <span
+                          style={{
+                            display: "block",
+                            fontSize: "18px",
+                            fontWeight: 600,
+                            color: isItemDone ? "#15803d" : "var(--primary)",
+                          }}
+                        >
+                          {item.pickedQty} / {item.requiredQty}
+                        </span>
+                      </div>
+
+                      <div style={{ display: "flex", gap: "6px" }}>
+                        {!isItemDone && (
+                          <button
+                            type="button"
+                            onClick={() => setShortPickItem(item)}
+                            className={styles.buttonPearlCapsule}
+                            style={{ padding: "8px 10px", color: "#b91c1c" }}
+                            title="Log Short Pick / Insufficient Stock in Bin"
+                          >
+                            <AlertTriangle size={13} />
+                          </button>
+                        )}
+
                         <button
                           type="button"
-                          onClick={() => handlePickIncrement(item, 5)}
-                          disabled={isBusy || isItemDone || item.pickedQty + 5 > item.requiredQty}
-                          className={styles.pickIncrementBtn}
+                          onClick={() => handlePickIncrement(item, 1)}
+                          disabled={isBusy || isItemDone}
+                          className={styles.buttonPearlCapsule}
+                          style={{ padding: "8px 12px" }}
                         >
-                          <Plus size={14} />
-                          <span>5</span>
+                          <Plus size={13} />
+                          <span>1</span>
                         </button>
-                      )}
 
-                      <button
-                        type="button"
-                        onClick={() => handlePickAll(item)}
-                        disabled={isBusy || isItemDone}
-                        className={styles.pickAllBtn}
-                      >
-                        <Check size={14} />
-                        <span>All</span>
-                      </button>
+                        {item.requiredQty > 5 && (
+                          <button
+                            type="button"
+                            onClick={() => handlePickIncrement(item, 5)}
+                            disabled={isBusy || isItemDone || item.pickedQty + 5 > item.requiredQty}
+                            className={styles.buttonPearlCapsule}
+                            style={{ padding: "8px 12px" }}
+                          >
+                            <Plus size={13} />
+                            <span>5</span>
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => handlePickAll(item)}
+                          disabled={isBusy || isItemDone}
+                          className={styles.buttonPrimary}
+                          style={{ padding: "8px 16px", fontSize: "14px" }}
+                        >
+                          <Check size={14} />
+                          <span>All</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       ) : (
         /* Pick Lists Queue */
         <>
-          <div className={styles.filterSection}>
-            <div className={styles.searchBar}>
-              <Search size={16} className={styles.searchIcon} />
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            <div className={styles.searchContainer}>
+              <Search size={18} className={styles.searchIcon} />
               <input
                 type="text"
                 value={search}
@@ -370,7 +502,7 @@ export function WarehousePickingView({
               />
               {search && (
                 <button type="button" onClick={() => setSearch("")} className={styles.clearSearchBtn}>
-                  <X size={14} />
+                  <X size={16} />
                 </button>
               )}
             </div>
@@ -379,38 +511,38 @@ export function WarehousePickingView({
               <button
                 type="button"
                 onClick={() => setStatusFilter("all")}
-                className={statusFilter === "all" ? styles.activePill : styles.pill}
+                className={statusFilter === "all" ? styles.optionChipSelected : styles.optionChip}
               >
                 All ({pickLists.length})
               </button>
               <button
                 type="button"
                 onClick={() => setStatusFilter("pending")}
-                className={statusFilter === "pending" ? styles.activePill : styles.pill}
+                className={statusFilter === "pending" ? styles.optionChipSelected : styles.optionChip}
               >
                 Pending ({pendingCount})
               </button>
               <button
                 type="button"
                 onClick={() => setStatusFilter("in_progress")}
-                className={statusFilter === "in_progress" ? styles.activePill : styles.pill}
+                className={statusFilter === "in_progress" ? styles.optionChipSelected : styles.optionChip}
               >
                 In Progress ({inProgressCount})
               </button>
               <button
                 type="button"
                 onClick={() => setStatusFilter("completed")}
-                className={statusFilter === "completed" ? styles.activePill : styles.pill}
+                className={statusFilter === "completed" ? styles.optionChipSelected : styles.optionChip}
               >
                 Completed ({completedCount})
               </button>
             </div>
           </div>
 
-          <div className={styles.stopsList}>
+          <div className={styles.cardGrid}>
             {filteredPickLists.length === 0 ? (
-              <div className={styles.emptySearchCard}>
-                <p>No pick lists match your filter.</p>
+              <div className={styles.utilityCard} style={{ gridColumn: "1 / -1", textAlign: "center", padding: "40px 20px" }}>
+                <p style={{ margin: 0, color: "var(--ink-muted-48)" }}>No pick lists match your filter.</p>
               </div>
             ) : (
               filteredPickLists.map((pick) => {
@@ -420,67 +552,54 @@ export function WarehousePickingView({
                 return (
                   <div
                     key={pick.id}
-                    onClick={() => setSelectedPick(pick)}
-                    className={`${styles.stopCard} ${isCompleted ? styles.stopDelivered : ""}`}
-                    style={{ cursor: "pointer" }}
+                    className={`${styles.utilityCard} ${isCompleted ? styles.utilityCardDone : ""}`}
                   >
-                    <div className={styles.stopCardTop}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <span className={styles.badgePrimary}>#{pick.pickNumber}</span>
-                        {isHighPriority && <span className={styles.badgeDanger}>Urgent</span>}
+                    <div className={styles.cardHeaderRow}>
+                      <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                        <span className={styles.cardSequenceBadge}>#{pick.pickNumber}</span>
+                        {isHighPriority && <span className={styles.cardTagHighlight}>Priority</span>}
                       </div>
 
-                      <span
-                        className={
-                          isCompleted
-                            ? styles.statusPillSuccess
-                            : pick.status === "in_progress"
-                            ? styles.statusPillInfo
-                            : styles.statusPillWarning
-                        }
-                      >
+                      <span className={isCompleted ? styles.cardTagHighlight : styles.cardTag}>
                         {pick.status.replace("_", " ")}
                       </span>
                     </div>
 
-                    <div style={{ marginTop: "4px" }}>
-                      <h3 className={styles.stopCustomerName}>{pick.customerName}</h3>
-                      <p className={styles.stopOrderMeta}>
+                    <div>
+                      <h3 className={styles.cardTitle}>{pick.customerName}</h3>
+                      <p className={styles.cardSub}>
                         Order {pick.orderNumber} • {pick.warehouseName}
                       </p>
                     </div>
 
-                    <div className={styles.stopMetricsRow}>
-                      <div className={styles.stopMetricTag}>
-                        <Package size={14} />
-                        <span>{pick.items.length} Line Items</span>
-                      </div>
-                      <div className={styles.stopMetricTag}>
-                        <Clock size={14} />
-                        <span>Progress: {pick.progress}%</span>
-                      </div>
+                    <div className={styles.cardMetadataRow}>
+                      <span className={styles.cardTag}>
+                        <Package size={13} /> {pick.items.length} Line Items
+                      </span>
+                      <span className={styles.cardTag}>
+                        <Clock size={13} /> {pick.progress}% Picked
+                      </span>
                     </div>
 
-                    <div style={{ marginTop: "10px" }}>
-                      <div className={styles.progressBarBg}>
-                        <div
-                          className={styles.progressBarFill}
-                          style={{
-                            width: `${pick.progress}%`,
-                            background: isCompleted ? "#10b981" : "#38bdf8",
-                          }}
-                        />
-                      </div>
-                    </div>
-
-                    <div className={styles.stopActionRow}>
+                    <div style={{ display: "flex", gap: "8px", marginTop: "8px", paddingTop: "12px", borderTop: "1px solid var(--hairline)" }}>
                       <button
                         type="button"
-                        className={styles.actionBtnPrimary}
-                        style={{ width: "100%", justifyContent: "center" }}
+                        onClick={() => setSelectedPick(pick)}
+                        className={styles.buttonPrimary}
+                        style={{ flex: 1, padding: "8px 14px", fontSize: "13px" }}
                       >
-                        <span>{isCompleted ? "View Pick Details" : "Start Picking"}</span>
-                        <ChevronRight size={16} />
+                        <span>{isCompleted ? "View Pick" : "Guided Pick"}</span>
+                        <ChevronRight size={14} />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setPackingOrder(pick)}
+                        className={styles.buttonPearlCapsule}
+                        style={{ padding: "8px 14px", fontSize: "13px" }}
+                      >
+                        <Package size={14} />
+                        <span>Pack Box</span>
                       </button>
                     </div>
                   </div>
@@ -497,8 +616,40 @@ export function WarehousePickingView({
         onClose={() => setScannerOpen(false)}
         onScan={handleBarcodeScan}
         title={activePick ? `Pick Scan - #${activePick.pickNumber}` : "Scan Product / Pick List"}
-        hint="Point camera at item SKU barcode or enter code"
+        hint="Align barcode within viewfinder or laser scan SKU"
       />
+
+      {/* Carton Packing Station Modal */}
+      {packingOrder && (
+        <CartonPackingStationModal
+          isOpen={Boolean(packingOrder)}
+          onClose={() => setPackingOrder(null)}
+          order={{
+            id: packingOrder.orderId,
+            orderNumber: packingOrder.orderNumber,
+            customerName: packingOrder.customerName,
+            deliveryAddress: "Sydney DC / Regional Delivery",
+            items: packingOrder.items.map((it) => ({
+              id: it.id,
+              productId: it.productId,
+              productName: it.productName,
+              sku: it.sku,
+              pickedQty: it.pickedQty,
+            })),
+          }}
+          onCompletePacking={handleCompletePacking}
+        />
+      )}
+
+      {/* Short Pick Resolution Modal */}
+      {shortPickItem && (
+        <ShortPickModal
+          isOpen={Boolean(shortPickItem)}
+          onClose={() => setShortPickItem(null)}
+          item={shortPickItem}
+          onConfirmShortPick={handleConfirmShortPick}
+        />
+      )}
     </div>
   )
 }

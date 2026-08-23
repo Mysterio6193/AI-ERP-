@@ -3025,3 +3025,37 @@ model SupplierPayment {
 
   @@index([supplierInvoiceId])
 }
+
+/// A Telegram (or future) group/channel that the agent actively participates in.
+///
+/// Unlike 1:1 ChannelIdentity (which maps a chat id to one person), this
+/// represents a *shared* space. All linked staff in the group can talk to each
+/// other and to the AI, which responds when @-mentioned, replied to, or asked
+/// a /question.
+model AgentGroupChannel {
+  id String @id @default(cuid())
+
+  channel    String // telegram, slack, discord (currently telegram only)
+  externalId String // the Telegram group/supergroup chat id (negative number as string)
+
+  /// Human-friendly name shown in dashboards & the agent's context.
+  name        String
+  /// Purpose: "operations", "sales", "warehouse", "general", etc.
+  purpose     String  @default("general")
+  description String?
+
+  /// When true the bot replies to every message. When false it only replies
+  /// when @-mentioned, replied to, or a slash command is used.
+  autoReply Boolean @default(false)
+
+  /// Who registered this group channel.
+  createdByUserId String?
+
+  status String @default("active") // active, paused, archived
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([channel, externalId])
+  @@index([status])
+}

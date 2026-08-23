@@ -137,5 +137,90 @@ export function buildCatalogTools(principal: AgentPrincipal) {
         return { ok: true as const, onHand: updated.quantity }
       },
     }),
+
+    createProduct: defineTool({
+      description:
+        "Create a new product or inventory SKU in SupplySure OS. Use this when a user asks to add or register a new product, item, raw material, or good.",
+      inputSchema: z.object({
+        sku: z.string().describe("Unique SKU, e.g. 'SMT-25KG' or 'OLV-4L'"),
+        name: z.string().describe("Product name, e.g. 'San Marzano Tomatoes 2.5kg'"),
+        description: z.string().optional(),
+        baseUnit: z.string().optional().default("each").describe("Base unit: carton, box, each, kg, litre"),
+        costPrice: z.number().nonnegative().optional().default(0),
+        wholesalePrice: z.number().nonnegative().optional().default(0),
+        retailPrice: z.number().nonnegative().optional(),
+        minMargin: z.number().optional().default(20),
+        gstExempt: z.boolean().optional().default(false),
+        shelfLifeDays: z.number().int().positive().optional(),
+        storageTemp: z.enum(["ambient", "chilled", "frozen"]).optional(),
+        brand: z.string().optional(),
+      }),
+      execute: async (input) => {
+        const product = await db.product.create({
+          data: {
+            sku: input.sku.trim().toUpperCase(),
+            name: input.name.trim(),
+            description: input.description || null,
+            baseUnit: input.baseUnit || "each",
+            costPrice: input.costPrice || 0,
+            wholesalePrice: input.wholesalePrice || 0,
+            retailPrice: input.retailPrice || null,
+            minMargin: input.minMargin ?? 20,
+            gstExempt: input.gstExempt ?? false,
+            shelfLifeDays: input.shelfLifeDays || null,
+            storageTemp: input.storageTemp || null,
+            brand: input.brand || null,
+            status: "active",
+          },
+          select: {
+            id: true,
+            sku: true,
+            name: true,
+            wholesalePrice: true,
+            costPrice: true,
+            baseUnit: true,
+          },
+        })
+
+        return {
+          ok: true as const,
+          product,
+          message: `Created product "${product.name}" (SKU: ${product.sku}).`,
+        }
+      },
+    }),
+
+    updateProduct: defineTool({
+      description: "Update an existing product's pricing, description, storage temp, or status.",
+      inputSchema: z.object({
+        productId: z.string(),
+        name: z.string().optional(),
+        costPrice: z.number().nonnegative().optional(),
+        wholesalePrice: z.number().nonnegative().optional(),
+        retailPrice: z.number().nonnegative().optional(),
+        minMargin: z.number().optional(),
+        status: z.enum(["active", "inactive", "discontinued"]).optional(),
+      }),
+      execute: async ({ productId, ...patch }) => {
+        const product = await db.product.update({
+          where: { id: productId },
+          data: patch,
+          select: {
+            id: true,
+            sku: true,
+            name: true,
+            wholesalePrice: true,
+            costPrice: true,
+            status: true,
+          },
+        })
+
+        return {
+          ok: true as const,
+          product,
+          message: `Updated product "${product.name}".`,
+        }
+      },
+    }),
   }
 }

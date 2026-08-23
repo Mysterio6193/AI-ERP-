@@ -37,6 +37,7 @@ export async function GET(request: NextRequest) {
     const auth = await requireAdminUser(request, ROLE_SETS.staff)
     if (!auth.user) return auth.response
 
+    const companyId = await getActiveCompanyId(request)
     const { searchParams } = new URL(request.url)
     const search = searchParams.get("search") || ""
     const status = searchParams.get("status") || ""
@@ -44,6 +45,7 @@ export async function GET(request: NextRequest) {
     const purchaseOrders = await db.purchaseOrder.findMany({
       where: {
         AND: [
+          companyId ? { companyId } : {},
           search
             ? {
                 OR: [

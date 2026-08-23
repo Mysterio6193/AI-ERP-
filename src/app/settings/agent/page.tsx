@@ -51,8 +51,13 @@ interface AgentIdentity {
 }
 
 interface RuntimeInfo {
-  mode: "gateway" | "local"
+  mode: "gateway" | "local" | "openrouter"
   model: string
+  fastModel?: string
+  telegramModel?: string
+  replenishmentModel?: string
+  emailModel?: string
+  financeModel?: string
   baseUrl: string
   configured: boolean
 }
@@ -348,23 +353,77 @@ export default function AgentSettingsPage() {
             </CardTitle>
             <CardDescription>Which model the agent runs on, and where it runs.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-2">
+          <CardContent className="space-y-4">
             {runtime ? (
-              <div className="flex flex-wrap items-center gap-2 text-sm">
-                <Badge variant={runtime.configured ? "secondary" : "destructive"}>
-                  {runtime.configured ? "Ready" : "Not configured"}
-                </Badge>
-                <span className="font-mono text-xs">{runtime.model}</span>
-                <span className="text-xs text-muted-foreground">
-                  {runtime.mode === "local" ? "running locally" : "via cloud gateway"}
-                </span>
-              </div>
+              <>
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3 text-sm">
+                  <div className="flex items-center gap-2">
+                    <Badge variant={runtime.configured ? "secondary" : "destructive"}>
+                      {runtime.configured ? "Ready" : "Not configured"}
+                    </Badge>
+                    <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                      Provider: {runtime.mode}
+                    </span>
+                  </div>
+                  <span className="font-mono text-[11px] text-muted-foreground">
+                    {runtime.baseUrl}
+                  </span>
+                </div>
+
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="rounded-lg border p-2.5">
+                    <p className="text-[11px] font-medium text-muted-foreground">💬 Operations / Chat Copilot</p>
+                    <p className="mt-1 font-mono text-xs font-semibold">{runtime.model}</p>
+                    <p className="text-[10px] text-muted-foreground">AGENT_MODEL / AGENT_MODEL_CHAT</p>
+                  </div>
+
+                  <div className="rounded-lg border p-2.5">
+                    <p className="text-[11px] font-medium text-muted-foreground">📱 Telegram Staff Bot</p>
+                    <p className="mt-1 font-mono text-xs font-semibold">{runtime.telegramModel || runtime.model}</p>
+                    <p className="text-[10px] text-muted-foreground">AGENT_MODEL_TELEGRAM</p>
+                  </div>
+
+                  <div className="rounded-lg border p-2.5">
+                    <p className="text-[11px] font-medium text-muted-foreground">📦 Autonomous Replenishment</p>
+                    <p className="mt-1 font-mono text-xs font-semibold">{runtime.replenishmentModel || runtime.model}</p>
+                    <p className="text-[10px] text-muted-foreground">AGENT_MODEL_REPLENISHMENT</p>
+                  </div>
+
+                  <div className="rounded-lg border p-2.5">
+                    <p className="text-[11px] font-medium text-muted-foreground">⚡ Fast Triage / Summaries</p>
+                    <p className="mt-1 font-mono text-xs font-semibold">{runtime.fastModel || runtime.model}</p>
+                    <p className="text-[10px] text-muted-foreground">AGENT_MODEL_FAST / AGENT_FAST_MODEL</p>
+                  </div>
+
+                  <div className="rounded-lg border p-2.5">
+                    <p className="text-[11px] font-medium text-muted-foreground">✉️ Inbound Email & Leads</p>
+                    <p className="mt-1 font-mono text-xs font-semibold">{runtime.emailModel || runtime.model}</p>
+                    <p className="text-[10px] text-muted-foreground">AGENT_MODEL_EMAIL</p>
+                  </div>
+
+                  <div className="rounded-lg border p-2.5">
+                    <p className="text-[11px] font-medium text-muted-foreground">📊 Finance & Ledger Analysis</p>
+                    <p className="mt-1 font-mono text-xs font-semibold">{runtime.financeModel || runtime.model}</p>
+                    <p className="text-[10px] text-muted-foreground">AGENT_MODEL_FINANCE</p>
+                  </div>
+
+                  <div className="rounded-lg border p-2.5">
+                    <p className="text-[11px] font-medium text-muted-foreground">👁️ Vision OCR & Document Scanner</p>
+                    <p className="mt-1 font-mono text-xs font-semibold">{runtime.ocrModel || "google/gemini-2.0-flash-001"}</p>
+                    <p className="text-[10px] text-muted-foreground">AGENT_MODEL_OCR / AGENT_OCR_MODEL</p>
+                  </div>
+
+                  <div className="rounded-lg border p-2.5">
+                    <p className="text-[11px] font-medium text-muted-foreground">🎙️ Speech-to-Text & Voice Notes</p>
+                    <p className="mt-1 font-mono text-xs font-semibold">{runtime.voiceModel || "openai/whisper-large-v3"}</p>
+                    <p className="text-[10px] text-muted-foreground">AGENT_MODEL_VOICE / AGENT_VOICE_MODEL</p>
+                  </div>
+                </div>
+              </>
             ) : null}
             {runtime && !runtime.configured ? (
               <p className="text-xs text-muted-foreground">
-                Set <code className="font-mono">AI_GATEWAY_API_KEY</code> in <code>.env</code>, or run
-                Ollama and set <code className="font-mono">AGENT_PROVIDER=local</code> to keep every
-                request on this machine.
+                Set <code className="font-mono">OPENROUTER_API_KEY</code> or <code className="font-mono">AI_GATEWAY_API_KEY</code> in <code>.env</code>.
               </p>
             ) : null}
           </CardContent>

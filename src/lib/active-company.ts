@@ -91,6 +91,21 @@ export async function getActiveCompany(request: NextRequest): Promise<ActiveComp
     }
   }
 
+  const supplyCompany = await db.company.findFirst({
+    where: {
+      OR: [
+        { tradingName: { contains: "Supply", mode: "insensitive" } },
+        { name: { contains: "Supply", mode: "insensitive" } },
+        { name: { contains: "Fresh", mode: "insensitive" } },
+      ],
+    },
+    select: SELECT,
+  })
+
+  if (supplyCompany) {
+    return supplyCompany
+  }
+
   return db.company.findFirst({ orderBy: { createdAt: "asc" }, select: SELECT })
 }
 

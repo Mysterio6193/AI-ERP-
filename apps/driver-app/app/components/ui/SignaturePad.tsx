@@ -1,18 +1,18 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Eraser, PenLine } from "lucide-react"
+import { Check, Edit3, Eraser } from "lucide-react"
+import styles from "../../page.module.css"
 
 interface SignaturePadProps {
+  initialValue?: string | null
   onSave: (dataUrl: string) => void
   onClear?: () => void
-  initialValue?: string
-  disabled?: boolean
 }
 
-export function SignaturePad({ onSave, onClear, initialValue, disabled }: SignaturePadProps) {
+export function SignaturePad({ initialValue, onSave, onClear }: SignaturePadProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
-  const isDrawing = useRef(false)
+  const [isDrawing, setIsDrawing] = useState(false)
   const [hasDrawn, setHasDrawn] = useState(Boolean(initialValue))
 
   useEffect(() => {
@@ -21,14 +21,14 @@ export function SignaturePad({ onSave, onClear, initialValue, disabled }: Signat
     const ctx = canvas.getContext("2d")
     if (!ctx) return
 
-    // Set high-DPI canvas size
+    // High-DPI Canvas scaling
     const rect = canvas.getBoundingClientRect()
     const dpr = window.devicePixelRatio || 1
     canvas.width = rect.width * dpr
     canvas.height = rect.height * dpr
     ctx.scale(dpr, dpr)
 
-    ctx.strokeStyle = "#ffffff"
+    ctx.strokeStyle = "#1d1d1f"
     ctx.lineWidth = 2.5
     ctx.lineCap = "round"
     ctx.lineJoin = "round"
@@ -40,9 +40,9 @@ export function SignaturePad({ onSave, onClear, initialValue, disabled }: Signat
       }
       img.src = initialValue
     }
-  }, [])
+  }, [initialValue])
 
-  function getPoint(e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) {
+  function getCoordinates(e: React.MouseEvent | React.TouchEvent) {
     const canvas = canvasRef.current
     if (!canvas) return { x: 0, y: 0 }
     const rect = canvas.getBoundingClientRect()
@@ -53,55 +53,51 @@ export function SignaturePad({ onSave, onClear, initialValue, disabled }: Signat
         x: touch.clientX - rect.left,
         y: touch.clientY - rect.top,
       }
-    } else {
-      return {
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top,
-      }
+    }
+
+    return {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
     }
   }
 
-  function startDrawing(e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) {
-    if (disabled) return
+  function startDrawing(e: React.MouseEvent | React.TouchEvent) {
+    e.preventDefault()
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext("2d")
     if (!ctx) return
 
-    isDrawing.current = true
-    const { x, y } = getPoint(e)
+    const { x, y } = getCoordinates(e)
     ctx.beginPath()
     ctx.moveTo(x, y)
+    setIsDrawing(true)
     setHasDrawn(true)
   }
 
-  function draw(e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) {
-    if (!isDrawing.current || disabled) return
+  function draw(e: React.MouseEvent | React.TouchEvent) {
+    if (!isDrawing) return
+    e.preventDefault()
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext("2d")
     if (!ctx) return
 
-    if ("touches" in e) {
-      e.preventDefault() // prevent scroll on touch
-    }
-
-    const { x, y } = getPoint(e)
+    const { x, y } = getCoordinates(e)
     ctx.lineTo(x, y)
     ctx.stroke()
   }
 
   function stopDrawing() {
-    if (!isDrawing.current) return
-    isDrawing.current = false
+    if (!isDrawing) return
+    setIsDrawing(false)
     const canvas = canvasRef.current
     if (!canvas) return
-
     const dataUrl = canvas.toDataURL("image/png")
     onSave(dataUrl)
   }
 
-  function clear() {
+  function clearCanvas() {
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext("2d")
@@ -111,7 +107,6 @@ export function SignaturePad({ onSave, onClear, initialValue, disabled }: Signat
     ctx.clearRect(0, 0, rect.width, rect.height)
     setHasDrawn(false)
     onClear?.()
-    onSave("")
   }
 
   return (
@@ -120,10 +115,10 @@ export function SignaturePad({ onSave, onClear, initialValue, disabled }: Signat
         style={{
           position: "relative",
           width: "100%",
-          height: "160px",
-          background: "rgba(15, 23, 42, 0.85)",
-          border: "1.5px dashed rgba(148, 163, 184, 0.3)",
-          borderRadius: "12px",
+          height: "150px",
+          background: "#ffffff",
+          border: "1px solid var(--hairline)",
+          borderRadius: "11px",
           overflow: "hidden",
           touchAction: "none",
         }}
@@ -140,8 +135,8 @@ export function SignaturePad({ onSave, onClear, initialValue, disabled }: Signat
           style={{
             width: "100%",
             height: "100%",
-            cursor: disabled ? "not-allowed" : "crosshair",
             display: "block",
+            cursor: "crosshair",
           }}
         />
 
@@ -149,41 +144,30 @@ export function SignaturePad({ onSave, onClear, initialValue, disabled }: Signat
           <div
             style={{
               position: "absolute",
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%, -50%)",
+              inset: 0,
               display: "flex",
               alignItems: "center",
-              gap: "8px",
-              color: "rgba(148, 163, 184, 0.6)",
-              fontSize: "14px",
+              justifyContent: "center",
               pointerEvents: "none",
+              color: "var(--ink-muted-48)",
+              fontSize: "14px",
+              gap: "6px",
             }}
           >
-            <PenLine size={16} />
-            <span>Sign here (Recipient or Driver)</span>
+            <Edit3 size={15} />
+            <span>Sign with finger or stylus</span>
           </div>
         )}
       </div>
 
-      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
         <button
           type="button"
-          onClick={clear}
-          disabled={disabled || !hasDrawn}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "6px",
-            fontSize: "12px",
-            color: hasDrawn ? "#94a3b8" : "rgba(148, 163, 184, 0.3)",
-            background: "transparent",
-            border: "none",
-            padding: "4px 8px",
-            cursor: hasDrawn ? "pointer" : "default",
-          }}
+          onClick={clearCanvas}
+          className={styles.buttonPearlCapsule}
+          style={{ padding: "6px 12px", fontSize: "13px" }}
         >
-          <Eraser size={14} />
+          <Eraser size={13} />
           <span>Clear Signature</span>
         </button>
       </div>

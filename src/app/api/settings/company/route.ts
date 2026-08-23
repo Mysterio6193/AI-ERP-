@@ -4,11 +4,29 @@ import { requireAdminUser } from "@/lib/admin-auth"
 import { sanitizeCompanyBranding } from "@/lib/company-branding"
 import { ROLE_SETS } from "@/lib/permissions"
 
+import { getActiveCompany, getActiveCompanyId } from "@/lib/active-company"
+
 // GET is intentionally public (see middleware): the driver app reads branding
 // before sign-in. Every mutating method below requires an admin.
-export async function GET() {
+export async function GET(request: NextRequest) {
     try {
-        const company = await db.company.findFirst()
+        let company = await getActiveCompany(request)
+
+        if (!company) {
+            company = await db.company.findFirst({
+                where: {
+                    OR: [
+                        { tradingName: { contains: "Supply", mode: "insensitive" } },
+                        { name: { contains: "Supply", mode: "insensitive" } },
+                        { name: { contains: "Fresh", mode: "insensitive" } },
+                    ],
+                },
+            })
+        }
+
+        if (!company) {
+            company = await db.company.findFirst()
+        }
 
         if (!company) {
             return NextResponse.json(

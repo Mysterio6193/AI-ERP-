@@ -20,6 +20,7 @@ interface AgentDefinition {
   instructions: string
   tools: string[] | null
   audience: string
+  model: string | null
   maxSteps: number
   trigger: string
   schedule: string | null
@@ -32,6 +33,16 @@ interface AgentDefinition {
   lastRunStatus: string | null
   lastRunError: string | null
 }
+
+const MODEL_PRESETS = [
+  { label: "Default for Role / Purpose", value: "" },
+  { label: "DeepSeek Chat (V3)", value: "deepseek/deepseek-chat" },
+  { label: "Meta Llama 3.3 70B", value: "meta-llama/llama-3.3-70b-instruct" },
+  { label: "Claude 3.5 Sonnet", value: "anthropic/claude-3.5-sonnet" },
+  { label: "Claude 3.7 Sonnet", value: "anthropic/claude-3.7-sonnet" },
+  { label: "OpenAI GPT-4o Mini", value: "openai/gpt-4o-mini" },
+  { label: "Google Gemini 2.0 Flash", value: "google/gemini-2.0-flash-001" },
+]
 
 interface AutonomyState {
   thresholds: {
@@ -106,6 +117,7 @@ export default function AgentStudioPage() {
     description: "",
     avatar: "🤖",
     instructions: "",
+    model: "",
     tools: [] as string[],
   })
 
@@ -593,6 +605,34 @@ export default function AgentStudioPage() {
                 />
               </div>
 
+              <div className="space-y-1">
+                <label className="text-[11px] font-medium text-muted-foreground">AI Model</label>
+                <div className="flex flex-wrap gap-1">
+                  {MODEL_PRESETS.map((preset) => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => setDraft((current) => ({ ...current, model: preset.value }))}
+                      className={`rounded border px-2 py-0.5 text-[10px] transition-colors ${
+                        draft.model === preset.value
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "hover:bg-accent"
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+                <Input
+                  value={draft.model}
+                  onChange={(event) =>
+                    setDraft((current) => ({ ...current, model: event.target.value.trim() }))
+                  }
+                  placeholder="Or custom model ID: vendor/model-name (e.g. anthropic/claude-3.5-sonnet)"
+                  className="h-8 font-mono text-xs"
+                />
+              </div>
+
               <Textarea
                 value={draft.instructions}
                 onChange={(event) =>
@@ -814,6 +854,57 @@ export default function AgentStudioPage() {
                 <p className="mt-1 text-[11px] text-muted-foreground">
                   Saved when you click away. Business context is appended automatically.
                 </p>
+              </div>
+
+              {/* ---- AI Model ---- */}
+              <div className="space-y-2 rounded-lg border p-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Bot className="h-3.5 w-3.5" />
+                    <p className="text-xs font-medium">Assigned AI Model</p>
+                  </div>
+                  <span className="font-mono text-[10px] text-muted-foreground">
+                    {active.model || "Default for Purpose"}
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap gap-1">
+                  {MODEL_PRESETS.map((preset) => {
+                    const isSelected = (active.model || "") === preset.value
+                    return (
+                      <button
+                        key={preset.label}
+                        disabled={saving === active.id}
+                        onClick={() =>
+                          void patch(active.id, {
+                            model: preset.value || null,
+                          })
+                        }
+                        className={`rounded border px-2 py-0.5 text-[10px] transition-colors disabled:opacity-50 ${
+                          isSelected
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "hover:bg-accent"
+                        }`}
+                      >
+                        {preset.label}
+                      </button>
+                    )
+                  })}
+                </div>
+
+                <Input
+                  defaultValue={active.model || ""}
+                  placeholder="Or custom OpenRouter model: e.g. deepseek/deepseek-chat"
+                  className="h-8 font-mono text-xs"
+                  onBlur={(event) => {
+                    const value = event.target.value.trim()
+                    if (value !== (active.model || "")) {
+                      void patch(active.id, {
+                        model: value || null,
+                      })
+                    }
+                  }}
+                />
               </div>
 
               {/* ---- Schedule ---- */}
