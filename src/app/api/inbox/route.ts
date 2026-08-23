@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { requireAdminUser } from "@/lib/admin-auth"
 import { db } from "@/lib/db"
+import { sendCommunicationMessage } from "@/lib/communications"
 
 /**
  * The inbox.
@@ -276,4 +277,116 @@ export async function GET(request: NextRequest) {
       },
     },
   })
+}
+
+/**
+ * Reply to a customer conversation.
+ *
+ * The inbox could read a conversation and not answer it, which makes it a log
+ * rather than an inbox — staff had to find the customer elsewhere and start a
+ * separate thread, losing the context they were just reading.
+ *
+ * Replies go out through the same `sendCommunicationMessage` every other
+ * outbound message uses, so they are logged, attributed and subject to the
+ * same transport rules. A channel with no transport now fails loudly rather
+ * than sitting in "queued" forever.
+ */
+export async function POST(request: NextRequest) {
+  const auth = await requireAdminUser(request, ["admin", "sales", "accounts"])
+  if (auth.response) {
+    return auth.response
+  }
+
+  const body = await request.json().catch(() => ({}))
+
+  const message = String(body.message || "").trim()
+  const conversationId = String(body.conversationId || "")
+  const kind = String(body.kind || "thread")
+
+  if (!message) {
+    return NextResponse.json({ success: false, error: "A reply needs a message." }, { status: 400 })
+  }
+
+  if (!conversationId) {
+    return NextResponse.json(
+      { success: false, error: "A conversation is required." },
+      { status: 400 }
+    )
+  }
+
+  // Resolve who this is to, and on which channel, from the conversation itself
+  // rather than trusting the caller — replying to the wrong customer is the
+  // one mistake an inbox must not make possible.
+  let recipient: string | null = null
+  let channel = "email"
+  let customerId: string | null = null
+  let companyId: string | null = null
+
+  if (kind === "thread") {
+    const thread = await db.agentThread.findUnique({
+      where: { id: conversationId },
+      select: { id: true, channel: true, threadKey: true, customerId: true },
+    })
+
+    if (!thread) {
+      return NextResponse.json({ success: false, error: "Conversation not found" }, { status: 404 })
+    }
+
+    channel = thread.channel || "email"
+    customerId = thread.customerId
+    // For a messaging channel the thread key is the address; for email the
+    // customer's own address is the only safe target.
+    recipient = channel === "email" ? null : thread.threadKey
+  } else {
+    const log = await db.communicationLog.findUnique({
+      where: { id: conversationId },
+      select: { id: true, method: true, recipient: true, customerId: true },
+    })
+
+    if (!log) {
+      return NextResponse.json({ success: false, error: "Conversation not found" }, { status: 404 })
+    }
+
+    channel = log.method || "email"
+    customerId = log.customerId
+    recipient = log.recipient
+  }
+
+  if (!recipient && customerId) {
+    const customer = await db.customer.findUnique({
+      where: { id: customerId },
+      select: { email: true, companyId: true },
+    })
+    recipient = customer?.email ?? null
+    companyId = customer?.companyId ?? null
+  }
+
+  if (!recipient) {
+    return NextResponse.json(
+      { success: false, error: "That conversation has no address to reply to." },
+      { status: 400 }
+    )
+  }
+
+  const sent = await sendCommunicationMessage({
+    to: recipient,
+    method: channel,
+    subject: body.subject ? String(body.subject) : null,
+    message,
+    customerId,
+    companyId,
+    metadata: { repliedBy: auth.user?.id, conversationId, kind },
+  })
+
+  return NextResponse.json({
+    success: sent.success,
+    data: {
+      status: sent.status,
+      channel,
+      to: recipient,
+      logId: sent.id,
+    },
+    // Surfaced rather than swallowed: a channel with no transport reports why.
+    ...(sent.success ? {} : { error: `Could not send on ${channel}.` }),
+  }, { status: sent.success ? 200 : 502 })
 }

@@ -1,6 +1,7 @@
 import nodemailer from "nodemailer"
 
 import { db } from "@/lib/db"
+import { sendTelegramMessage } from "@/lib/agent/channels/telegram"
 import {
   buildDocumentEmailMessage,
   buildDocumentEmailSubject,
@@ -118,6 +119,26 @@ export async function sendCommunicationMessage(input: {
     } else {
       console.log(`[COMMUNICATION] SMTP not configured, queued ${input.documentType || "message"} for ${input.to}`)
     }
+  } else if (deliveryMethod === "telegram") {
+    // Telegram could always send — `sendTelegramMessage` has existed the whole
+    // time — but nothing routed to it, so a Telegram message was logged as
+    // queued and silently never left.
+    try {
+      await sendTelegramMessage(input.to, subject ? `${subject}\n\n${message}` : message)
+      status = "sent"
+    } catch (error) {
+      console.error("Telegram delivery failed:", error)
+      status = "failed"
+      failureReason = error instanceof Error ? error.message : "Unknown Telegram delivery error"
+    }
+  } else {
+    // Everything else has no transport yet. Recording it as "queued" was the
+    // dangerous part: queued reads as "will be sent shortly", and it never
+    // would be. A marketing send to a WhatsApp audience looked delivered and
+    // reached nobody.
+    status = "failed"
+    failureReason = `No transport for "${deliveryMethod}". The message was recorded but not sent.`
+    console.warn(`[COMMUNICATION] ${failureReason} Recipient: ${input.to}`)
   }
 
   const log = await (db as any).communicationLog.create({
