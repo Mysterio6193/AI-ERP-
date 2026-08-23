@@ -359,7 +359,7 @@ export function buildTools(principal: AgentPrincipal, channel?: string): ToolSet
     buildCalendarTools(principal),
     buildEmailTools(principal),
     buildMultiAgentTools(principal),
-    buildSpreadsheetTools(principal),
+    buildSpreadsheetTools(principal, channel),
     buildAnalyticsTools(principal),
     buildDeepOperationsTools(principal),
     buildSkillTools(principal),

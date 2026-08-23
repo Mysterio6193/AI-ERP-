@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import { db } from "@/lib/db"
+import { sendTelegramDocument, sendUploadDocumentAction } from "../channels/telegram"
 import type { AgentPrincipal } from "../context"
 import { defineTool } from "./define"
 import { isStaff, money } from "./shared"
@@ -9,7 +10,7 @@ import { isStaff, money } from "./shared"
  * Spreadsheet & Tabular Data Tools.
  *
  * Hermes-grade data processing: Generate CSV spreadsheets, export ERP reports,
- * parse tabular data, and compute column summaries.
+ * parse tabular data, and compute column summaries with direct file delivery.
  */
 
 function escapeCsvValue(val: unknown): string {
@@ -21,7 +22,43 @@ function escapeCsvValue(val: unknown): string {
   return str
 }
 
-export function buildSpreadsheetTools(principal: AgentPrincipal) {
+async function dispatchTelegramCsv(
+  principal: AgentPrincipal,
+  channel: string | undefined,
+  fileName: string,
+  csvContent: string,
+  caption?: string
+): Promise<boolean> {
+  if (channel !== "telegram") return false
+
+  let targetChatId: string | null = null
+  if (principal.kind === "staff") {
+    const channelId = await db.channelIdentity.findFirst({
+      where: { channel: "telegram", userId: principal.userId, status: "active" },
+      select: { externalId: true },
+    })
+    targetChatId = channelId?.externalId || null
+  } else {
+    const channelId = await db.channelIdentity.findFirst({
+      where: { channel: "telegram", customerId: principal.customerId, status: "active" },
+      select: { externalId: true },
+    })
+    targetChatId = channelId?.externalId || null
+  }
+
+  if (targetChatId) {
+    await sendUploadDocumentAction(targetChatId)
+    return sendTelegramDocument(
+      targetChatId,
+      Buffer.from(csvContent, "utf-8"),
+      fileName,
+      caption || `📊 ${fileName}`
+    )
+  }
+  return false
+}
+
+export function buildSpreadsheetTools(principal: AgentPrincipal, channel?: string) {
   if (!isStaff(principal)) {
     return {}
   }
@@ -29,9 +66,9 @@ export function buildSpreadsheetTools(principal: AgentPrincipal) {
   return {
     generateSpreadsheet: defineTool({
       description:
-        "Generate a formatted CSV spreadsheet from column headers and rows of data. Automatically computes column totals and statistics for numeric fields.",
+        "Generate a formatted CSV spreadsheet from column headers and rows of data. Automatically computes column totals and delivers the file directly to the chat.",
       inputSchema: z.object({
-        filename: z.string().describe("Filename for the spreadsheet (e.g. 'q3_sales_summary.csv')"),
+        filename: z.string().describe("Filename for the spreadsheet (e.g. 'sales_summary.csv')"),
         headers: z.array(z.string()).describe("Column header names"),
         rows: z.array(z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])))
           .describe("Array of row data matching the headers"),
@@ -80,14 +117,25 @@ export function buildSpreadsheetTools(principal: AgentPrincipal) {
 
         const csvContent = csvLines.join("\n")
 
+        const delivered = await dispatchTelegramCsv(
+          principal,
+          channel,
+          cleanFilename,
+          csvContent,
+          `📊 Generated spreadsheet: ${cleanFilename} (${rows.length} rows)`
+        )
+
         return {
           ok: true as const,
           filename: cleanFilename,
           rowCount: rows.length,
           columnCount: headers.length,
+          deliveredToTelegram: delivered,
           csvContent,
           preview: csvLines.slice(0, 15).join("\n"),
-          message: `Generated spreadsheet "${cleanFilename}" with ${rows.length} rows and ${headers.length} columns.`,
+          message: delivered
+            ? `Successfully generated and sent "${cleanFilename}" as an attachment in this chat.`
+            : `Generated spreadsheet "${cleanFilename}" with ${rows.length} rows and ${headers.length} columns.`,
         }
       },
     }),
@@ -265,14 +313,25 @@ export function buildSpreadsheetTools(principal: AgentPrincipal) {
         const csvContent = csvLines.join("\n")
         const filename = `${dataset}_export_${nowStr}.csv`
 
+        const delivered = await dispatchTelegramCsv(
+          principal,
+          channel,
+          filename,
+          csvContent,
+          `📊 Exported ${rows.length} ${dataset.replace(/_/g, " ")} records (${filename})`
+        )
+
         return {
           ok: true as const,
           dataset,
           filename,
           recordCount: rows.length,
+          deliveredToTelegram: delivered,
           csvContent,
           preview: csvLines.slice(0, 10).join("\n"),
-          message: `Exported ${rows.length} ${dataset.replace(/_/g, " ")} records to ${filename}.`,
+          message: delivered
+            ? `Successfully exported and sent "${filename}" as an attachment in this chat.`
+            : `Exported ${rows.length} ${dataset.replace(/_/g, " ")} records to ${filename}.`,
         }
       },
     }),
