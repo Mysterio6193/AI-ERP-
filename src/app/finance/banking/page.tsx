@@ -1,13 +1,29 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Building2, Download, Plus, Upload, Wallet } from "lucide-react"
+import Link from "next/link"
+import {
+  Building2,
+  CheckCircle2,
+  Download,
+  FileText,
+  Plus,
+  RefreshCcw,
+  Upload,
+  Wallet,
+  ArrowDownLeft,
+  ArrowUpRight,
+  Landmark,
+} from "lucide-react"
 
 import { AppShell } from "@/components/layout/app-shell"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { EmptyState } from "@/components/ui/empty-state"
 import { Input } from "@/components/ui/input"
+import { KpiCard } from "@/components/ui/kpi-card"
+import { PageHeader } from "@/components/ui/page-header"
 import {
   Select,
   SelectContent,
@@ -227,57 +243,117 @@ export default function BankingPage() {
   return (
     <AppShell title="Banking & Reconciliation" breadcrumbs={[{ label: "Finance", href: "/finance" }, { label: "Banking" }]}>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Banking & Reconciliation</h1>
-          <p className="text-muted-foreground">
-            Manage settlement accounts, imported bank statements, live bank lines, and reconciliation readiness from one place.
-          </p>
+        <PageHeader
+          title="Banking & Feeds"
+          description="Manage settlement accounts, imported bank statements, live bank lines, and reconciliation readiness."
+          actions={
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => void reload()}>
+                <RefreshCcw className="mr-2 h-4 w-4" />
+                Refresh
+              </Button>
+              <Button size="sm" asChild>
+                <Link href="/finance/reconciliation">
+                  <CheckCircle2 className="mr-2 h-4 w-4" />
+                  Open Reconciliation
+                </Link>
+              </Button>
+            </div>
+          }
+        />
+
+        {/* Metrics Grid */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <KpiCard
+            title="Total Bank Balance"
+            value={loading ? "..." : formatCurrency(metrics.totalBankBalance)}
+            description={`${accounts.length} connected accounts`}
+            icon={Landmark}
+          />
+          <KpiCard
+            title="Unmatched Bank Lines"
+            value={loading ? "..." : metrics.unmatchedTransactions}
+            description="Transactions needing match"
+            icon={ArrowDownLeft}
+          />
+          <KpiCard
+            title="Balanced Sessions"
+            value={loading ? "..." : metrics.reconciledSessions}
+            description="Reconciled statement runs"
+            icon={CheckCircle2}
+          />
+          <KpiCard
+            title="Imported Documents"
+            value={loading ? "..." : metrics.importedDocs}
+            description="External feeds & files"
+            icon={FileText}
+          />
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Total bank balance</p><p className="text-2xl font-bold">{formatCurrency(metrics.totalBankBalance)}</p></CardContent></Card>
-          <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Unmatched bank lines</p><p className="text-2xl font-bold">{metrics.unmatchedTransactions}</p></CardContent></Card>
-          <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Balanced sessions</p><p className="text-2xl font-bold">{metrics.reconciledSessions}</p></CardContent></Card>
-          <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Imported docs</p><p className="text-2xl font-bold">{metrics.importedDocs}</p></CardContent></Card>
-        </div>
-
-        <Tabs defaultValue="accounts" className="space-y-4">
-          <TabsList className="grid w-full max-w-2xl grid-cols-4">
+        <Tabs defaultValue="accounts" className="space-y-6">
+          <TabsList className="grid w-full max-w-2xl grid-cols-4 bg-muted/60 p-1">
             <TabsTrigger value="accounts">Bank Accounts</TabsTrigger>
             <TabsTrigger value="transactions">Bank Feed</TabsTrigger>
             <TabsTrigger value="documents">Imports & Exports</TabsTrigger>
             <TabsTrigger value="reconciliation">Reconciliation</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="accounts" className="space-y-4">
-            <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
-              <Card>
+          {/* TAB 1: Bank Accounts */}
+          <TabsContent value="accounts" className="space-y-6">
+            <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+              <Card className="border-border shadow-sm">
                 <CardHeader>
-                  <CardTitle>Connected bank accounts</CardTitle>
-                  <CardDescription>These accounts power cash movement tracking and reconciliation.</CardDescription>
+                  <CardTitle className="text-base font-semibold">Connected Bank Accounts</CardTitle>
+                  <CardDescription>Accounts powering cash movement tracking and ledger reconciliation.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {loading ? (
-                    <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">Loading bank accounts...</div>
+                    <EmptyState
+                      icon={Landmark}
+                      title="Loading bank accounts..."
+                      description="Retrieving connected bank settlement accounts."
+                      className="min-h-[220px]"
+                    />
+                  ) : accounts.length === 0 ? (
+                    <EmptyState
+                      icon={Building2}
+                      title="No bank accounts added"
+                      description="Add your company bank account using the form on the right."
+                      className="min-h-[220px]"
+                    />
                   ) : (
                     accounts.map((account) => (
-                      <div key={account.id} className="rounded-xl border border-slate-200 p-4">
+                      <div
+                        key={account.id}
+                        className="rounded-lg border border-border bg-card p-4 transition-colors hover:bg-muted/30"
+                      >
                         <div className="flex items-start justify-between gap-4">
-                          <div>
-                            <p className="font-medium">{account.name}</p>
+                          <div className="space-y-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <Landmark className="h-4 w-4 text-primary shrink-0" />
+                              <p className="font-semibold text-foreground truncate">{account.name}</p>
+                            </div>
                             <p className="text-xs text-muted-foreground">
-                              {account.bankName} · {account.accountNumber}
+                              {account.bankName} • Account: <span className="font-mono">{account.accountNumber}</span> • {account.currency}
                             </p>
                           </div>
-                          <div className="text-right">
-                            <p className="font-semibold">{formatCurrency(account.currentBalance)}</p>
-                            <Badge variant="outline">{account.connectionStatus}</Badge>
+                          <div className="text-right shrink-0 space-y-1">
+                            <p className="text-lg font-bold text-foreground">{formatCurrency(account.currentBalance)}</p>
+                            <Badge variant={account.connectionStatus === "connected" ? "default" : "outline"} className="text-xs">
+                              {account.connectionStatus}
+                            </Badge>
                           </div>
                         </div>
-                        <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                          <span>{account._count?.transactions || 0} transactions</span>
-                          <span>{account._count?.reconciliations || 0} reconciliations</span>
-                          <span>{account.provider || "manual"}</span>
+                        <div className="mt-3.5 flex flex-wrap items-center gap-2 border-t border-border/60 pt-3 text-xs text-muted-foreground">
+                          <span className="rounded-md bg-muted px-2 py-0.5 font-medium text-foreground">
+                            {account._count?.transactions || 0} transactions
+                          </span>
+                          <span className="rounded-md bg-muted px-2 py-0.5 font-medium text-foreground">
+                            {account._count?.reconciliations || 0} reconciliations
+                          </span>
+                          <Badge variant="secondary" className="text-[11px] font-normal">
+                            Provider: {account.provider || "manual"}
+                          </Badge>
                         </div>
                       </div>
                     ))
@@ -285,158 +361,226 @@ export default function BankingPage() {
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="border-border shadow-sm">
                 <CardHeader>
-                  <CardTitle>Add bank account</CardTitle>
-                  <CardDescription>Use manual mode now, then connect live feeds later from Integrations.</CardDescription>
+                  <CardTitle className="text-base font-semibold">Add Bank Account</CardTitle>
+                  <CardDescription>Register a new settlement account for cash management.</CardDescription>
                 </CardHeader>
-                <CardContent className="grid gap-3">
-                  <Input placeholder="Account label" value={accountForm.name} onChange={(event) => setAccountForm((current) => ({ ...current, name: event.target.value }))} />
-                  <Input placeholder="Bank name" value={accountForm.bankName} onChange={(event) => setAccountForm((current) => ({ ...current, bankName: event.target.value }))} />
-                  <Input placeholder="Account number" value={accountForm.accountNumber} onChange={(event) => setAccountForm((current) => ({ ...current, accountNumber: event.target.value }))} />
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <Select value={accountForm.currency} onValueChange={(value) => setAccountForm((current) => ({ ...current, currency: value }))}>
-                      <SelectTrigger><SelectValue placeholder="Currency" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="AUD">AUD</SelectItem>
-                        <SelectItem value="INR">INR</SelectItem>
-                        <SelectItem value="USD">USD</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Select value={accountForm.provider} onValueChange={(value) => setAccountForm((current) => ({ ...current, provider: value }))}>
-                      <SelectTrigger><SelectValue placeholder="Provider" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="manual">Manual</SelectItem>
-                        <SelectItem value="xero">Xero</SelectItem>
-                        <SelectItem value="bank_feed">Bank feed</SelectItem>
-                      </SelectContent>
-                    </Select>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Account Label</label>
+                    <Input
+                      placeholder="e.g. Operating Main Account"
+                      value={accountForm.name}
+                      onChange={(event) => setAccountForm((current) => ({ ...current, name: event.target.value }))}
+                    />
                   </div>
-                  <Button onClick={saveBankAccount} disabled={savingAccount}>
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Bank Institution</label>
+                    <Input
+                      placeholder="e.g. Commonwealth Bank / Chase"
+                      value={accountForm.bankName}
+                      onChange={(event) => setAccountForm((current) => ({ ...current, bankName: event.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Account Number / IBAN</label>
+                    <Input
+                      placeholder="e.g. 1234 5678 9012"
+                      value={accountForm.accountNumber}
+                      onChange={(event) => setAccountForm((current) => ({ ...current, accountNumber: event.target.value }))}
+                    />
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Currency</label>
+                      <Select value={accountForm.currency} onValueChange={(value) => setAccountForm((current) => ({ ...current, currency: value }))}>
+                        <SelectTrigger><SelectValue placeholder="Currency" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="AUD">AUD ($)</SelectItem>
+                          <SelectItem value="USD">USD ($)</SelectItem>
+                          <SelectItem value="EUR">EUR (€)</SelectItem>
+                          <SelectItem value="GBP">GBP (£)</SelectItem>
+                          <SelectItem value="INR">INR (₹)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Provider Mode</label>
+                      <Select value={accountForm.provider} onValueChange={(value) => setAccountForm((current) => ({ ...current, provider: value }))}>
+                        <SelectTrigger><SelectValue placeholder="Provider" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="manual">Manual Entry</SelectItem>
+                          <SelectItem value="xero">Xero Sync</SelectItem>
+                          <SelectItem value="bank_feed">Live Bank Feed</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <Button onClick={saveBankAccount} disabled={savingAccount} className="w-full">
                     <Building2 className="mr-2 h-4 w-4" />
-                    {savingAccount ? "Saving..." : "Save Bank Account"}
+                    {savingAccount ? "Saving Account..." : "Save Bank Account"}
                   </Button>
                 </CardContent>
               </Card>
             </div>
           </TabsContent>
 
-          <TabsContent value="transactions" className="space-y-4">
-            <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-              <Card>
+          {/* TAB 2: Bank Feed */}
+          <TabsContent value="transactions" className="space-y-6">
+            <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+              <Card className="border-border shadow-sm">
                 <CardHeader>
-                  <CardTitle>Bank transactions</CardTitle>
-                  <CardDescription>Manual lines, imported statements, and future live bank-feed rows all land here.</CardDescription>
+                  <CardTitle className="text-base font-semibold">Bank Transactions</CardTitle>
+                  <CardDescription>Manual lines, statement uploads, and live bank-feed transactions.</CardDescription>
                 </CardHeader>
                 <CardContent className="p-0">
                   <Table>
                     <TableHeader>
-                      <TableRow>
-                        <TableHead>Date</TableHead>
+                      <TableRow className="border-border/80 hover:bg-transparent">
+                        <TableHead className="w-28">Date</TableHead>
                         <TableHead>Description</TableHead>
                         <TableHead>Account</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Amount</TableHead>
+                        <TableHead className="w-24">Status</TableHead>
+                        <TableHead className="text-right w-28">Amount</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {transactions.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={5} className="py-10 text-center text-muted-foreground">
-                            No bank transactions yet.
+                          <TableCell colSpan={5} className="py-8">
+                            <EmptyState
+                              icon={Wallet}
+                              title="No bank transactions"
+                              description="Add transaction lines manually or upload statements."
+                              className="min-h-[160px] border-0"
+                            />
                           </TableCell>
                         </TableRow>
                       ) : (
-                        transactions.map((transaction) => (
-                          <TableRow key={transaction.id}>
-                            <TableCell>{formatDate(transaction.transactionDate)}</TableCell>
-                            <TableCell>
-                              <div className="font-medium">{transaction.description}</div>
-                              <div className="text-xs text-muted-foreground">{transaction.source}</div>
-                            </TableCell>
-                            <TableCell>{transaction.bankAccount?.name || "Bank account"}</TableCell>
-                            <TableCell><Badge variant="outline">{transaction.status}</Badge></TableCell>
-                            <TableCell className={`text-right font-medium ${transaction.amount >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
-                              {formatCurrency(transaction.amount)}
-                            </TableCell>
-                          </TableRow>
-                        ))
+                        transactions.map((transaction) => {
+                          const isPositive = transaction.amount >= 0
+                          return (
+                            <TableRow key={transaction.id} className="border-border/60 hover:bg-muted/40">
+                              <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                                {formatDate(transaction.transactionDate)}
+                              </TableCell>
+                              <TableCell>
+                                <div className="font-medium text-foreground text-sm">{transaction.description}</div>
+                                <div className="text-[11px] text-muted-foreground capitalize">Source: {transaction.source}</div>
+                              </TableCell>
+                              <TableCell className="text-xs text-muted-foreground">
+                                {transaction.bankAccount?.name || "Settlement"}
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant={transaction.status === "matched" ? "default" : "secondary"} className="text-[11px]">
+                                  {transaction.status}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className={`text-right font-semibold text-sm whitespace-nowrap ${isPositive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                                {isPositive ? `+${formatCurrency(transaction.amount)}` : formatCurrency(transaction.amount)}
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })
                       )}
                     </TableBody>
                   </Table>
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="border-border shadow-sm">
                 <CardHeader>
-                  <CardTitle>Add bank line</CardTitle>
-                  <CardDescription>Useful while waiting for direct bank connections.</CardDescription>
+                  <CardTitle className="text-base font-semibold">Post Bank Line</CardTitle>
+                  <CardDescription>Manually log a money-in or money-out bank transaction.</CardDescription>
                 </CardHeader>
-                <CardContent className="grid gap-3">
-                  <Select value={transactionForm.bankAccountId} onValueChange={(value) => setTransactionForm((current) => ({ ...current, bankAccountId: value }))}>
-                    <SelectTrigger><SelectValue placeholder="Bank account" /></SelectTrigger>
-                    <SelectContent>
-                      {accounts.map((account) => (
-                        <SelectItem key={account.id} value={account.id}>
-                          {account.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Input type="date" value={transactionForm.transactionDate} onChange={(event) => setTransactionForm((current) => ({ ...current, transactionDate: event.target.value }))} />
-                  <Input placeholder="Description" value={transactionForm.description} onChange={(event) => setTransactionForm((current) => ({ ...current, description: event.target.value }))} />
-                  <Input placeholder="Amount" value={transactionForm.amount} onChange={(event) => setTransactionForm((current) => ({ ...current, amount: event.target.value }))} />
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <Select value={transactionForm.direction} onValueChange={(value) => setTransactionForm((current) => ({ ...current, direction: value }))}>
-                      <SelectTrigger><SelectValue placeholder="Direction" /></SelectTrigger>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Target Bank Account</label>
+                    <Select value={transactionForm.bankAccountId} onValueChange={(value) => setTransactionForm((current) => ({ ...current, bankAccountId: value }))}>
+                      <SelectTrigger><SelectValue placeholder="Select bank account" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="money_in">Money in</SelectItem>
-                        <SelectItem value="money_out">Money out</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Select value={transactionForm.source} onValueChange={(value) => setTransactionForm((current) => ({ ...current, source: value }))}>
-                      <SelectTrigger><SelectValue placeholder="Source" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="manual">Manual</SelectItem>
-                        <SelectItem value="import">Import</SelectItem>
-                        <SelectItem value="bank_feed">Bank feed</SelectItem>
+                        {accounts.map((account) => (
+                          <SelectItem key={account.id} value={account.id}>
+                            {account.name} ({account.currency})
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
-                  <Button onClick={saveTransaction} disabled={savingTransaction}>
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Date</label>
+                    <Input type="date" value={transactionForm.transactionDate} onChange={(event) => setTransactionForm((current) => ({ ...current, transactionDate: event.target.value }))} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Description / Reference</label>
+                    <Input placeholder="e.g. Customer Invoice INV-1002 payment" value={transactionForm.description} onChange={(event) => setTransactionForm((current) => ({ ...current, description: event.target.value }))} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Amount</label>
+                    <Input type="number" placeholder="0.00" value={transactionForm.amount} onChange={(event) => setTransactionForm((current) => ({ ...current, amount: event.target.value }))} />
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Flow Direction</label>
+                      <Select value={transactionForm.direction} onValueChange={(value) => setTransactionForm((current) => ({ ...current, direction: value }))}>
+                        <SelectTrigger><SelectValue placeholder="Direction" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="money_in">Money In (+)</SelectItem>
+                          <SelectItem value="money_out">Money Out (-)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Source</label>
+                      <Select value={transactionForm.source} onValueChange={(value) => setTransactionForm((current) => ({ ...current, source: value }))}>
+                        <SelectTrigger><SelectValue placeholder="Source" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="manual">Manual Entry</SelectItem>
+                          <SelectItem value="import">Statement Import</SelectItem>
+                          <SelectItem value="bank_feed">Bank Feed</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <Button onClick={saveTransaction} disabled={savingTransaction} className="w-full">
                     <Wallet className="mr-2 h-4 w-4" />
-                    {savingTransaction ? "Saving..." : "Save Bank Transaction"}
+                    {savingTransaction ? "Saving Transaction..." : "Save Bank Transaction"}
                   </Button>
                 </CardContent>
               </Card>
             </div>
           </TabsContent>
 
-          <TabsContent value="documents" className="space-y-4">
-            <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
-              <Card>
+          {/* TAB 3: Documents & Registers */}
+          <TabsContent value="documents" className="space-y-6">
+            <div className="grid gap-6 lg:grid-cols-2">
+              <Card className="border-border shadow-sm">
                 <CardHeader>
-                  <CardTitle>Import and export register</CardTitle>
-                  <CardDescription>Track statement imports, receipts, bills, and accounting exports.</CardDescription>
+                  <CardTitle className="text-base font-semibold">Import and Export Register</CardTitle>
+                  <CardDescription>Statement imports, receipts, supplier bills, and external accounting exports.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {documents.length === 0 ? (
-                    <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
-                      No finance documents registered yet.
-                    </div>
+                    <EmptyState
+                      icon={FileText}
+                      title="No finance documents"
+                      description="Logged imports and exports will appear in this audit register."
+                      className="min-h-[220px]"
+                    />
                   ) : (
                     documents.map((document) => (
-                      <div key={document.id} className="rounded-xl border border-slate-200 p-4">
+                      <div key={document.id} className="rounded-lg border border-border bg-card p-3.5 transition-colors hover:bg-muted/30">
                         <div className="flex items-start justify-between gap-4">
-                          <div>
-                            <p className="font-medium">{document.title}</p>
+                          <div className="space-y-1 min-w-0">
+                            <p className="font-semibold text-foreground truncate">{document.title}</p>
                             <p className="text-xs text-muted-foreground">
-                              {document.documentType.replace(/_/g, " ")} · {document.source}
+                              Type: <span className="capitalize">{document.documentType.replace(/_/g, " ")}</span> • Source: {document.source}
                             </p>
                           </div>
-                          <div className="text-right">
-                            <Badge variant="outline">{document.status}</Badge>
-                            <p className="mt-2 text-xs text-muted-foreground">{formatDate(document.createdAt)}</p>
+                          <div className="text-right shrink-0 space-y-1">
+                            <Badge variant="outline" className="text-xs">{document.status}</Badge>
+                            <p className="text-[11px] text-muted-foreground">{formatDate(document.createdAt)}</p>
                           </div>
                         </div>
                       </div>
@@ -445,38 +589,50 @@ export default function BankingPage() {
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="border-border shadow-sm">
                 <CardHeader>
-                  <CardTitle>Register import or export</CardTitle>
-                  <CardDescription>Use this to log docs until cloud storage is connected in deployment.</CardDescription>
+                  <CardTitle className="text-base font-semibold">Register Document or Export</CardTitle>
+                  <CardDescription>Log imports or generate external audit records.</CardDescription>
                 </CardHeader>
-                <CardContent className="grid gap-3">
-                  <Select value={documentForm.documentType} onValueChange={(value) => setDocumentForm((current) => ({ ...current, documentType: value }))}>
-                    <SelectTrigger><SelectValue placeholder="Document type" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="bank_statement">Bank statement</SelectItem>
-                      <SelectItem value="bill">Supplier bill</SelectItem>
-                      <SelectItem value="receipt">Receipt</SelectItem>
-                      <SelectItem value="export">Accounting export</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Input placeholder="Title" value={documentForm.title} onChange={(event) => setDocumentForm((current) => ({ ...current, title: event.target.value }))} />
-                  <Input placeholder="File name" value={documentForm.fileName} onChange={(event) => setDocumentForm((current) => ({ ...current, fileName: event.target.value }))} />
-                  <Select value={documentForm.source} onValueChange={(value) => setDocumentForm((current) => ({ ...current, source: value }))}>
-                    <SelectTrigger><SelectValue placeholder="Source" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="manual">Manual</SelectItem>
-                      <SelectItem value="import">Import</SelectItem>
-                      <SelectItem value="export">Export</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <div className="grid gap-3 md:grid-cols-2">
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Document Type</label>
+                    <Select value={documentForm.documentType} onValueChange={(value) => setDocumentForm((current) => ({ ...current, documentType: value }))}>
+                      <SelectTrigger><SelectValue placeholder="Document type" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="bank_statement">Bank Statement (CSV/OFX)</SelectItem>
+                        <SelectItem value="bill">Supplier Bill</SelectItem>
+                        <SelectItem value="receipt">Receipt</SelectItem>
+                        <SelectItem value="export">Accounting Export</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Document Title</label>
+                    <Input placeholder="e.g. March 2026 CBA Statement" value={documentForm.title} onChange={(event) => setDocumentForm((current) => ({ ...current, title: event.target.value }))} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">File Reference</label>
+                    <Input placeholder="e.g. statement_march_2026.csv" value={documentForm.fileName} onChange={(event) => setDocumentForm((current) => ({ ...current, fileName: event.target.value }))} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Source</label>
+                    <Select value={documentForm.source} onValueChange={(value) => setDocumentForm((current) => ({ ...current, source: value }))}>
+                      <SelectTrigger><SelectValue placeholder="Source" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="manual">Manual Entry</SelectItem>
+                        <SelectItem value="import">File Import</SelectItem>
+                        <SelectItem value="export">System Export</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2 pt-2">
                     <Button variant="outline" onClick={() => void saveDocument()} disabled={savingDocument}>
                       <Upload className="mr-2 h-4 w-4" />
-                      {savingDocument ? "Saving..." : "Register Import"}
+                      {savingDocument ? "Registering..." : "Register Import"}
                     </Button>
                     <Button
-                      variant="outline"
+                      variant="secondary"
                       onClick={() => void saveDocument({ documentType: "export", source: "export", status: "exported" })}
                       disabled={savingDocument}
                     >
@@ -489,28 +645,46 @@ export default function BankingPage() {
             </div>
           </TabsContent>
 
-          <TabsContent value="reconciliation" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent reconciliation sessions</CardTitle>
-                <CardDescription>Use the dedicated Reconciliation page for balancing runs and session creation.</CardDescription>
+          {/* TAB 4: Reconciliation History */}
+          <TabsContent value="reconciliation" className="space-y-6">
+            <Card className="border-border shadow-sm">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-base font-semibold">Reconciliation Sessions</CardTitle>
+                  <CardDescription>Historical reconciliation runs and statement balances.</CardDescription>
+                </div>
+                <Button size="sm" asChild>
+                  <Link href="/finance/reconciliation">
+                    Open Full Reconciliation
+                  </Link>
+                </Button>
               </CardHeader>
               <CardContent className="space-y-3">
                 {sessions.length === 0 ? (
-                  <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
-                    No reconciliation sessions recorded yet.
-                  </div>
+                  <EmptyState
+                    icon={CheckCircle2}
+                    title="No reconciliation sessions yet"
+                    description="Create a reconciliation session to balance bank statements with system ledger lines."
+                    action={
+                      <Button size="sm" asChild>
+                        <Link href="/finance/reconciliation">Go to Reconciliation</Link>
+                      </Button>
+                    }
+                    className="min-h-[220px]"
+                  />
                 ) : (
                   sessions.map((session) => (
-                    <div key={session.id} className="rounded-xl border border-slate-200 p-4">
+                    <div key={session.id} className="rounded-lg border border-border bg-card p-4 transition-colors hover:bg-muted/30">
                       <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <p className="font-medium">{session.bankAccount?.name || "Bank account"}</p>
-                          <p className="text-xs text-muted-foreground">{formatDate(session.statementDate)}</p>
+                        <div className="space-y-1">
+                          <p className="font-semibold text-foreground">{session.bankAccount?.name || "Bank Account"}</p>
+                          <p className="text-xs text-muted-foreground">Statement Date: {formatDate(session.statementDate)}</p>
                         </div>
-                        <div className="text-right">
-                          <p className="font-semibold">{formatCurrency(session.difference)}</p>
-                          <Badge variant="outline">{session.status}</Badge>
+                        <div className="text-right space-y-1">
+                          <p className="font-semibold text-foreground">Difference: {formatCurrency(session.difference)}</p>
+                          <Badge variant={session.status === "balanced" ? "default" : "secondary"}>
+                            {session.status}
+                          </Badge>
                         </div>
                       </div>
                     </div>
@@ -524,3 +698,4 @@ export default function BankingPage() {
     </AppShell>
   )
 }
+

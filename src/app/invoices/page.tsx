@@ -2,8 +2,22 @@
 
 import { useState, useEffect } from "react"
 import {
-  Search, FileText, Download, Send, Printer, Eye,
-  Clock, CheckCircle, AlertCircle, DollarSign, Calendar, Loader2
+  Search,
+  FileText,
+  Download,
+  Send,
+  Printer,
+  Eye,
+  Clock,
+  CheckCircle,
+  AlertCircle,
+  DollarSign,
+  Calendar,
+  Loader2,
+  Receipt,
+  AlertTriangle,
+  CheckCircle2,
+  Users,
 } from "lucide-react"
 import dynamic from "next/dynamic"
 import { AppShell } from "@/components/layout/app-shell"
@@ -19,6 +33,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { EmptyState } from "@/components/ui/empty-state"
+import { KpiCard } from "@/components/ui/kpi-card"
+import { PageHeader } from "@/components/ui/page-header"
+import { Progress } from "@/components/ui/progress"
 import { bucketise, daysOverdue } from "@/lib/aging"
 import { useSettings } from "@/lib/settings/use-settings"
 import { useToast } from "@/hooks/use-toast"
@@ -54,7 +72,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
-import { formatCurrency, formatCurrencyShort } from "@/lib/types"
+import { formatCurrency, formatCurrencyShort, formatDate } from "@/lib/types"
 import { downloadPdfBatch, printPdfBatch, printPdfDocument } from "@/lib/pdf-actions"
 
 interface InvoiceItem {
@@ -95,14 +113,14 @@ interface Invoice {
   notes?: string
 }
 
-const INVOICE_STATUS_COLORS: Record<string, string> = {
-  draft: "bg-gray-100 text-gray-700",
-  sent: "bg-blue-100 text-blue-700",
-  unpaid: "bg-orange-100 text-orange-700",
-  partial: "bg-amber-100 text-amber-700",
-  paid: "bg-green-100 text-green-700",
-  overdue: "bg-red-100 text-red-700",
-  cancelled: "bg-gray-100 text-gray-500",
+const statusBadgeVariants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+  draft: "outline",
+  sent: "secondary",
+  unpaid: "secondary",
+  partial: "secondary",
+  paid: "default",
+  overdue: "destructive",
+  cancelled: "outline",
 }
 
 export default function InvoicesPage() {
@@ -244,7 +262,6 @@ export default function InvoicesPage() {
 
       const data = await response.json()
       if (data.success) {
-        // Refresh invoices to show updated statuses and balances
         await fetchInvoices()
         setIsPaymentDialogOpen(false)
         setSelectedInvoice(null)
@@ -270,10 +287,6 @@ export default function InvoicesPage() {
     }
   }
 
-  const getStatusColor = (status: string) => {
-    return INVOICE_STATUS_COLORS[status] || INVOICE_STATUS_COLORS.draft
-  }
-
   // Calculate summary stats
   const totalOutstanding = invoices
     .filter(inv => inv.status !== "cancelled" && inv.status !== "paid")
@@ -287,9 +300,6 @@ export default function InvoicesPage() {
     .filter(inv => inv.status === "paid" && new Date(inv.invoiceDate).getMonth() === new Date().getMonth())
     .reduce((sum, inv) => sum + inv.totalAmount, 0)
 
-  // One shared definition, so this panel, the finance dashboard and the
-  // customer's statement PDF can no longer disagree about what "60 days
-  // overdue" means.
   const agingSummary = bucketise(
     invoices.map((invoice) => ({
       dueDate: invoice.dueDate,
@@ -301,92 +311,112 @@ export default function InvoicesPage() {
   ).buckets
 
   return (
-    <AppShell title="Invoices" breadcrumbs={[{ label: "Invoices" }]}>
+    <AppShell title="Invoices" breadcrumbs={[{ label: "Finance", href: "/finance" }, { label: "Invoices" }]}>
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Invoices & Billing</h1>
-            <p className="text-muted-foreground">Manage invoices and track payments</p>
-          </div>
+        <PageHeader
+          title="Invoices & Billing"
+          description="Create, track, and reconcile customer invoices, cash receipts, and receivables aging."
+          actions={
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                void fetchInvoices()
+                void fetchCompany()
+              }}
+            >
+              <Loader2 className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+          }
+        />
+
+        {/* Stats KPIs */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <KpiCard
+            title="Total Invoices"
+            value={loading ? "..." : invoices.length}
+            description="All generated sales invoices"
+            icon={FileText}
+          />
+          <KpiCard
+            title="Total Outstanding"
+            value={loading ? "..." : formatCurrencyShort(totalOutstanding)}
+            description="Open balances awaiting payment"
+            icon={DollarSign}
+          />
+          <KpiCard
+            title="Overdue Amount"
+            value={loading ? "..." : formatCurrencyShort(overdueAmount)}
+            description="Balances past due date"
+            icon={AlertTriangle}
+          />
+          <KpiCard
+            title="Collected This Month"
+            value={loading ? "..." : formatCurrencyShort(totalPaidThisMonth)}
+            description="Settled receipts this calendar month"
+            icon={CheckCircle2}
+          />
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Total Invoices</CardDescription>
-              <CardTitle className="text-2xl">{invoices.length}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card className="border-orange-200 bg-orange-50/50">
-            <CardHeader className="pb-2">
-              <CardDescription>Outstanding</CardDescription>
-              <CardTitle className="text-2xl text-orange-600">
-                {formatCurrencyShort(totalOutstanding)}
-              </CardTitle>
-            </CardHeader>
-          </Card>
-          <Card className="border-red-200 bg-red-50/50">
-            <CardHeader className="pb-2">
-              <CardDescription>Overdue</CardDescription>
-              <CardTitle className="text-2xl text-red-600">
-                {formatCurrencyShort(overdueAmount)}
-              </CardTitle>
-            </CardHeader>
-          </Card>
-          <Card className="border-green-200 bg-green-50/50">
-            <CardHeader className="pb-2">
-              <CardDescription>Collected This Month</CardDescription>
-              <CardTitle className="text-2xl text-green-600">
-                {formatCurrencyShort(totalPaidThisMonth)}
-              </CardTitle>
-            </CardHeader>
-          </Card>
-        </div>
-
-        {/* Aging Summary */}
+        {/* Receivables Aging Summary */}
         {totalOutstanding > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Receivables Aging</CardTitle>
+          <Card className="border-border shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold">Receivables Aging Breakdown</CardTitle>
+              <CardDescription>Live aging breakdown by days overdue across open customer balances.</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${agingSummary.length}, minmax(0, 1fr))` }}>
-                {agingSummary.map((bucket) => (
-                  <div key={bucket.label} className="text-center">
-                    <p className="text-xs text-muted-foreground mb-1">{bucket.label}</p>
-                    <p className={`text-lg font-bold ${bucket.minDays >= 61 ? "text-red-600" :
-                      bucket.minDays >= 31 ? "text-orange-600" : "text-green-600"
-                      }`}>
-                      {formatCurrencyShort(bucket.amount)}
-                    </p>
-                  </div>
-                ))}
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {agingSummary.map((bucket) => {
+                  const isHigh = bucket.minDays >= 61
+                  const isMedium = bucket.minDays >= 31
+
+                  return (
+                    <div
+                      key={bucket.label}
+                      className="rounded-lg border border-border bg-card p-4 transition-colors hover:bg-muted/30"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{bucket.label}</span>
+                        {isHigh ? (
+                          <Badge variant="destructive" className="text-[10px]">Overdue</Badge>
+                        ) : isMedium ? (
+                          <Badge variant="secondary" className="text-[10px]">Attention</Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px]">Current</Badge>
+                        )}
+                      </div>
+                      <p className={`mt-2 text-xl font-bold ${isHigh ? "text-destructive" : isMedium ? "text-amber-600 dark:text-amber-400" : "text-foreground"}`}>
+                        {formatCurrency(bucket.amount)}
+                      </p>
+                    </div>
+                  )
+                })}
               </div>
             </CardContent>
           </Card>
         )}
 
-        {/* Filters */}
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center">
+        {/* Search & Filter Bar */}
+        <Card className="border-border shadow-sm">
+          <CardContent className="p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <div className="relative flex-1">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search invoices..."
+                  placeholder="Search by invoice number or customer name..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="pl-8"
+                  className="pl-9"
                 />
               </div>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Status" />
+                <SelectTrigger className="w-full sm:w-44">
+                  <SelectValue placeholder="All Statuses" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="all">All Statuses</SelectItem>
                   <SelectItem value="draft">Draft</SelectItem>
                   <SelectItem value="sent">Sent</SelectItem>
                   <SelectItem value="unpaid">Unpaid</SelectItem>
@@ -399,24 +429,36 @@ export default function InvoicesPage() {
           </CardContent>
         </Card>
 
+        {/* Bulk Selection Bar */}
         {selectedInvoices.length > 0 && (
-          <Card>
-            <CardContent className="flex flex-col gap-3 pt-6 md:flex-row md:items-center md:justify-between">
-              <div>
-                <p className="font-medium">{selectedInvoices.length} invoice{selectedInvoices.length === 1 ? "" : "s"} selected</p>
-                <p className="text-sm text-muted-foreground">Use bulk actions to download or print the current selection.</p>
+          <Card className="border-primary/40 bg-primary/5 shadow-sm">
+            <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-0.5">
+                <p className="font-semibold text-foreground text-sm">
+                  {selectedInvoices.length} invoice{selectedInvoices.length === 1 ? "" : "s"} selected
+                </p>
+                <p className="text-xs text-muted-foreground">Perform bulk download or batch printing for selected invoices.</p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <Button variant="outline" onClick={() => setSelectedInvoiceIds([])}>
+                <Button variant="outline" size="sm" onClick={() => setSelectedInvoiceIds([])}>
                   Clear Selection
                 </Button>
-                <Button variant="outline" onClick={() => void handleBulkPrintInvoices()} disabled={!company || bulkAction !== null}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void handleBulkPrintInvoices()}
+                  disabled={!company || bulkAction !== null}
+                >
                   {bulkAction === "print" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />}
-                  Print Selected
+                  Print Batch
                 </Button>
-                <Button className="bg-slate-900 hover:bg-slate-800" onClick={() => void handleBulkDownloadInvoices()} disabled={!company || bulkAction !== null}>
+                <Button
+                  size="sm"
+                  onClick={() => void handleBulkDownloadInvoices()}
+                  disabled={!company || bulkAction !== null}
+                >
                   {bulkAction === "download" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                  Download Selected
+                  Download Batch
                 </Button>
               </div>
             </CardContent>
@@ -424,11 +466,11 @@ export default function InvoicesPage() {
         )}
 
         {/* Invoices Table */}
-        <Card>
+        <Card className="border-border shadow-sm">
           <CardContent className="p-0">
             <Table>
               <TableHeader>
-                <TableRow>
+                <TableRow className="border-border/80 hover:bg-transparent">
                   <TableHead className="w-12">
                     <Checkbox
                       checked={allFilteredSelected ? true : selectedInvoices.length > 0 ? "indeterminate" : false}
@@ -436,36 +478,50 @@ export default function InvoicesPage() {
                       aria-label="Select all invoices"
                     />
                   </TableHead>
-                  <TableHead>Invoice #</TableHead>
+                  <TableHead className="w-32">Invoice #</TableHead>
                   <TableHead>Customer</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Due Date</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                  <TableHead className="text-right">Balance</TableHead>
-                  <TableHead className="text-center">Status</TableHead>
+                  <TableHead className="w-28">Date</TableHead>
+                  <TableHead className="w-36">Due Date</TableHead>
+                  <TableHead className="text-right w-28">Amount</TableHead>
+                  <TableHead className="text-right w-28">Balance</TableHead>
+                  <TableHead className="text-center w-28">Status</TableHead>
                   <TableHead className="w-12"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
-                      Loading invoices...
+                    <TableCell colSpan={9} className="py-12">
+                      <EmptyState
+                        icon={FileText}
+                        title="Loading invoices..."
+                        description="Fetching customer billing records."
+                        className="min-h-[180px] border-0"
+                      />
                     </TableCell>
                   </TableRow>
                 ) : filteredInvoices.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
-                      No invoices found. Generate invoices from delivered orders.
+                    <TableCell colSpan={9} className="py-12">
+                      <EmptyState
+                        icon={FileText}
+                        title="No invoices found"
+                        description={search ? "No invoices match the search filter." : "Generate invoices from delivered customer orders."}
+                        className="min-h-[180px] border-0"
+                      />
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredInvoices.map((invoice) => {
-                    const isOverdue = invoice.status !== "paid" && invoice.status !== "cancelled" &&
+                    const isOverdue =
+                      invoice.status !== "paid" &&
+                      invoice.status !== "cancelled" &&
                       new Date(invoice.dueDate) < new Date()
 
+                    const effectiveStatus = isOverdue ? "overdue" : invoice.status
+
                     return (
-                      <TableRow key={invoice.id} className="group">
+                      <TableRow key={invoice.id} className="border-border/60 hover:bg-muted/40 group">
                         <TableCell>
                           <Checkbox
                             checked={selectedInvoiceIds.includes(invoice.id)}
@@ -475,58 +531,58 @@ export default function InvoicesPage() {
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            <FileText className="h-4 w-4 text-muted-foreground" />
-                            <span className="font-mono font-medium">{invoice.invoiceNumber}</span>
+                            <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                            <span className="font-mono font-semibold text-foreground text-sm">{invoice.invoiceNumber}</span>
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div>
-                            <p className="font-medium">{invoice.customer.name}</p>
+                          <div className="space-y-0.5">
+                            <p className="font-medium text-foreground text-sm">{invoice.customer.name}</p>
                             <p className="text-xs text-muted-foreground">{invoice.customer.phone}</p>
                           </div>
                         </TableCell>
-                        <TableCell>
-                          {new Date(invoice.invoiceDate).toLocaleDateString()}
+                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                          {formatDate(invoice.invoiceDate)}
                         </TableCell>
-                        <TableCell>
-                          <div className={isOverdue ? "text-red-600" : ""}>
-                            {new Date(invoice.dueDate).toLocaleDateString()}
+                        <TableCell className="whitespace-nowrap">
+                          <div className={isOverdue ? "text-destructive font-medium text-xs" : "text-xs text-muted-foreground"}>
+                            {formatDate(invoice.dueDate)}
                             {isOverdue && (
-                              <span className="ml-2 text-xs">
-                                ({daysOverdue({ dueDate: invoice.dueDate, invoiceDate: invoice.invoiceDate, outstanding: invoice.balanceDue }, agingSettings)} days overdue)
+                              <span className="ml-1 text-[11px] font-semibold">
+                                ({daysOverdue({ dueDate: invoice.dueDate, invoiceDate: invoice.invoiceDate, outstanding: invoice.balanceDue }, agingSettings)}d overdue)
                               </span>
                             )}
                           </div>
                         </TableCell>
-                        <TableCell className="text-right font-medium">
+                        <TableCell className="text-right font-medium text-sm text-foreground">
                           {formatCurrency(invoice.totalAmount)}
                         </TableCell>
                         <TableCell className="text-right">
-                          <span className={invoice.balanceDue > 0 ? "text-orange-600 font-medium" : ""}>
+                          <span className={`font-semibold text-sm ${invoice.balanceDue > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}>
                             {formatCurrency(invoice.balanceDue)}
                           </span>
                         </TableCell>
                         <TableCell className="text-center">
-                          <Badge className={getStatusColor(isOverdue ? "overdue" : invoice.status)}>
-                            {isOverdue ? "overdue" : invoice.status}
+                          <Badge variant={statusBadgeVariants[effectiveStatus] || "secondary"} className="capitalize text-xs">
+                            {effectiveStatus}
                           </Badge>
                         </TableCell>
                         <TableCell>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100">
+                              <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <DollarSign className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuContent align="end" className="w-48">
+                              <DropdownMenuLabel>Invoice Actions</DropdownMenuLabel>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem onClick={() => {
                                 setSelectedInvoice(invoice)
                                 setIsViewDialogOpen(true)
                               }}>
                                 <Eye className="mr-2 h-4 w-4" />
-                                View Invoice
+                                View Details
                               </DropdownMenuItem>
                               {invoice.balanceDue > 0 && (
                                 <DropdownMenuItem onClick={() => {
@@ -544,9 +600,9 @@ export default function InvoicesPage() {
                                     invoice={invoice}
                                     company={company}
                                     fileName={`Invoice-${invoice.invoiceNumber}.pdf`}
-                                    className="flex w-full items-center px-2 py-1.5 text-sm cursor-default hover:bg-accent"
+                                    className="flex w-full items-center px-2 py-1.5 text-sm cursor-pointer hover:bg-accent"
                                   >
-                                    {({ loading }) => (
+                                    {({ loading }: { loading: boolean }) => (
                                       <>
                                         {loading ? (
                                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -568,7 +624,7 @@ export default function InvoicesPage() {
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => void handlePrintInvoice(invoice)} disabled={!company}>
                                 <Printer className="mr-2 h-4 w-4" />
-                                Print
+                                Print Document
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -588,120 +644,106 @@ export default function InvoicesPage() {
             {selectedInvoice && (
               <>
                 <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2">
+                  <DialogTitle className="flex items-center gap-2 text-xl font-bold">
                     Invoice {selectedInvoice.invoiceNumber}
-                    <Badge className={getStatusColor(selectedInvoice.status)}>
+                    <Badge variant={statusBadgeVariants[selectedInvoice.status] || "secondary"} className="capitalize">
                       {selectedInvoice.status}
                     </Badge>
                   </DialogTitle>
                   <DialogDescription>
-                    {selectedInvoice.customer.name}
+                    Billing summary and line items for {selectedInvoice.customer.name}
                   </DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-6">
-                  {/* Invoice Details */}
-                  <div className="grid grid-cols-2 gap-6">
-                    <div className="space-y-3">
-                      <h4 className="font-medium text-sm text-muted-foreground">Bill To</h4>
-                      <div>
-                        <p className="font-medium">{selectedInvoice.customer.name}</p>
-                        {selectedInvoice.customer.locations?.[0] && (
-                          <>
-                            <p className="text-sm text-muted-foreground">
-                              {selectedInvoice.customer.locations[0].address}
-                            </p>
-                            <p className="text-sm text-muted-foreground">
-                              {selectedInvoice.customer.locations[0].city},
-                              {selectedInvoice.customer.locations[0].state}
-                            </p>
-                          </>
-                        )}
-                        <p className="text-sm text-muted-foreground">
-                          Phone: {selectedInvoice.customer.phone}
+                  {/* Bill to & Dates Grid */}
+                  <div className="grid grid-cols-2 gap-6 rounded-lg border border-border bg-muted/30 p-4">
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Bill To</p>
+                      <p className="font-semibold text-foreground">{selectedInvoice.customer.name}</p>
+                      {selectedInvoice.customer.locations?.[0] && (
+                        <p className="text-xs text-muted-foreground">
+                          {selectedInvoice.customer.locations[0].address}, {selectedInvoice.customer.locations[0].city}, {selectedInvoice.customer.locations[0].state} {selectedInvoice.customer.locations[0].postcode}
                         </p>
-                        {selectedInvoice.customer.abn && (
-                          <p className="text-sm text-muted-foreground">
-                            ABN: {selectedInvoice.customer.abn}
-                          </p>
-                        )}
-                      </div>
+                      )}
+                      <p className="text-xs text-muted-foreground">Phone: {selectedInvoice.customer.phone}</p>
+                      {selectedInvoice.customer.abn && (
+                        <p className="text-xs text-muted-foreground">ABN: {selectedInvoice.customer.abn}</p>
+                      )}
                     </div>
-                    <div className="space-y-3 text-right">
+                    <div className="space-y-2 text-right">
                       <div>
-                        <p className="text-sm text-muted-foreground">Invoice Date</p>
-                        <p className="font-medium">{new Date(selectedInvoice.invoiceDate).toLocaleDateString()}</p>
+                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Invoice Date</p>
+                        <p className="font-medium text-foreground text-sm">{formatDate(selectedInvoice.invoiceDate)}</p>
                       </div>
                       <div>
-                        <p className="text-sm text-muted-foreground">Due Date</p>
-                        <p className="font-medium">{new Date(selectedInvoice.dueDate).toLocaleDateString()}</p>
+                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Due Date</p>
+                        <p className="font-medium text-foreground text-sm">{formatDate(selectedInvoice.dueDate)}</p>
                       </div>
                     </div>
                   </div>
 
-                  <Separator />
-
-                  {/* Invoice Items */}
+                  {/* Items Table */}
                   <div>
-                    <h4 className="font-medium mb-3">Items</h4>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Product</TableHead>
-                          <TableHead className="text-center">Qty</TableHead>
-                          <TableHead className="text-right">Unit Price</TableHead>
-                          <TableHead className="text-right">GST</TableHead>
-                          <TableHead className="text-right">Total</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {selectedInvoice.items.map((item) => (
-                          <TableRow key={item.id}>
-                            <TableCell>
-                              <div>
-                                <p className="font-medium">{item.product.name}</p>
-                                <p className="text-xs text-muted-foreground">{item.product.sku}</p>
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-center">{item.quantity}</TableCell>
-                            <TableCell className="text-right">{formatCurrency(item.unitPrice)}</TableCell>
-                            <TableCell className="text-right">{formatCurrency(item.taxAmount)}</TableCell>
-                            <TableCell className="text-right font-medium">{formatCurrency(item.total)}</TableCell>
+                    <h4 className="font-semibold text-sm text-foreground mb-3">Itemized Lines</h4>
+                    <div className="rounded-lg border border-border overflow-hidden">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="border-border/80 bg-muted/40">
+                            <TableHead>Product</TableHead>
+                            <TableHead className="text-center w-20">Qty</TableHead>
+                            <TableHead className="text-right w-28">Unit Price</TableHead>
+                            <TableHead className="text-right w-24">GST</TableHead>
+                            <TableHead className="text-right w-28">Total</TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                        </TableHeader>
+                        <TableBody>
+                          {selectedInvoice.items.map((item) => (
+                            <TableRow key={item.id} className="border-border/60">
+                              <TableCell>
+                                <p className="font-medium text-foreground text-sm">{item.product.name}</p>
+                                <p className="text-[11px] text-muted-foreground font-mono">{item.product.sku}</p>
+                              </TableCell>
+                              <TableCell className="text-center text-sm">{item.quantity}</TableCell>
+                              <TableCell className="text-right text-sm">{formatCurrency(item.unitPrice)}</TableCell>
+                              <TableCell className="text-right text-sm">{formatCurrency(item.taxAmount)}</TableCell>
+                              <TableCell className="text-right font-semibold text-sm">{formatCurrency(item.total)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
                   </div>
 
-                  {/* Totals */}
+                  {/* Summary Totals */}
                   <div className="flex justify-end">
-                    <div className="w-64 space-y-2">
+                    <div className="w-72 space-y-2 rounded-lg border border-border bg-card p-4">
                       <div className="flex justify-between text-sm">
-                        <span>Subtotal:</span>
-                        <span>{formatCurrency(selectedInvoice.subtotal)}</span>
+                        <span className="text-muted-foreground">Subtotal:</span>
+                        <span className="font-medium text-foreground">{formatCurrency(selectedInvoice.subtotal)}</span>
                       </div>
                       {selectedInvoice.discountAmount > 0 && (
-                        <div className="flex justify-between text-sm text-green-600">
+                        <div className="flex justify-between text-sm text-emerald-600 dark:text-emerald-400">
                           <span>Discount:</span>
                           <span>-{formatCurrency(selectedInvoice.discountAmount)}</span>
                         </div>
                       )}
                       <div className="flex justify-between text-sm">
-                        <span>GST:</span>
-                        <span>{formatCurrency(selectedInvoice.taxAmount)}</span>
+                        <span className="text-muted-foreground">GST:</span>
+                        <span className="font-medium text-foreground">{formatCurrency(selectedInvoice.taxAmount)}</span>
                       </div>
                       <Separator />
-                      <div className="flex justify-between font-bold">
+                      <div className="flex justify-between font-bold text-base">
                         <span>Total:</span>
                         <span>{formatCurrency(selectedInvoice.totalAmount)}</span>
                       </div>
                       {selectedInvoice.paidAmount > 0 && (
                         <>
-                          <div className="flex justify-between text-sm text-green-600">
-                            <span>Paid:</span>
+                          <div className="flex justify-between text-sm text-emerald-600 dark:text-emerald-400">
+                            <span>Paid Amount:</span>
                             <span>{formatCurrency(selectedInvoice.paidAmount)}</span>
                           </div>
-                          <div className="flex justify-between font-bold text-orange-600">
+                          <div className="flex justify-between font-bold text-amber-600 dark:text-amber-400 text-sm">
                             <span>Balance Due:</span>
                             <span>{formatCurrency(selectedInvoice.balanceDue)}</span>
                           </div>
@@ -711,7 +753,7 @@ export default function InvoicesPage() {
                   </div>
                 </div>
 
-                <DialogFooter>
+                <DialogFooter className="gap-2 sm:gap-0">
                   <Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>
                     Close
                   </Button>
@@ -727,8 +769,8 @@ export default function InvoicesPage() {
                       company={company}
                       fileName={`Invoice-${selectedInvoice.invoiceNumber}.pdf`}
                     >
-                      {({ loading }) => (
-                        <Button className="bg-emerald-600 hover:bg-emerald-700" disabled={loading}>
+                      {({ loading }: { loading: boolean }) => (
+                        <Button disabled={loading}>
                           {loading ? (
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                           ) : (
@@ -745,43 +787,43 @@ export default function InvoicesPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Payment Dialog */}
+        {/* Record Payment Dialog */}
         <Dialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Record Payment</DialogTitle>
+              <DialogTitle>Record Customer Payment</DialogTitle>
               <DialogDescription>
-                Invoice {selectedInvoice?.invoiceNumber}
+                Record cash receipt for Invoice {selectedInvoice?.invoiceNumber}
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4">
-              <div className="flex justify-between p-4 bg-gray-50 rounded-lg">
+              <div className="flex justify-between p-4 bg-muted/40 rounded-lg border border-border">
                 <div>
-                  <p className="text-sm text-muted-foreground">Total Amount</p>
-                  <p className="font-bold">{formatCurrency(selectedInvoice?.totalAmount || 0)}</p>
+                  <p className="text-xs text-muted-foreground uppercase font-semibold">Total Amount</p>
+                  <p className="font-bold text-foreground text-lg">{formatCurrency(selectedInvoice?.totalAmount || 0)}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm text-muted-foreground">Balance Due</p>
-                  <p className="font-bold text-orange-600">{formatCurrency(selectedInvoice?.balanceDue || 0)}</p>
+                  <p className="text-xs text-muted-foreground uppercase font-semibold">Balance Due</p>
+                  <p className="font-bold text-amber-600 dark:text-amber-400 text-lg">{formatCurrency(selectedInvoice?.balanceDue || 0)}</p>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">Payment Amount</label>
+                <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Payment Amount</label>
                 <Input
                   type="number"
                   value={paymentAmount}
                   onChange={(e) => setPaymentAmount(e.target.value)}
-                  placeholder="Enter amount"
+                  placeholder="Enter amount (e.g. 1500.00)"
                 />
-                <div className="flex gap-2">
+                <div className="flex gap-2 pt-1">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setPaymentAmount(selectedInvoice?.balanceDue.toString() || "0")}
                   >
-                    Full Amount
+                    Set Full Balance ({formatCurrency(selectedInvoice?.balanceDue || 0)})
                   </Button>
                 </div>
               </div>
@@ -792,7 +834,6 @@ export default function InvoicesPage() {
                 Cancel
               </Button>
               <Button
-                className="bg-emerald-600 hover:bg-emerald-700"
                 onClick={handleRecordPayment}
                 disabled={!paymentAmount || parseFloat(paymentAmount) <= 0}
               >
@@ -802,6 +843,7 @@ export default function InvoicesPage() {
           </DialogContent>
         </Dialog>
 
+        {/* Send Document Modal */}
         {selectedInvoice && (
           <SendDocumentModal
             isOpen={isSendModalOpen}
@@ -817,3 +859,4 @@ export default function InvoicesPage() {
     </AppShell>
   )
 }
+

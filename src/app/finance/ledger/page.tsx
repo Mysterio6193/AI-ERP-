@@ -1,13 +1,25 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { BookOpen, Plus } from "lucide-react"
+import {
+  ArrowDownLeft,
+  ArrowUpRight,
+  BookOpen,
+  CheckCircle2,
+  FileSpreadsheet,
+  Plus,
+  RefreshCcw,
+  Scale,
+} from "lucide-react"
 
 import { AppShell } from "@/components/layout/app-shell"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { EmptyState } from "@/components/ui/empty-state"
 import { Input } from "@/components/ui/input"
+import { KpiCard } from "@/components/ui/kpi-card"
+import { PageHeader } from "@/components/ui/page-header"
 import {
   Select,
   SelectContent,
@@ -55,12 +67,12 @@ interface JournalRow {
   lines: JournalLineRow[]
 }
 
-const typeColors: Record<string, string> = {
-  asset: "bg-blue-100 text-blue-700",
-  liability: "bg-orange-100 text-orange-700",
-  equity: "bg-violet-100 text-violet-700",
-  revenue: "bg-emerald-100 text-emerald-700",
-  expense: "bg-rose-100 text-rose-700",
+const typeBadgeStyles: Record<string, { bg: string; text: string; border: string }> = {
+  asset: { bg: "bg-blue-500/10", text: "text-blue-600 dark:text-blue-400", border: "border-blue-500/20" },
+  liability: { bg: "bg-amber-500/10", text: "text-amber-600 dark:text-amber-400", border: "border-amber-500/20" },
+  equity: { bg: "bg-purple-500/10", text: "text-purple-600 dark:text-purple-400", border: "border-purple-500/20" },
+  revenue: { bg: "bg-emerald-500/10", text: "text-emerald-600 dark:text-emerald-400", border: "border-emerald-500/20" },
+  expense: { bg: "bg-rose-500/10", text: "text-rose-600 dark:text-rose-400", border: "border-rose-500/20" },
 }
 
 async function fetchJson(path: string) {
@@ -115,6 +127,7 @@ export default function LedgerPage() {
       totalCredits,
       activeAccounts: activeAccounts.length,
       netMovement: totalCredits - totalDebits,
+      isBalanced: totalDebits === totalCredits,
     }
   }, [accounts, journals])
 
@@ -173,29 +186,70 @@ export default function LedgerPage() {
   return (
     <AppShell title="General Ledger" breadcrumbs={[{ label: "Finance", href: "/finance" }, { label: "General Ledger" }]}>
       <div className="space-y-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">General Ledger</h1>
-            <p className="text-muted-foreground">
-              Posted journal entries, live account balances, and manual double-entry adjustments.
-            </p>
-          </div>
-          <Card className="w-full lg:max-w-2xl">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Post manual journal</CardTitle>
-              <CardDescription>Use this for accruals, adjustments, write-offs, and finance corrections.</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-3 md:grid-cols-2">
+        <PageHeader
+          title="General Ledger"
+          description="Posted double-entry journal entries, real-time chart balances, and manual adjustments."
+          actions={
+            <Button variant="outline" size="sm" onClick={() => void reload()}>
+              <RefreshCcw className="mr-2 h-4 w-4" />
+              Refresh Ledger
+            </Button>
+          }
+        />
+
+        {/* Metrics Grid */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <KpiCard
+            title="Posted Debits"
+            value={loading ? "..." : formatCurrency(metrics.totalDebits)}
+            description="Total debits in posted journals"
+            icon={ArrowDownLeft}
+          />
+          <KpiCard
+            title="Posted Credits"
+            value={loading ? "..." : formatCurrency(metrics.totalCredits)}
+            description="Total credits in posted journals"
+            icon={ArrowUpRight}
+          />
+          <KpiCard
+            title="Active Accounts"
+            value={loading ? "..." : metrics.activeAccounts}
+            description={`Out of ${accounts.length} total accounts`}
+            icon={BookOpen}
+          />
+          <KpiCard
+            title="Ledger Balance"
+            value={loading ? "..." : (metrics.isBalanced ? "In Balance" : formatCurrency(metrics.netMovement))}
+            description={metrics.isBalanced ? "Debits equal Credits (₹0 delta)" : `Difference: ${formatCurrency(metrics.netMovement)}`}
+            icon={Scale}
+          />
+        </div>
+
+        {/* Post Journal Form */}
+        <Card className="border-border shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-semibold">Post Manual Journal</CardTitle>
+            <CardDescription>Record double-entry adjustments, accruals, write-offs, or correcting entries.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
+            <div className="space-y-1.5 md:col-span-2">
+              <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Description / Memo</label>
               <Input
-                placeholder="Description"
+                placeholder="e.g. Month-end depreciation adjustment"
                 value={form.description}
                 onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
               />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Date</label>
               <Input
                 type="date"
                 value={form.date}
                 onChange={(event) => setForm((current) => ({ ...current, date: event.target.value }))}
               />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Debit Account</label>
               <Select
                 value={form.debitAccountId}
                 onValueChange={(value) => setForm((current) => ({ ...current, debitAccountId: value }))}
@@ -206,11 +260,14 @@ export default function LedgerPage() {
                 <SelectContent>
                   {accounts.map((account) => (
                     <SelectItem key={account.id} value={account.id}>
-                      {account.code} · {account.name}
+                      {account.code} • {account.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Credit Account</label>
               <Select
                 value={form.creditAccountId}
                 onValueChange={(value) => setForm((current) => ({ ...current, creditAccountId: value }))}
@@ -221,110 +278,149 @@ export default function LedgerPage() {
                 <SelectContent>
                   {accounts.map((account) => (
                     <SelectItem key={account.id} value={account.id}>
-                      {account.code} · {account.name}
+                      {account.code} • {account.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <Input
-                placeholder="Amount"
-                value={form.amount}
-                onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))}
-              />
-              <Button onClick={createJournal} disabled={saving}>
-                <Plus className="mr-2 h-4 w-4" />
-                {saving ? "Posting..." : "Post Journal"}
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Amount</label>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="0.00"
+                  type="number"
+                  value={form.amount}
+                  onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))}
+                />
+                <Button onClick={createJournal} disabled={saving} className="shrink-0">
+                  <Plus className="mr-1.5 h-4 w-4" />
+                  {saving ? "Posting..." : "Post"}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Posted debits</p><p className="text-2xl font-bold">{formatCurrency(metrics.totalDebits)}</p></CardContent></Card>
-          <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Posted credits</p><p className="text-2xl font-bold">{formatCurrency(metrics.totalCredits)}</p></CardContent></Card>
-          <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Active accounts</p><p className="text-2xl font-bold">{metrics.activeAccounts}</p></CardContent></Card>
-          <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Net movement</p><p className="text-2xl font-bold">{formatCurrency(metrics.netMovement)}</p></CardContent></Card>
-        </div>
-
-        <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-          <Card>
+        {/* Two Column Layout: Balances & Journal History */}
+        <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+          {/* Account Balances */}
+          <Card className="border-border shadow-sm">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BookOpen className="h-4 w-4" />
-                Account balances
+              <CardTitle className="flex items-center gap-2 text-base font-semibold">
+                <BookOpen className="h-4 w-4 text-primary" />
+                Account Balances
               </CardTitle>
-              <CardDescription>The live chart balance after posted journals.</CardDescription>
+              <CardDescription>Live chart account balances reflecting all posted journals.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-2.5">
               {loading ? (
-                <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">Loading ledger balances...</div>
+                <EmptyState
+                  icon={BookOpen}
+                  title="Loading balances..."
+                  description="Calculating balances from posted ledger entries."
+                  className="min-h-[220px]"
+                />
+              ) : accounts.length === 0 ? (
+                <EmptyState
+                  icon={BookOpen}
+                  title="No accounts found"
+                  description="Initialize chart of accounts to see ledger balances."
+                  className="min-h-[220px]"
+                />
               ) : (
-                accounts.map((account) => (
-                  <div key={account.id} className="rounded-xl border border-slate-200 p-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="font-medium">{account.code} · {account.name}</p>
-                        <Badge className={typeColors[account.accountType] || "bg-slate-100 text-slate-700"}>
+                accounts.map((account) => {
+                  const style = typeBadgeStyles[account.accountType] || { bg: "bg-muted", text: "text-foreground", border: "border-border" }
+                  return (
+                    <div
+                      key={account.id}
+                      className="flex items-center justify-between rounded-lg border border-border bg-card p-3 transition-colors hover:bg-muted/30"
+                    >
+                      <div className="min-w-0 space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs font-semibold text-foreground">{account.code}</span>
+                          <p className="truncate text-sm font-medium text-foreground">{account.name}</p>
+                        </div>
+                        <span className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-medium capitalize ${style.bg} ${style.text} ${style.border}`}>
                           {account.accountType}
-                        </Badge>
+                        </span>
                       </div>
-                      <p className="font-semibold">{formatCurrency(account.balance)}</p>
+                      <span className="shrink-0 text-sm font-bold text-foreground">
+                        {formatCurrency(account.balance)}
+                      </span>
                     </div>
-                  </div>
-                ))
+                  )
+                })
               )}
             </CardContent>
           </Card>
 
-          <Card>
+          {/* Recent Journal Entries Table */}
+          <Card className="border-border shadow-sm">
             <CardHeader>
-              <CardTitle>Recent journal entries</CardTitle>
-              <CardDescription>Posted and draft journals with the line-level posting detail.</CardDescription>
+              <CardTitle className="text-base font-semibold">Journal History</CardTitle>
+              <CardDescription>Audit log of double-entry postings with line items.</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Entry</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
+                  <TableRow className="border-border/80 hover:bg-transparent">
+                    <TableHead className="w-24">Entry</TableHead>
+                    <TableHead className="w-24">Date</TableHead>
+                    <TableHead>Description & Postings</TableHead>
+                    <TableHead className="w-20">Status</TableHead>
+                    <TableHead className="text-right w-24">Amount</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="py-10 text-center text-muted-foreground">
-                        Loading journals...
+                      <TableCell colSpan={5} className="py-8">
+                        <EmptyState
+                          icon={FileSpreadsheet}
+                          title="Loading journals..."
+                          description="Retrieving general ledger records."
+                          className="min-h-[160px] border-0"
+                        />
                       </TableCell>
                     </TableRow>
                   ) : journals.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="py-10 text-center text-muted-foreground">
-                        No journal entries yet.
+                      <TableCell colSpan={5} className="py-8">
+                        <EmptyState
+                          icon={FileSpreadsheet}
+                          title="No journal entries"
+                          description="Post your first journal entry using the form above."
+                          className="min-h-[160px] border-0"
+                        />
                       </TableCell>
                     </TableRow>
                   ) : (
                     journals.map((journal) => (
-                      <TableRow key={journal.id}>
-                        <TableCell className="font-mono text-xs">{journal.entryNumber}</TableCell>
-                        <TableCell>{formatDate(journal.date)}</TableCell>
+                      <TableRow key={journal.id} className="border-border/60 hover:bg-muted/40">
+                        <TableCell className="font-mono text-xs font-semibold text-foreground">
+                          {journal.entryNumber}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                          {formatDate(journal.date)}
+                        </TableCell>
                         <TableCell>
-                          <div className="font-medium">{journal.description}</div>
-                          <div className="text-xs text-muted-foreground">
+                          <div className="font-medium text-foreground text-sm">{journal.description}</div>
+                          <div className="text-[11px] text-muted-foreground mt-0.5">
                             {(journal.lines || [])
                               .map((line) => `${line.account?.code || ""} ${line.account?.name || ""}`.trim())
                               .filter(Boolean)
-                              .join(" · ")}
+                              .join(" • ")}
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge variant={journal.status === "posted" ? "default" : "outline"}>
+                          <Badge variant={journal.status === "posted" ? "default" : "outline"} className="text-[10px] uppercase">
                             {journal.status}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right font-medium">{formatCurrency(journal.totalDebit)}</TableCell>
+                        <TableCell className="text-right font-semibold text-sm text-foreground">
+                          {formatCurrency(journal.totalDebit)}
+                        </TableCell>
                       </TableRow>
                     ))
                   )}
@@ -337,3 +433,4 @@ export default function LedgerPage() {
     </AppShell>
   )
 }
+

@@ -1,13 +1,27 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { CheckCircle2, RefreshCcw } from "lucide-react"
+import {
+  AlertCircle,
+  ArrowDownLeft,
+  ArrowUpRight,
+  CheckCircle2,
+  Clock,
+  Landmark,
+  Plus,
+  RefreshCcw,
+  Scale,
+  Wallet,
+} from "lucide-react"
 
 import { AppShell } from "@/components/layout/app-shell"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { EmptyState } from "@/components/ui/empty-state"
 import { Input } from "@/components/ui/input"
+import { KpiCard } from "@/components/ui/kpi-card"
+import { PageHeader } from "@/components/ui/page-header"
 import {
   Select,
   SelectContent,
@@ -53,11 +67,11 @@ interface TransactionRow {
   bankAccount?: BankAccountRow | null
 }
 
-const statusColors: Record<string, string> = {
-  balanced: "bg-emerald-100 text-emerald-700",
-  review_required: "bg-amber-100 text-amber-700",
-  in_progress: "bg-blue-100 text-blue-700",
-  draft: "bg-slate-100 text-slate-700",
+const sessionStatusVariants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+  balanced: "default",
+  review_required: "destructive",
+  in_progress: "secondary",
+  draft: "outline",
 }
 
 async function fetchJson(path: string) {
@@ -156,120 +170,175 @@ export default function ReconciliationPage() {
       breadcrumbs={[{ label: "Finance", href: "/finance" }, { label: "Reconciliation" }]}
     >
       <div className="space-y-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Bank Reconciliation</h1>
-            <p className="text-muted-foreground">
-              Match imported or manually-entered bank transactions against invoices, expenses, and statement balances.
-            </p>
-          </div>
-          <Card className="w-full lg:max-w-2xl">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Start reconciliation</CardTitle>
-              <CardDescription>Create a balancing session for a statement date or period.</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-3 md:grid-cols-2">
+        <PageHeader
+          title="Bank Reconciliation"
+          description="Match bank statement entries with invoices, expenses, and ledger postings to ensure accounting accuracy."
+          actions={
+            <Button variant="outline" size="sm" onClick={() => void reload()}>
+              <RefreshCcw className="mr-2 h-4 w-4" />
+              Refresh
+            </Button>
+          }
+        />
+
+        {/* Metrics Grid */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <KpiCard
+            title="Balanced Sessions"
+            value={loading ? "..." : totals.balanced}
+            description="Fully matched statements"
+            icon={CheckCircle2}
+          />
+          <KpiCard
+            title="Action Required"
+            value={loading ? "..." : totals.reviewRequired}
+            description="Sessions needing review"
+            icon={AlertCircle}
+          />
+          <KpiCard
+            title="Open Difference"
+            value={loading ? "..." : formatCurrency(totals.openDifference)}
+            description="Total unaligned variance"
+            icon={Scale}
+          />
+          <KpiCard
+            title="Unmatched Bank Lines"
+            value={loading ? "..." : totals.unmatchedTransactions}
+            description="Transactions awaiting match"
+            icon={Clock}
+          />
+        </div>
+
+        {/* Create Reconciliation Form */}
+        <Card className="border-border shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-semibold">Start Reconciliation Run</CardTitle>
+            <CardDescription>Initiate a statement balancing session for a designated period and target bank account.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
+            <div className="space-y-1.5 sm:col-span-2">
+              <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Bank Account</label>
               <Select
                 value={form.bankAccountId}
                 onValueChange={(value) => setForm((current) => ({ ...current, bankAccountId: value }))}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Bank account" />
+                  <SelectValue placeholder="Select bank account" />
                 </SelectTrigger>
                 <SelectContent>
                   {accounts.map((account) => (
                     <SelectItem key={account.id} value={account.id}>
-                      {account.name} · {account.bankName}
+                      {account.name} • {account.bankName}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Statement Date</label>
               <Input
                 type="date"
                 value={form.statementDate}
                 onChange={(event) => setForm((current) => ({ ...current, statementDate: event.target.value }))}
               />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Period Start</label>
               <Input
                 type="date"
                 value={form.periodStart}
                 onChange={(event) => setForm((current) => ({ ...current, periodStart: event.target.value }))}
               />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Period End</label>
               <Input
                 type="date"
                 value={form.periodEnd}
                 onChange={(event) => setForm((current) => ({ ...current, periodEnd: event.target.value }))}
               />
-              <Input
-                placeholder="Statement balance"
-                value={form.statementBalance}
-                onChange={(event) => setForm((current) => ({ ...current, statementBalance: event.target.value }))}
-              />
-              <Button onClick={handleCreateSession} disabled={saving}>
-                <CheckCircle2 className="mr-2 h-4 w-4" />
-                {saving ? "Creating..." : "Create Session"}
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Statement Balance</label>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="0.00"
+                  type="number"
+                  value={form.statementBalance}
+                  onChange={(event) => setForm((current) => ({ ...current, statementBalance: event.target.value }))}
+                />
+                <Button onClick={handleCreateSession} disabled={saving} className="shrink-0">
+                  <CheckCircle2 className="mr-1.5 h-4 w-4" />
+                  {saving ? "Creating..." : "Run"}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Balanced sessions</p><p className="text-2xl font-bold">{totals.balanced}</p></CardContent></Card>
-          <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Need review</p><p className="text-2xl font-bold">{totals.reviewRequired}</p></CardContent></Card>
-          <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Open difference</p><p className="text-2xl font-bold">{formatCurrency(totals.openDifference)}</p></CardContent></Card>
-          <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">Unmatched transactions</p><p className="text-2xl font-bold">{totals.unmatchedTransactions}</p></CardContent></Card>
-        </div>
-
+        {/* Sessions & Unmatched Bank Lines Layout */}
         <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-          <Card>
+          {/* Reconciliation Sessions Table */}
+          <Card className="border-border shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
-                <CardTitle>Reconciliation sessions</CardTitle>
-                <CardDescription>Every statement balancing run is tracked here.</CardDescription>
+                <CardTitle className="text-base font-semibold">Reconciliation Sessions</CardTitle>
+                <CardDescription>Statement balancing runs and audited discrepancy records.</CardDescription>
               </div>
-              <Button variant="outline" size="sm" onClick={() => void reload()}>
-                <RefreshCcw className="mr-2 h-4 w-4" />
-                Refresh
-              </Button>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Account</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Difference</TableHead>
+                  <TableRow className="border-border/80 hover:bg-transparent">
+                    <TableHead className="w-28">Date</TableHead>
+                    <TableHead>Account & Balances</TableHead>
+                    <TableHead className="w-28">Status</TableHead>
+                    <TableHead className="text-right w-28">Difference</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={4} className="py-10 text-center text-muted-foreground">
-                        Loading reconciliation...
+                      <TableCell colSpan={4} className="py-8">
+                        <EmptyState
+                          icon={RefreshCcw}
+                          title="Loading sessions..."
+                          description="Retrieving reconciliation history."
+                          className="min-h-[160px] border-0"
+                        />
                       </TableCell>
                     </TableRow>
                   ) : sessions.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4} className="py-10 text-center text-muted-foreground">
-                        No reconciliation sessions yet.
+                      <TableCell colSpan={4} className="py-8">
+                        <EmptyState
+                          icon={CheckCircle2}
+                          title="No reconciliation sessions"
+                          description="Start a reconciliation run using the form above."
+                          className="min-h-[160px] border-0"
+                        />
                       </TableCell>
                     </TableRow>
                   ) : (
                     sessions.map((session) => (
-                      <TableRow key={session.id}>
-                        <TableCell>{formatDate(session.statementDate)}</TableCell>
+                      <TableRow key={session.id} className="border-border/60 hover:bg-muted/40">
+                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                          {formatDate(session.statementDate)}
+                        </TableCell>
                         <TableCell>
-                          <div className="font-medium">{session.bankAccount?.name || "Bank account"}</div>
-                          <div className="text-xs text-muted-foreground">
-                            Statement {formatCurrency(session.statementBalance)} · System {formatCurrency(session.systemBalance)}
+                          <div className="font-medium text-foreground text-sm">{session.bankAccount?.name || "Bank Account"}</div>
+                          <div className="text-[11px] text-muted-foreground mt-0.5">
+                            Statement: {formatCurrency(session.statementBalance)} • System: {formatCurrency(session.systemBalance)}
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge className={statusColors[session.status] || "bg-slate-100 text-slate-700"}>
+                          <Badge variant={sessionStatusVariants[session.status] || "secondary"} className="text-[10px] uppercase">
                             {session.status.replace(/_/g, " ")}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right font-medium">{formatCurrency(session.difference)}</TableCell>
+                        <TableCell className={`text-right font-semibold text-sm ${session.difference === 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
+                          {formatCurrency(session.difference)}
+                        </TableCell>
                       </TableRow>
                     ))
                   )}
@@ -278,35 +347,45 @@ export default function ReconciliationPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          {/* Unmatched Bank Lines */}
+          <Card className="border-border shadow-sm">
             <CardHeader>
-              <CardTitle>Unmatched bank lines</CardTitle>
-              <CardDescription>These transactions still need invoice or expense matching.</CardDescription>
+              <CardTitle className="text-base font-semibold">Unmatched Bank Transactions</CardTitle>
+              <CardDescription>Bank feed rows requiring invoice or expense settlement match.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-2.5">
               {transactions.length === 0 ? (
-                <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
-                  No unmatched transactions right now.
-                </div>
+                <EmptyState
+                  icon={CheckCircle2}
+                  title="All bank transactions matched"
+                  description="No unmatched bank transactions found in the feed."
+                  className="min-h-[200px]"
+                />
               ) : (
-                transactions.slice(0, 8).map((transaction) => (
-                  <div key={transaction.id} className="rounded-xl border border-slate-200 p-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="font-medium">{transaction.description}</p>
+                transactions.slice(0, 8).map((transaction) => {
+                  const isPositive = transaction.amount >= 0
+                  return (
+                    <div
+                      key={transaction.id}
+                      className="flex items-center justify-between rounded-lg border border-border bg-card p-3 transition-colors hover:bg-muted/30"
+                    >
+                      <div className="min-w-0 space-y-0.5">
+                        <p className="truncate text-sm font-medium text-foreground">{transaction.description}</p>
                         <p className="text-xs text-muted-foreground">
-                          {transaction.bankAccount?.name || "Bank account"} · {formatDate(transaction.transactionDate)}
+                          {transaction.bankAccount?.name || "Settlement"} • {formatDate(transaction.transactionDate)}
                         </p>
                       </div>
-                      <div className="text-right">
-                        <p className={`font-semibold ${transaction.amount >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
-                          {formatCurrency(transaction.amount)}
+                      <div className="text-right shrink-0 space-y-1">
+                        <p className={`text-sm font-semibold whitespace-nowrap ${isPositive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                          {isPositive ? `+${formatCurrency(transaction.amount)}` : formatCurrency(transaction.amount)}
                         </p>
-                        <Badge variant="outline">{transaction.status}</Badge>
+                        <Badge variant="outline" className="text-[10px]">
+                          {transaction.status}
+                        </Badge>
                       </div>
                     </div>
-                  </div>
-                ))
+                  )
+                })
               )}
             </CardContent>
           </Card>
@@ -315,3 +394,4 @@ export default function ReconciliationPage() {
     </AppShell>
   )
 }
+

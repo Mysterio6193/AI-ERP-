@@ -2,10 +2,10 @@
 
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
-
 import {
   AlertTriangle,
   ArrowDownRight,
+  ArrowUpRight,
   CreditCard,
   DollarSign,
   FileText,
@@ -13,12 +13,16 @@ import {
   Receipt,
   Users,
   Wallet,
+  CheckCircle2,
 } from "lucide-react"
 
 import { AppShell } from "@/components/layout/app-shell"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { EmptyState } from "@/components/ui/empty-state"
+import { KpiCard } from "@/components/ui/kpi-card"
+import { PageHeader } from "@/components/ui/page-header"
 import { Progress } from "@/components/ui/progress"
 import { bucketise } from "@/lib/aging"
 import { useSettings } from "@/lib/settings/use-settings"
@@ -115,8 +119,6 @@ export default function FinanceDashboard() {
       0
     )
 
-    // Was a private 4-bucket definition ending "60+", which disagreed with
-    // both the invoices page and the statement the customer receives.
     const { buckets: agingBuckets } = bucketise(
       invoices
         .filter((invoice) => ["unpaid", "partial", "overdue"].includes(invoice.status))
@@ -161,112 +163,133 @@ export default function FinanceDashboard() {
     }
   }, [customers, invoices, orders, agingSettings])
 
-  const metricCards = [
-    {
-      label: "Booked Revenue",
-      value: formatCurrency(metrics.bookedRevenue),
-      hint: `${orders.length} total orders in OS`,
-      icon: DollarSign,
-      color: "text-emerald-600 bg-emerald-50",
-    },
-    {
-      label: "Receivables",
-      value: formatCurrency(metrics.receivables),
-      hint: `${metrics.overdueInvoices.length} overdue invoices`,
-      icon: Receipt,
-      color: "text-amber-600 bg-amber-50",
-    },
-    {
-      label: "Cash Collected",
-      value: formatCurrency(metrics.paidCash),
-      hint: `${metrics.recentPayments.length} recent payments logged`,
-      icon: Wallet,
-      color: "text-blue-600 bg-blue-50",
-    },
-    {
-      label: "Avg Order Value",
-      value: formatCurrency(metrics.averageOrderValue),
-      hint: "Across non-draft, non-cancelled orders",
-      icon: PiggyBank,
-      color: "text-violet-600 bg-violet-50",
-    },
-  ]
-
   return (
     <AppShell title="Finance" breadcrumbs={[{ label: "Finance" }]}>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Financial Overview</h1>
-          <p className="text-muted-foreground">Live finance visibility from invoices, payments, credit, and sales orders.</p>
+        <PageHeader
+          title="Financial Overview"
+          description="Live finance visibility from invoices, payments, credit exposure, and sales orders."
+          actions={
+            <div className="flex items-center gap-2">
+              <Button variant="outline" asChild>
+                <Link href="/invoices">
+                  <FileText className="mr-2 h-4 w-4" />
+                  View Invoices
+                </Link>
+              </Button>
+              <Button asChild>
+                <Link href="/finance/banking">
+                  <Wallet className="mr-2 h-4 w-4" />
+                  Banking & Reconciliation
+                </Link>
+              </Button>
+            </div>
+          }
+        />
+
+        {/* Top KPIs */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <KpiCard
+            title="Booked Revenue"
+            value={loading ? "..." : formatCurrency(metrics.bookedRevenue)}
+            description={`${orders.length} total orders in SupplySure`}
+            icon={DollarSign}
+          />
+          <KpiCard
+            title="Receivables"
+            value={loading ? "..." : formatCurrency(metrics.receivables)}
+            description={`${metrics.overdueInvoices.length} overdue invoices`}
+            icon={Receipt}
+          />
+          <KpiCard
+            title="Cash Collected"
+            value={loading ? "..." : formatCurrency(metrics.paidCash)}
+            description={`${metrics.recentPayments.length} recent payments logged`}
+            icon={Wallet}
+          />
+          <KpiCard
+            title="Avg Order Value"
+            value={loading ? "..." : formatCurrency(metrics.averageOrderValue)}
+            description="Across non-draft, non-cancelled orders"
+            icon={PiggyBank}
+          />
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {metricCards.map((metric) => (
-            <Card key={metric.label}>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${metric.color}`}>
-                    <metric.icon className="h-5 w-5" />
+        {/* Quick Navigation Hub */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          {[
+            { label: "Invoices", desc: "Customer billing & payments", icon: FileText, href: "/invoices" },
+            { label: "Banking", desc: "Settlement & bank feeds", icon: Wallet, href: "/finance/banking" },
+            { label: "Reconciliation", desc: "Match statements & books", icon: CheckCircle2, href: "/finance/reconciliation" },
+            { label: "Chart of Accounts", desc: "Structure & categorization", icon: DollarSign, href: "/finance/chart-of-accounts" },
+            { label: "General Ledger", desc: "Journals & double-entry", icon: PiggyBank, href: "/finance/ledger" },
+            { label: "Customer Credit", desc: "Risk limits & exposure", icon: Users, href: "/customers/credit" },
+          ].map((link) => (
+            <Link key={link.label} href={link.href} className="group">
+              <Card className="h-full border-border bg-card shadow-sm transition-all hover:border-primary/50 hover:shadow-md">
+                <CardContent className="flex items-start gap-3 p-4">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+                    <link.icon className="h-4 w-4" />
                   </div>
-                  <div className="flex-1">
-                    <p className="text-sm text-muted-foreground">{metric.label}</p>
-                    <p className="text-xl font-bold">{loading ? "..." : metric.value}</p>
-                    <p className="text-xs text-muted-foreground">{metric.hint}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-foreground group-hover:text-primary">{link.label}</p>
+                    <p className="line-clamp-1 text-xs text-muted-foreground">{link.desc}</p>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </Link>
           ))}
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-          <Card>
+        {/* Receivables Aging & Customer Credit Health */}
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Card className="border-border shadow-sm">
             <CardHeader>
-              <CardTitle className="text-base">Receivables aging</CardTitle>
-              <CardDescription>Outstanding invoice balances by lateness.</CardDescription>
+              <CardTitle className="text-base font-semibold">Receivables Aging</CardTitle>
+              <CardDescription>Outstanding invoice balances grouped by overdue duration.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {metrics.agingBuckets.map((bucket) => (
                 <div key={bucket.label} className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
-                    <span>{bucket.label}</span>
-                    <span className="font-medium">{formatCurrency(bucket.amount)}</span>
+                    <span className="font-medium text-foreground">{bucket.label}</span>
+                    <span className="font-semibold text-foreground">{formatCurrency(bucket.amount)}</span>
                   </div>
-                  <Progress value={bucket.percent} className="h-2" />
+                  <Progress value={bucket.percent} className="h-2 bg-muted" />
                 </div>
               ))}
 
               {metrics.overdueInvoices.length > 0 ? (
-                <div className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
-                  <AlertTriangle className="mr-2 inline h-4 w-4" />
-                  {metrics.overdueInvoices.length} overdue invoices need follow-up.
+                <div className="mt-4 flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  <span>{metrics.overdueInvoices.length} overdue invoices require immediate follow-up.</span>
                 </div>
               ) : (
-                <div className="mt-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-700">
-                  <ArrowDownRight className="mr-2 inline h-4 w-4" />
-                  No overdue invoices right now.
+                <div className="mt-4 flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle2 className="h-4 w-4 shrink-0" />
+                  <span>No overdue invoices at this time. All receivables are in good standing.</span>
                 </div>
               )}
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-border shadow-sm">
             <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <CreditCard className="h-4 w-4" />
-                Customer credit health
+              <CardTitle className="flex items-center gap-2 text-base font-semibold">
+                <CreditCard className="h-4 w-4 text-primary" />
+                Customer Credit Exposure
               </CardTitle>
-              <CardDescription>Outstanding customer credit exposure across active accounts.</CardDescription>
+              <CardDescription>Outstanding credit utilization across active customer accounts.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-xl border border-slate-200 p-4">
-                  <p className="text-sm text-muted-foreground">Customers on credit</p>
-                  <p className="mt-2 text-2xl font-semibold">{metrics.customersOnCredit.length}</p>
+                <div className="rounded-lg border border-border bg-muted/40 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Accounts on Credit</p>
+                  <p className="mt-1 text-2xl font-bold text-foreground">{metrics.customersOnCredit.length}</p>
                 </div>
-                <div className="rounded-xl border border-slate-200 p-4">
-                  <p className="text-sm text-muted-foreground">Outstanding credit</p>
-                  <p className="mt-2 text-2xl font-semibold">{formatCurrencyShort(metrics.outstandingCredit)}</p>
+                <div className="rounded-lg border border-border bg-muted/40 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Outstanding Exposure</p>
+                  <p className="mt-1 text-2xl font-bold text-foreground">{formatCurrencyShort(metrics.outstandingCredit)}</p>
                 </div>
               </div>
 
@@ -278,21 +301,25 @@ export default function FinanceDashboard() {
                   .map((customer) => {
                     const used = customer.outstanding || customer.creditBalance || 0
                     const utilization = customer.creditLimit > 0 ? (used / customer.creditLimit) * 100 : 0
+                    const isHighRisk = utilization >= 90
 
                     return (
-                      <div key={customer.id} className="rounded-xl border border-slate-200 p-4">
+                      <div key={customer.id} className="rounded-lg border border-border bg-card p-3.5 shadow-none transition-colors hover:bg-muted/30">
                         <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <p className="font-medium text-slate-900">{customer.name}</p>
+                          <div className="min-w-0">
+                            <p className="truncate font-medium text-foreground">{customer.name}</p>
                             <p className="text-xs text-muted-foreground">
-                              {formatCurrency(used)} used of {formatCurrency(customer.creditLimit)}
+                              {formatCurrency(used)} of {formatCurrency(customer.creditLimit)} limit
                             </p>
                           </div>
-                          <Badge className={utilization >= 90 ? "bg-red-100 text-red-700" : "bg-slate-100 text-slate-700"}>
-                            {Math.round(utilization)}%
+                          <Badge variant={isHighRisk ? "destructive" : "secondary"}>
+                            {Math.round(utilization)}% used
                           </Badge>
                         </div>
-                        <Progress value={Math.min(utilization, 100)} className="mt-3 h-2" />
+                        <Progress
+                          value={Math.min(utilization, 100)}
+                          className="mt-2.5 h-1.5 bg-muted"
+                        />
                       </div>
                     )
                   })}
@@ -301,87 +328,88 @@ export default function FinanceDashboard() {
           </Card>
         </div>
 
+        {/* Recent Payments & Invoice Watchlist */}
         <div className="grid gap-6 lg:grid-cols-2">
-          <Card>
+          <Card className="border-border shadow-sm">
             <CardHeader>
-              <CardTitle className="text-base">Recent payments</CardTitle>
-              <CardDescription>Latest cash receipts recorded against invoices.</CardDescription>
+              <CardTitle className="text-base font-semibold">Recent Cash Receipts</CardTitle>
+              <CardDescription>Latest customer payments recorded across sales invoices.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-2.5">
               {metrics.recentPayments.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-muted-foreground">
-                  No payments have been recorded yet.
-                </div>
+                <EmptyState
+                  icon={Receipt}
+                  title="No payments recorded"
+                  description="Payments logged against invoices will appear here."
+                  className="min-h-[180px] p-6"
+                />
               ) : (
                 metrics.recentPayments.map((payment) => (
-                  <div key={payment.id} className="flex items-center justify-between rounded-lg p-3 hover:bg-slate-50">
-                    <div>
-                      <p className="text-sm font-medium">{payment.customerName}</p>
+                  <div
+                    key={payment.id}
+                    className="flex items-center justify-between rounded-lg border border-border/50 bg-card p-3 transition-colors hover:bg-muted/40"
+                  >
+                    <div className="min-w-0 space-y-0.5">
+                      <p className="truncate text-sm font-medium text-foreground">{payment.customerName}</p>
                       <p className="text-xs text-muted-foreground">
                         {payment.invoiceNumber} • {payment.method.replace(/_/g, " ")} • {formatDate(payment.paidAt)}
                       </p>
                     </div>
-                    <span className="font-semibold text-emerald-600">{formatCurrency(payment.amount)}</span>
+                    <span className="shrink-0 text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                      +{formatCurrency(payment.amount)}
+                    </span>
                   </div>
                 ))
               )}
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-border shadow-sm">
             <CardHeader>
-              <CardTitle className="text-base">Invoice watchlist</CardTitle>
-              <CardDescription>Open invoices with the highest remaining balance.</CardDescription>
+              <CardTitle className="text-base font-semibold">Invoice Watchlist</CardTitle>
+              <CardDescription>Open invoices with the largest remaining balances.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-2.5">
               {invoices
                 .filter((invoice) => ["unpaid", "partial", "overdue"].includes(invoice.status))
                 .sort((left, right) => (right.balanceDue ?? right.outstandingAmt) - (left.balanceDue ?? left.outstandingAmt))
                 .slice(0, 5)
-                .map((invoice) => (
-                  <div key={invoice.id} className="rounded-xl border border-slate-200 p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="font-medium text-slate-900">{invoice.invoiceNumber}</p>
-                        <p className="text-xs text-muted-foreground">{invoice.customer?.name || "Unknown customer"}</p>
+                .map((invoice) => {
+                  const balance = invoice.balanceDue ?? invoice.outstandingAmt
+                  const isOverdue = invoice.status === "overdue"
+
+                  return (
+                    <div
+                      key={invoice.id}
+                      className="flex items-center justify-between rounded-lg border border-border/50 bg-card p-3 transition-colors hover:bg-muted/40"
+                    >
+                      <div className="min-w-0 space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <p className="font-mono text-sm font-semibold text-foreground">{invoice.invoiceNumber}</p>
+                          <Badge variant={isOverdue ? "destructive" : "secondary"}>
+                            {invoice.status}
+                          </Badge>
+                        </div>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {invoice.customer?.name || "Unknown customer"} • Due {invoice.dueDate ? formatDate(invoice.dueDate) : formatDate(invoice.invoiceDate)}
+                        </p>
                       </div>
-                      <Badge className={invoice.status === "overdue" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}>
-                        {invoice.status}
-                      </Badge>
+                      <span className="shrink-0 text-sm font-bold text-foreground">
+                        {formatCurrency(balance)}
+                      </span>
                     </div>
-                    <div className="mt-3 flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">Due {invoice.dueDate ? formatDate(invoice.dueDate) : formatDate(invoice.invoiceDate)}</span>
-                      <span className="font-semibold">{formatCurrency(invoice.balanceDue ?? invoice.outstandingAmt)}</span>
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
+              {invoices.filter((invoice) => ["unpaid", "partial", "overdue"].includes(invoice.status)).length === 0 && (
+                <EmptyState
+                  icon={CheckCircle2}
+                  title="No outstanding invoices"
+                  description="All customer invoices are fully settled."
+                  className="min-h-[180px] p-6"
+                />
+              )}
             </CardContent>
           </Card>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          {[
-            { label: "Invoices", desc: "Review invoices and payment status", icon: FileText, href: "/invoices" },
-            { label: "Banking", desc: "Check bank accounts and payment flow", icon: Wallet, href: "/finance/banking" },
-            { label: "Reconciliation", desc: "Balance statements and bank lines", icon: CreditCard, href: "/finance/reconciliation" },
-            { label: "Chart", desc: "Manage chart of accounts and structure", icon: DollarSign, href: "/finance/chart-of-accounts" },
-            { label: "Ledger", desc: "Post journals and review balances", icon: PiggyBank, href: "/finance/ledger" },
-            { label: "Credit", desc: "Manage customer credit exposure", icon: Users, href: "/customers/credit" },
-          ].map((link) => (
-            <Link key={link.label} href={link.href}>
-              <Card className="cursor-pointer transition-shadow hover:shadow-md">
-                <CardContent className="flex items-center gap-3 p-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
-                    <link.icon className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <p className="font-semibold">{link.label}</p>
-                    <p className="text-sm text-muted-foreground">{link.desc}</p>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
         </div>
       </div>
     </AppShell>
