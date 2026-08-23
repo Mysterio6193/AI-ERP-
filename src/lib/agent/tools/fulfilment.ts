@@ -194,42 +194,5 @@ export function buildFulfilmentTools(principal: AgentPrincipal) {
         }
       },
     }),
-
-    listRoutes: defineTool({
-      description: "Delivery routes with driver, stop counts and progress.",
-      inputSchema: z.object({
-        status: z.enum(["planned", "in_progress", "completed", "cancelled"]).optional(),
-        limit: z.number().int().min(1).max(25).optional(),
-      }),
-      execute: async ({ status, limit }) => {
-        const routes = await db.deliveryRoute.findMany({
-          where: status ? { status } : {},
-          orderBy: { routeDate: "desc" },
-          take: limit ?? 10,
-          select: {
-            id: true,
-            routeNumber: true,
-            name: true,
-            status: true,
-            routeDate: true,
-            vehicle: true,
-            totalStops: true,
-            completedStops: true,
-            totalDistance: true,
-            driver: { select: { name: true } },
-            warehouse: { select: { name: true } },
-          },
-        })
-
-        return routes.map((route) => ({
-          ...route,
-          driver: route.driver?.name ?? null,
-          warehouse: route.warehouse?.name ?? null,
-          progress: route.totalStops
-            ? Math.round((route.completedStops / route.totalStops) * 100)
-            : 0,
-        }))
-      },
-    }),
   }
 }

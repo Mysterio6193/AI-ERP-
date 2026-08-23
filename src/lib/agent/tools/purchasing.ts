@@ -39,9 +39,12 @@ export function buildPurchasingTools(principal: AgentPrincipal) {
       description: "List or search suppliers, with payment terms and open purchase order counts.",
       inputSchema: z.object({
         query: z.string().optional(),
-        limit: z.number().int().min(1).max(25).optional(),
+        cursor: z.string().optional().describe("ID of the last item from previous page for cursor pagination"),
+        page: z.number().int().min(1).optional().describe("Page number (1-based)"),
+        limit: z.number().int().min(1).max(100).optional().default(20).describe("Number of items to fetch (max 100)")
       }),
-      execute: async ({ query, limit }) => {
+      execute: async ({ query, cursor, page, limit }) => {
+        const _limit = limit ?? 20;
         const suppliers = await db.supplier.findMany({
           where: {
             status: "active",
@@ -56,7 +59,9 @@ export function buildPurchasingTools(principal: AgentPrincipal) {
                 }
               : {}),
           },
-          take: limit ?? 15,
+          take: _limit,
+          cursor: cursor ? { id: cursor } : undefined,
+          skip: cursor ? 1 : page ? (page - 1) * _limit : 0,
           select: {
             id: true,
             name: true,
@@ -68,15 +73,19 @@ export function buildPurchasingTools(principal: AgentPrincipal) {
           },
         })
 
-        return suppliers.map((supplier) => ({
-          id: supplier.id,
+        const items = suppliers.map((supplier) => ({
+id: supplier.id,
           name: supplier.name,
           contact: supplier.contactPerson,
           email: supplier.email,
           phone: supplier.phone,
           paymentTerms: supplier.paymentTerms,
           purchaseOrders: supplier._count.purchaseOrders,
-        }))
+        }));
+        return {
+          items,
+          nextCursor: suppliers.length === _limit ? suppliers[suppliers.length - 1].id : undefined
+        }
       },
     }),
 
@@ -149,10 +158,15 @@ export function buildPurchasingTools(principal: AgentPrincipal) {
     reorderSuggestions: defineTool({
       description:
         "Products at or below their reorder level, with the suggested reorder quantity and the cheapest supplier for each. Use this before raising purchase orders.",
-      inputSchema: z.object({ limit: z.number().int().min(1).max(50).optional() }),
-      execute: async ({ limit }) => {
+      inputSchema: z.object({ cursor: z.string().optional().describe("ID of the last item from previous page for cursor pagination"),
+        page: z.number().int().min(1).optional().describe("Page number (1-based)"),
+        limit: z.number().int().min(1).max(100).optional().default(20).describe("Number of items to fetch (max 100)") }),
+      execute: async ({ cursor, page, limit }) => {
+        const _limit = limit ?? 20;
         const rows = await db.inventory.findMany({
-          take: limit ?? 25,
+          take: _limit,
+          cursor: cursor ? { id: cursor } : undefined,
+          skip: cursor ? 1 : page ? (page - 1) * _limit : 0,
           select: {
             quantity: true,
             reserved: true,
@@ -209,13 +223,18 @@ export function buildPurchasingTools(principal: AgentPrincipal) {
       inputSchema: z.object({
         status: z.string().optional().describe("draft, submitted, confirmed, partial, received, cancelled"),
         supplierId: z.string().optional(),
-        limit: z.number().int().min(1).max(25).optional(),
+        cursor: z.string().optional().describe("ID of the last item from previous page for cursor pagination"),
+        page: z.number().int().min(1).optional().describe("Page number (1-based)"),
+        limit: z.number().int().min(1).max(100).optional().default(20).describe("Number of items to fetch (max 100)")
       }),
-      execute: async ({ status, supplierId, limit }) => {
+      execute: async ({ status, supplierId, cursor, page, limit }) => {
+        const _limit = limit ?? 20;
         const orders = await db.purchaseOrder.findMany({
           where: { ...(status ? { status } : {}), ...(supplierId ? { supplierId } : {}) },
           orderBy: { createdAt: "desc" },
-          take: limit ?? 10,
+          take: _limit,
+          cursor: cursor ? { id: cursor } : undefined,
+          skip: cursor ? 1 : page ? (page - 1) * _limit : 0,
           select: {
             id: true,
             poNumber: true,
@@ -228,8 +247,8 @@ export function buildPurchasingTools(principal: AgentPrincipal) {
           },
         })
 
-        return orders.map((order) => ({
-          id: order.id,
+        const items = orders.map((order) => ({
+id: order.id,
           poNumber: order.poNumber,
           status: order.status,
           total: money(order.totalAmount),
@@ -237,7 +256,11 @@ export function buildPurchasingTools(principal: AgentPrincipal) {
           expectedDate: order.expectedDate,
           supplier: order.supplier?.name,
           lineCount: order._count.items,
-        }))
+        }));
+        return {
+          items,
+          nextCursor: orders.length === _limit ? orders[orders.length - 1].id : undefined
+        }
       },
     }),
 
@@ -473,6 +496,27 @@ export function buildPurchasingTools(principal: AgentPrincipal) {
         })
 
         return { ok: true as const, status, fullyReceived }
+      },
+    }),
+
+    closePurchaseOrder: defineTool({
+      description: "Short-close a purchase order when the supplier cannot fulfill the remaining balance.",
+      inputSchema: z.object({
+        purchaseOrderId: z.string(),
+        reason: z.string(),
+      }),
+      execute: async ({ purchaseOrderId, reason }) => {
+        const order = await db.purchaseOrder.findUnique({ where: { id: purchaseOrderId } })
+        if (!order) return { ok: false as const, error: "Purchase order not found" }
+
+        const updated = await db.purchaseOrder.update({
+          where: { id: purchaseOrderId },
+          data: {
+            status: "cancelled", // or 'closed' but schema seems to use cancelled for unfulfilled closures
+            internalNotes: reason,
+          },
+        })
+        return { ok: true as const, purchaseOrder: updated }
       },
     }),
   }

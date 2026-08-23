@@ -38,8 +38,8 @@ export function buildManufacturingTools(principal: AgentPrincipal) {
           name: bom.name,
           product: bom.product.name,
           sku: bom.product.sku,
-          batchSize: bom.batchSize,
-          batchUnit: bom.batchUnit,
+          batchSize: bom.yieldQty,
+          batchUnit: bom.yieldUnit,
           componentsCount: bom.lines.length,
           components: bom.lines.map((l) => ({
             component: l.component.name,
@@ -64,14 +64,14 @@ export function buildManufacturingTools(principal: AgentPrincipal) {
       execute: async ({ productId, plannedQty, scheduledFor, batchCode, notes }) => {
         const product = await db.product.findUnique({
           where: { id: productId },
-          include: { boms: { where: { status: "active" }, take: 1 } },
+          include: { billsOfMaterial: { where: { status: "active" }, take: 1 } },
         })
 
         if (!product) {
           return { ok: false as const, error: "Product not found" }
         }
 
-        const bom = product.boms[0]
+        const bom = product.billsOfMaterial[0]
         const orderNumber = `PRD-${Date.now().toString().slice(-6)}`
 
         const productionOrder = await db.productionOrder.create({
@@ -135,5 +135,80 @@ export function buildManufacturingTools(principal: AgentPrincipal) {
         }))
       },
     }),
+
+    updateProductionOrder: defineTool({
+      description: "Update a production order (e.g. change status to in_progress, update notes, or targetQty).",
+      inputSchema: z.object({
+        productionOrderId: z.string(),
+        status: z.enum(["planned", "released", "in_progress", "completed", "cancelled"]).optional(),
+        plannedQty: z.number().positive().optional(),
+        notes: z.string().optional(),
+      }),
+      execute: async ({ productionOrderId, status, plannedQty, notes }) => {
+        const order = await db.productionOrder.findUnique({
+          where: { id: productionOrderId },
+        })
+        if (!order) return { ok: false as const, error: "Production order not found" }
+
+        const updated = await db.productionOrder.update({
+          where: { id: productionOrderId },
+          data: {
+            ...(status && { status }),
+            ...(plannedQty && { plannedQty }),
+            ...(notes && { notes }),
+          },
+        })
+        return { ok: true as const, productionOrder: updated }
+      },
+    }),
+
+    completeProductionOrder: defineTool({
+      description: "Mark a production order as completed and record the actual produced quantity.",
+      inputSchema: z.object({
+        productionOrderId: z.string(),
+        producedQty: z.number().nonnegative(),
+        rejectedQty: z.number().nonnegative().optional().default(0),
+      }),
+      execute: async ({ productionOrderId, producedQty, rejectedQty }) => {
+        const order = await db.productionOrder.findUnique({
+          where: { id: productionOrderId },
+        })
+        if (!order) return { ok: false as const, error: "Production order not found" }
+
+        const updated = await db.productionOrder.update({
+          where: { id: productionOrderId },
+          data: {
+            status: "completed",
+            producedQty,
+            rejectedQty,
+          },
+        })
+        return { ok: true as const, productionOrder: updated }
+      },
+    }),
+
+    cancelProductionOrder: defineTool({
+      description: "Cancel a production order and record a reason.",
+      inputSchema: z.object({
+        productionOrderId: z.string(),
+        reason: z.string(),
+      }),
+      execute: async ({ productionOrderId, reason }) => {
+        const order = await db.productionOrder.findUnique({
+          where: { id: productionOrderId },
+        })
+        if (!order) return { ok: false as const, error: "Production order not found" }
+
+        const updated = await db.productionOrder.update({
+          where: { id: productionOrderId },
+          data: {
+            status: "cancelled",
+            notes: reason,
+          },
+        })
+        return { ok: true as const, productionOrder: updated }
+      },
+    }),
   }
 }
+

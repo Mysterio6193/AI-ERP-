@@ -5,7 +5,7 @@ import { recordPaymentAtomic } from "@/lib/payments"
 
 import type { AgentPrincipal } from "../context"
 import { defineTool } from "./define"
-import { customerScope, days, isStaff, money } from "./shared"
+import { customerScope, days, isStaff, money, safeDb } from "./shared"
 
 /** Receivables, payments and collections. */
 
@@ -32,9 +32,12 @@ export function buildFinanceTools(principal: AgentPrincipal) {
         onlyOverdue: z.boolean().optional(),
         onlyUnpaid: z.boolean().optional(),
         customerId: z.string().optional(),
-        limit: z.number().int().min(1).max(50).optional(),
+        cursor: z.string().optional().describe("ID of the last item from previous page for cursor pagination"),
+        page: z.number().int().min(1).optional().describe("Page number (1-based)"),
+        limit: z.number().int().min(1).max(100).optional().default(20).describe("Number of items to fetch (max 100)")
       }),
-      execute: async ({ onlyOverdue, onlyUnpaid, customerId, limit }) => {
+      execute: async ({ onlyOverdue, onlyUnpaid, customerId, cursor, page, limit }) =>  safeDb(async () => {
+        const _limit = limit ?? 20;
         const invoices = await db.invoice.findMany({
           where: {
             ...scope,
@@ -43,7 +46,9 @@ export function buildFinanceTools(principal: AgentPrincipal) {
             ...(onlyOverdue ? { dueDate: { lt: new Date() } } : {}),
           },
           orderBy: { dueDate: "asc" },
-          take: limit ?? 10,
+          take: _limit,
+          cursor: cursor ? { id: cursor } : undefined,
+          skip: cursor ? 1 : page ? (page - 1) * _limit : 0,
           select: {
             id: true,
             invoiceNumber: true,
@@ -66,13 +71,13 @@ export function buildFinanceTools(principal: AgentPrincipal) {
           customer: invoice.customer?.name,
           customerId: invoice.customer?.id,
         }))
-      },
+      }),
     }),
 
     getInvoice: defineTool({
       description: "One invoice in full, including payments received against it and the order it came from.",
       inputSchema: z.object({ invoiceNumberOrId: z.string() }),
-      execute: async ({ invoiceNumberOrId }) => {
+      execute: async ({ invoiceNumberOrId }) =>  safeDb(async () => {
         const invoice = await db.invoice.findFirst({
           where: {
             ...scope,
@@ -114,7 +119,7 @@ export function buildFinanceTools(principal: AgentPrincipal) {
             amount: money(payment.amount),
           })),
         }
-      },
+      }),
     }),
   }
 
@@ -132,7 +137,7 @@ export function buildFinanceTools(principal: AgentPrincipal) {
         customerId: z.string().optional(),
         minOutstanding: z.number().optional(),
       }),
-      execute: async ({ customerId, minOutstanding }) => {
+      execute: async ({ customerId, minOutstanding }) =>  safeDb(async () => {
         const invoices = await db.invoice.findMany({
           where: {
             status: { not: "paid" },
@@ -183,7 +188,7 @@ export function buildFinanceTools(principal: AgentPrincipal) {
           buckets,
           worstOffenders: worst.slice(0, 10),
         }
-      },
+      }),
     }),
 
     recordPayment: defineTool({
@@ -195,7 +200,7 @@ export function buildFinanceTools(principal: AgentPrincipal) {
         method: z.enum(["bank_transfer", "bpay", "credit_card", "eftpos", "cash", "cheque"]),
         reference: z.string().optional(),
       }),
-      execute: async ({ invoiceId, amount, method, reference }) => {
+      execute: async ({ invoiceId, amount, method, reference }) =>  safeDb(async () => {
         const invoice = await db.invoice.findUnique({
           where: { id: invoiceId },
           select: {
@@ -235,7 +240,7 @@ export function buildFinanceTools(principal: AgentPrincipal) {
           status: result.invoiceStatus,
           creditReleased: result.creditReleased,
         }
-      },
+      }),
     }),
 
     setCreditStatus: defineTool({
@@ -246,7 +251,7 @@ export function buildFinanceTools(principal: AgentPrincipal) {
         status: z.enum(["active", "on_hold", "stopped"]),
         reason: z.string(),
       }),
-      execute: async ({ customerId, status, reason }) => {
+      execute: async ({ customerId, status, reason }) =>  safeDb(async () => {
         const customer = await db.customer.update({
           where: { id: customerId },
           data: { creditStatus: status },
@@ -266,7 +271,7 @@ export function buildFinanceTools(principal: AgentPrincipal) {
         })
 
         return { ok: true as const, customer: customer.name, creditStatus: customer.creditStatus }
-      },
+      }),
     }),
   }
 }

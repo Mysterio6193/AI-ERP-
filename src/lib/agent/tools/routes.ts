@@ -19,8 +19,12 @@ export function buildRouteTools(principal: AgentPrincipal) {
       inputSchema: z.object({
         date: z.string().optional().describe("ISO date (default today)"),
         status: z.enum(["planned", "in_progress", "completed", "cancelled"]).optional(),
+        cursor: z.string().optional().describe("ID of the last item from previous page for cursor pagination"),
+        page: z.number().int().min(1).optional().describe("Page number (1-based)"),
+        limit: z.number().int().min(1).max(100).optional().default(20).describe("Number of items to fetch (max 100)")
       }),
-      execute: async ({ date, status }) => {
+      execute: async ({ date, status, cursor, page, limit }) => {
+        const _limit = limit ?? 20;
         const targetDate = date ? new Date(date) : new Date()
         const dayStart = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate())
         const dayEnd = new Date(dayStart.getTime() + 86400000)
@@ -34,15 +38,14 @@ export function buildRouteTools(principal: AgentPrincipal) {
             driver: { select: { name: true, phone: true } },
             deliveries: {
               include: {
-                order: { select: { orderNumber: true, totalAmount: true } },
-                customer: { select: { name: true } },
+                customer: { select: { name: true, phone: true } },
               },
             },
           },
         })
 
-        return routes.map((r) => ({
-          id: r.id,
+        const items = routes.map((r) => ({
+id: r.id,
           routeNumber: r.routeNumber,
           name: r.name,
           routeDate: r.routeDate,
@@ -52,13 +55,17 @@ export function buildRouteTools(principal: AgentPrincipal) {
           stopCount: r.deliveries.length,
           stops: r.deliveries.map((d) => ({
             deliveryId: d.id,
-            sequence: d.stopSequence,
-            orderNumber: d.order?.orderNumber,
+            sequence: d.sequenceNo,
+            orderId: d.orderId,
             customer: d.customer.name,
-            address: `${d.deliveryAddress}, ${d.deliveryCity}`,
+            phone: d.customer.phone || "N/A",
             status: d.status,
           })),
-        }))
+        }));
+        return {
+          items,
+          nextCursor: routes.length === _limit ? routes[routes.length - 1].id : undefined
+        }
       },
     }),
 

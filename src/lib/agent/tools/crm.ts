@@ -5,7 +5,7 @@ import { db } from "@/lib/db"
 
 import type { AgentPrincipal } from "../context"
 import { defineTool } from "./define"
-import { days, isStaff, money } from "./shared"
+import { days, isStaff, money, safeDb } from "./shared"
 
 /** Accounts, follow-ups, and the account-health signals a rep actually acts on. */
 
@@ -21,7 +21,7 @@ export function buildCrmTools(principal: AgentPrincipal) {
         query: z.string(),
         limit: z.number().int().min(1).max(25).optional(),
       }),
-      execute: async ({ query, limit }) => {
+      execute: async ({ query, limit }) =>  safeDb(async () => {
         const customers = await db.customer.findMany({
           where: {
             OR: [
@@ -49,7 +49,7 @@ export function buildCrmTools(principal: AgentPrincipal) {
           ...customer,
           availableCredit: money(Math.max(customer.creditLimit - customer.creditBalance, 0)),
         }))
-      },
+      }),
     }),
 
     createCustomer: defineTool({
@@ -70,7 +70,7 @@ export function buildCrmTools(principal: AgentPrincipal) {
         postcode: z.string().optional().describe("Postal/ZIP code"),
         deliveryNotes: z.string().optional().describe("Delivery instructions or loading dock access"),
       }),
-      execute: async (input) => {
+      execute: async (input) =>  safeDb(async () => {
         const customer = await db.customer.create({
           data: {
             name: input.name.trim(),
@@ -117,7 +117,7 @@ export function buildCrmTools(principal: AgentPrincipal) {
           customer,
           message: `Created customer account "${customer.name}" with ID ${customer.id}.`,
         }
-      },
+      }),
     }),
 
     updateCustomer: defineTool({
@@ -132,7 +132,7 @@ export function buildCrmTools(principal: AgentPrincipal) {
         paymentTerms: z.number().int().min(0).max(180).optional(),
         status: z.enum(["active", "inactive", "blocked"]).optional(),
       }),
-      execute: async ({ customerId, ...patch }) => {
+      execute: async ({ customerId, ...patch }) =>  safeDb(async () => {
         const customer = await db.customer.update({
           where: { id: customerId },
           data: patch,
@@ -153,14 +153,14 @@ export function buildCrmTools(principal: AgentPrincipal) {
           customer,
           message: `Updated customer "${customer.name}".`,
         }
-      },
+      }),
     }),
 
     getCustomer: defineTool({
       description:
         "A full 360 view of one customer: credit position, ordering rhythm, recent orders, unpaid invoices and open tasks. Read this before advising on an account.",
       inputSchema: z.object({ customerId: z.string() }),
-      execute: async ({ customerId }) => {
+      execute: async ({ customerId }) =>  safeDb(async () => {
         const customer = await db.customer.findUnique({
           where: { id: customerId },
           select: {
@@ -213,7 +213,7 @@ export function buildCrmTools(principal: AgentPrincipal) {
           })),
           openTasks: tasks,
         }
-      },
+      }),
     }),
 
     lapsedAccounts: defineTool({
@@ -234,7 +234,7 @@ export function buildCrmTools(principal: AgentPrincipal) {
           ),
         limit: z.number().int().min(1).max(50).optional(),
       }),
-      execute: async ({ minOrderHistory, mineOnly, limit }) => {
+      execute: async ({ minOrderHistory, mineOnly, limit }) =>  safeDb(async () => {
         // A rep asking "who has gone quiet" means their own accounts. Answering
         // for the whole business buries the three they can actually act on.
         // Everyone else keeps the full view unless they ask to narrow it.
@@ -246,7 +246,7 @@ export function buildCrmTools(principal: AgentPrincipal) {
           limit,
           ...(scoped ? { salesRepId: principal.userId } : {}),
         })
-      },
+      }),
     }),
 
     listTasks: defineTool({
@@ -258,7 +258,7 @@ export function buildCrmTools(principal: AgentPrincipal) {
         overdueOnly: z.boolean().optional(),
         limit: z.number().int().min(1).max(50).optional(),
       }),
-      execute: async ({ assignedToMe, customerId, status, overdueOnly, limit }) => {
+      execute: async ({ assignedToMe, customerId, status, overdueOnly, limit }) =>  safeDb(async () => {
         const tasks = await db.crmTask.findMany({
           where: {
             status: status ?? "open",
@@ -292,7 +292,7 @@ export function buildCrmTools(principal: AgentPrincipal) {
           ...task,
           customer: task.customerId ? nameById.get(task.customerId) : null,
         }))
-      },
+      }),
     }),
 
     createTask: defineTool({
@@ -307,7 +307,7 @@ export function buildCrmTools(principal: AgentPrincipal) {
         priority: z.enum(["low", "normal", "high"]).optional(),
         assignedToId: z.string().optional().describe("Defaults to the person you are talking to"),
       }),
-      execute: async ({ title, notes, type, customerId, dueAt, priority, assignedToId }) => {
+      execute: async ({ title, notes, type, customerId, dueAt, priority, assignedToId }) =>  safeDb(async () => {
         const task = await db.crmTask.create({
           data: {
             title,
@@ -324,13 +324,13 @@ export function buildCrmTools(principal: AgentPrincipal) {
         })
 
         return { ok: true as const, task }
-      },
+      }),
     }),
 
     completeTask: defineTool({
       description: "Mark a task done, optionally recording what happened.",
       inputSchema: z.object({ taskId: z.string(), note: z.string().optional() }),
-      execute: async ({ taskId, note }) => {
+      execute: async ({ taskId, note }) =>  safeDb(async () => {
         const task = await db.crmTask.update({
           where: { id: taskId },
           data: {
@@ -342,7 +342,7 @@ export function buildCrmTools(principal: AgentPrincipal) {
         })
 
         return { ok: true as const, task }
-      },
+      }),
     }),
 
     logCustomerNote: defineTool({
@@ -353,7 +353,7 @@ export function buildCrmTools(principal: AgentPrincipal) {
         note: z.string(),
         subject: z.string().optional(),
       }),
-      execute: async ({ customerId, note, subject }) => {
+      execute: async ({ customerId, note, subject }) =>  safeDb(async () => {
         const log = await db.communicationLog.create({
           data: {
             customerId,
@@ -369,7 +369,7 @@ export function buildCrmTools(principal: AgentPrincipal) {
         })
 
         return { ok: true as const, logId: log.id }
-      },
+      }),
     }),
 
     accountTimeline: defineTool({
@@ -379,7 +379,7 @@ export function buildCrmTools(principal: AgentPrincipal) {
         customerId: z.string(),
         limit: z.number().int().min(5).max(60).optional(),
       }),
-      execute: async ({ customerId, limit }) => {
+      execute: async ({ customerId, limit }) =>  safeDb(async () => {
         const take = limit ?? 25
 
         const [orders, invoices, payments, comms] = await Promise.all([
@@ -433,7 +433,7 @@ export function buildCrmTools(principal: AgentPrincipal) {
         ]
 
         return events.sort((a, b) => b.at.getTime() - a.at.getTime()).slice(0, take)
-      },
+      }),
     }),
   }
 }

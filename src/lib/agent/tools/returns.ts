@@ -1,7 +1,6 @@
 import { z } from "zod"
 
 import { db } from "@/lib/db"
-import { createReturnRequest } from "@/lib/returns"
 import type { AgentPrincipal } from "../context"
 import { defineTool } from "./define"
 import { isStaff, money } from "./shared"
@@ -15,9 +14,12 @@ export function buildReturnTools(principal: AgentPrincipal) {
       inputSchema: z.object({
         status: z.enum(["requested", "approved", "received", "completed", "rejected"]).optional(),
         customerId: z.string().optional(),
-        limit: z.number().int().min(1).max(25).optional().default(10),
+        cursor: z.string().optional().describe("ID of the last item from previous page for cursor pagination"),
+        page: z.number().int().min(1).optional().describe("Page number (1-based)"),
+        limit: z.number().int().min(1).max(100).optional().default(20).describe("Number of items to fetch (max 100)").default(10),
       }),
-      execute: async ({ status, customerId, limit = 10 }) => {
+      execute: async ({ status, customerId, cursor, page, limit = 10 }) => {
+        const _limit = limit ?? 20;
         const boundCustomer = principal.kind === "customer" ? principal.customerId : customerId
 
         const returns = await db.return.findMany({
@@ -26,7 +28,9 @@ export function buildReturnTools(principal: AgentPrincipal) {
             ...(boundCustomer ? { customerId: boundCustomer } : {}),
           },
           orderBy: { createdAt: "desc" },
-          take: limit,
+          take: _limit,
+          cursor: cursor ? { id: cursor } : undefined,
+          skip: cursor ? 1 : page ? (page - 1) * _limit : 0,
           include: {
             customer: { select: { name: true } },
             order: { select: { orderNumber: true } },
@@ -34,11 +38,11 @@ export function buildReturnTools(principal: AgentPrincipal) {
           },
         })
 
-        return returns.map((r) => ({
-          id: r.id,
+        const items = returns.map((r) => ({
+id: r.id,
           returnNumber: r.returnNumber,
           customer: r.customer.name,
-          orderNumber: r.order.orderNumber,
+          orderNumber: r.order?.orderNumber ?? "N/A",
           status: r.status,
           refundAmount: money(r.refundAmount),
           reason: r.reason,
@@ -46,9 +50,12 @@ export function buildReturnTools(principal: AgentPrincipal) {
             product: i.product.name,
             sku: i.product.sku,
             quantity: i.quantity,
-            reason: i.reason,
           })),
-        }))
+        }));
+        return {
+          items,
+          nextCursor: returns.length === _limit ? returns[returns.length - 1].id : undefined
+        }
       },
     }),
 
@@ -89,13 +96,12 @@ export function buildReturnTools(principal: AgentPrincipal) {
             orderId: order.id,
             customerId: order.customerId,
             reason,
-            action,
-            status: "requested",
+            notes: `Requested action: ${action}`,
+            status: "pending",
             items: {
               create: items.map((item) => ({
                 productId: item.productId,
                 quantity: item.quantity,
-                reason: item.reason || reason,
                 condition: item.condition,
               })),
             },
@@ -109,6 +115,75 @@ export function buildReturnTools(principal: AgentPrincipal) {
           returnNumber: ret.returnNumber,
           message: `Raised return request ${ret.returnNumber} for order ${order.orderNumber}.`,
         }
+      },
+    }),
+
+    approveReturn: defineTool({
+      description: "Approve a return request.",
+      inputSchema: z.object({
+        returnId: z.string(),
+        internalNotes: z.string().optional(),
+      }),
+      execute: async ({ returnId, internalNotes }) => {
+        const ret = await db.return.findUnique({ where: { id: returnId } })
+        if (!ret) return { ok: false as const, error: "Return not found" }
+
+        const updated = await db.return.update({
+          where: { id: returnId },
+          data: {
+            status: "approved",
+            ...(internalNotes && { internalNotes }),
+          },
+        })
+        return { ok: true as const, returnRequest: updated }
+      },
+    }),
+
+    rejectReturn: defineTool({
+      description: "Reject a return request.",
+      inputSchema: z.object({
+        returnId: z.string(),
+        reason: z.string(),
+      }),
+      execute: async ({ returnId, reason }) => {
+        const ret = await db.return.findUnique({ where: { id: returnId } })
+        if (!ret) return { ok: false as const, error: "Return not found" }
+
+        const updated = await db.return.update({
+          where: { id: returnId },
+          data: {
+            status: "rejected",
+            internalNotes: reason,
+          },
+        })
+        return { ok: true as const, returnRequest: updated }
+      },
+    }),
+
+    completeReturn: defineTool({
+      description: "Mark a return as completed/received and process refund.",
+      inputSchema: z.object({
+        returnId: z.string(),
+        refundAmount: z.number().nonnegative(),
+        restockItems: z.boolean().optional().default(false),
+      }),
+      execute: async ({ returnId, refundAmount, restockItems }) => {
+        const ret = await db.return.findUnique({
+          where: { id: returnId },
+          include: { items: true },
+        })
+        if (!ret) return { ok: false as const, error: "Return not found" }
+
+        const updated = await db.return.update({
+          where: { id: returnId },
+          data: {
+            status: "completed",
+            refundAmount,
+            totalAmount: refundAmount,
+          },
+        })
+
+        return { ok: true as const, returnRequest: updated, restocked: restockItems }
       },
     }),
   }

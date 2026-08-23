@@ -20,9 +20,12 @@ export function buildSalesTools(principal: AgentPrincipal, channel?: string) {
       inputSchema: z.object({
         status: z.string().optional().describe("draft, confirmed, approved, picking, delivered, cancelled"),
         customerId: z.string().optional(),
-        limit: z.number().int().min(1).max(25).optional(),
+        cursor: z.string().optional().describe("ID of the last item from previous page for cursor pagination"),
+        page: z.number().int().min(1).optional().describe("Page number (1-based)"),
+        limit: z.number().int().min(1).max(100).optional().default(20).describe("Number of items to fetch (max 100)"),
       }),
-      execute: async ({ status, customerId, limit }) => {
+      execute: async ({ status, customerId, cursor, page, limit }) => {
+        const _limit = limit ?? 20;
         const orders = await db.salesOrder.findMany({
           where: {
             ...scope,
@@ -30,7 +33,9 @@ export function buildSalesTools(principal: AgentPrincipal, channel?: string) {
             ...(status ? { status } : {}),
           },
           orderBy: { createdAt: "desc" },
-          take: limit ?? 10,
+          take: _limit,
+          cursor: cursor ? { id: cursor } : undefined,
+          skip: cursor ? 1 : page ? (page - 1) * _limit : 0,
           select: {
             id: true,
             orderNumber: true,
@@ -42,7 +47,7 @@ export function buildSalesTools(principal: AgentPrincipal, channel?: string) {
           },
         })
 
-        return orders.map((order) => ({
+        const items = orders.map((order) => ({
           id: order.id,
           orderNumber: order.orderNumber,
           status: order.status,
@@ -50,7 +55,11 @@ export function buildSalesTools(principal: AgentPrincipal, channel?: string) {
           date: order.orderDate,
           channel: order.sourceChannel,
           customer: order.customer?.name,
-        }))
+        }));
+        return {
+          items,
+          nextCursor: orders.length === _limit ? orders[orders.length - 1].id : undefined
+        };
       },
     }),
 
@@ -160,11 +169,23 @@ export function buildSalesTools(principal: AgentPrincipal, channel?: string) {
           .number()
           .describe("Grand total from quoteBasket. Drives the auto-approval threshold - must be accurate."),
       }),
-      execute: async ({ customerId, items, deliveryDate, notes }) => {
+      execute: async ({ customerId, items, deliveryDate, notes, estimatedTotal }) => {
         const targetCustomer = boundCustomerId || customerId
 
         if (!targetCustomer) {
           return { ok: false as const, error: "No customer specified" }
+        }
+
+        const priced = await priceSalesOrder(items)
+        if (!priced.ok) {
+          return { ok: false as const, error: priced.error }
+        }
+
+        if (estimatedTotal < priced.totalAmount - 1) {
+          return {
+            ok: false as const,
+            error: `Security policy violation: estimatedTotal (${estimatedTotal}) is lower than actual total (${priced.totalAmount}). Provide accurate total.`,
+          }
         }
 
         const result = await createSalesOrder({
@@ -232,13 +253,18 @@ export function buildSalesTools(principal: AgentPrincipal, channel?: string) {
       inputSchema: z.object({
         status: z.string().optional().describe("draft, sent, accepted, rejected, expired, converted"),
         customerId: z.string().optional(),
-        limit: z.number().int().min(1).max(25).optional(),
+        cursor: z.string().optional().describe("ID of the last item from previous page for cursor pagination"),
+        page: z.number().int().min(1).optional().describe("Page number (1-based)"),
+        limit: z.number().int().min(1).max(100).optional().default(20).describe("Number of items to fetch (max 100)"),
       }),
-      execute: async ({ status, customerId, limit }) => {
+      execute: async ({ status, customerId, cursor, page, limit }) => {
+        const _limit = limit ?? 20;
         const quotes = await db.quote.findMany({
           where: { ...(status ? { status } : {}), ...(customerId ? { customerId } : {}) },
           orderBy: { createdAt: "desc" },
-          take: limit ?? 10,
+          take: _limit,
+          cursor: cursor ? { id: cursor } : undefined,
+          skip: cursor ? 1 : (page ? (page - 1) * _limit : 0),
           select: {
             id: true,
             quoteNumber: true,
@@ -250,7 +276,7 @@ export function buildSalesTools(principal: AgentPrincipal, channel?: string) {
           },
         })
 
-        return quotes.map((quote) => ({
+        const items = quotes.map((quote) => ({
           id: quote.id,
           quoteNumber: quote.quoteNumber,
           status: quote.status,
@@ -260,7 +286,11 @@ export function buildSalesTools(principal: AgentPrincipal, channel?: string) {
           expired: quote.validUntil ? quote.validUntil.getTime() < Date.now() : false,
           customer: quote.customer?.name,
           customerId: quote.customer?.id,
-        }))
+        }));
+        return {
+          items,
+          nextCursor: quotes.length === _limit ? quotes[quotes.length - 1].id : undefined
+        };
       },
     }),
   }

@@ -4,7 +4,7 @@ import { db } from "@/lib/db"
 
 import type { AgentPrincipal } from "../context"
 import { defineTool } from "./define"
-import { findProducts, isStaff, money } from "./shared"
+import { findProducts, isStaff, money, safeDb } from "./shared"
 import { availableQuantity } from "@/lib/reservations"
 
 /** Products, stock and pricing. Available to staff and customers alike. */
@@ -18,13 +18,13 @@ export function buildCatalogTools(principal: AgentPrincipal) {
         query: z.string().describe("What the person asked for, e.g. 'roma tomatoes' or 'olive oil 4L'"),
         limit: z.number().int().min(1).max(20).optional(),
       }),
-      execute: async ({ query, limit }) => findProducts(query, limit ?? 8),
+      execute: async ({ query, limit }) => safeDb(async () => findProducts(query, limit ?? 8)),
     }),
 
     getStock: defineTool({
       description: "Stock on hand for a product across warehouses, including reserved and reorder level.",
       inputSchema: z.object({ productId: z.string() }),
-      execute: async ({ productId }) => {
+      execute: async ({ productId }) =>  safeDb(async () => {
         const rows = await db.inventory.findMany({
           where: { productId },
           select: {
@@ -45,7 +45,7 @@ export function buildCatalogTools(principal: AgentPrincipal) {
           reorderLevel: row.reorderLevel,
           belowReorder: row.quantity <= row.reorderLevel,
         }))
-      },
+      }),
     }),
   }
 
@@ -60,7 +60,7 @@ export function buildCatalogTools(principal: AgentPrincipal) {
       description:
         "Products that are out of stock or below reorder level right now, worst first. Use for 'what are we short on' questions.",
       inputSchema: z.object({ limit: z.number().int().min(1).max(50).optional() }),
-      execute: async ({ limit }) => {
+      execute: async ({ limit }) =>  safeDb(async () => {
         const rows = await db.inventory.findMany({
           take: limit ?? 25,
           select: {
@@ -86,7 +86,7 @@ export function buildCatalogTools(principal: AgentPrincipal) {
           }))
           .filter((row) => row.available <= row.reorderLevel)
           .sort((a, b) => a.available - b.available)
-      },
+      }),
     }),
 
     adjustInventory: defineTool({
@@ -98,7 +98,7 @@ export function buildCatalogTools(principal: AgentPrincipal) {
         quantityDelta: z.number().int().describe("Positive to add, negative to remove"),
         reason: z.string(),
       }),
-      execute: async ({ productId, warehouseId, quantityDelta, reason }) => {
+      execute: async ({ productId, warehouseId, quantityDelta, reason }) =>  safeDb(async () => {
         const existing = await db.inventory.findFirst({
           where: { productId, warehouseId },
           select: { id: true, quantity: true },
@@ -135,7 +135,7 @@ export function buildCatalogTools(principal: AgentPrincipal) {
         })
 
         return { ok: true as const, onHand: updated.quantity }
-      },
+      }),
     }),
 
     createProduct: defineTool({
@@ -155,7 +155,7 @@ export function buildCatalogTools(principal: AgentPrincipal) {
         storageTemp: z.enum(["ambient", "chilled", "frozen"]).optional(),
         brand: z.string().optional(),
       }),
-      execute: async (input) => {
+      execute: async (input) =>  safeDb(async () => {
         const product = await db.product.create({
           data: {
             sku: input.sku.trim().toUpperCase(),
@@ -187,7 +187,7 @@ export function buildCatalogTools(principal: AgentPrincipal) {
           product,
           message: `Created product "${product.name}" (SKU: ${product.sku}).`,
         }
-      },
+      }),
     }),
 
     updateProduct: defineTool({
@@ -201,7 +201,7 @@ export function buildCatalogTools(principal: AgentPrincipal) {
         minMargin: z.number().optional(),
         status: z.enum(["active", "inactive", "discontinued"]).optional(),
       }),
-      execute: async ({ productId, ...patch }) => {
+      execute: async ({ productId, ...patch }) =>  safeDb(async () => {
         const product = await db.product.update({
           where: { id: productId },
           data: patch,
@@ -220,7 +220,7 @@ export function buildCatalogTools(principal: AgentPrincipal) {
           product,
           message: `Updated product "${product.name}".`,
         }
-      },
+      }),
     }),
   }
 }

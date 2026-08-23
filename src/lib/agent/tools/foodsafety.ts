@@ -13,7 +13,7 @@ import { db } from "@/lib/db"
 
 import type { AgentPrincipal } from "../context"
 import { defineTool } from "./define"
-import { findProducts, isStaff } from "./shared"
+import { findProducts, isStaff, safeDb } from "./shared"
 
 /**
  * Lot control and allergen safety.
@@ -146,7 +146,7 @@ export function buildFoodSafetyTools(principal: AgentPrincipal) {
       description:
         "Check every active recipe for undeclared allergens or contradicted free-from claims. Use when asked whether the labels are right across the site.",
       inputSchema: z.object({}),
-      execute: async () => auditAllergens(),
+      execute: async () => safeDb(async () => auditAllergens()),
     }),
 
     quarantineStock: defineTool({
@@ -156,13 +156,13 @@ export function buildFoodSafetyTools(principal: AgentPrincipal) {
         batchCode: z.string(),
         reason: z.string().describe("Why, in a few words. It appears on the hold."),
       }),
-      execute: async ({ batchCode, reason }) => quarantineBatch(batchCode, reason),
+      execute: async ({ batchCode, reason }) => safeDb(async () => quarantineBatch(batchCode, reason)),
     }),
 
     releaseStock: defineTool({
       description: "Take a batch off hold once it has been cleared.",
       inputSchema: z.object({ batchCode: z.string() }),
-      execute: async ({ batchCode }) => releaseBatch(batchCode),
+      execute: async ({ batchCode }) => safeDb(async () => releaseBatch(batchCode)),
     }),
 
     traceBatch: defineTool({
@@ -171,7 +171,7 @@ export function buildFoodSafetyTools(principal: AgentPrincipal) {
       inputSchema: z.object({
         batchCode: z.string().describe("The lot code / batch code to trace"),
       }),
-      execute: async ({ batchCode }) => traceBatch(batchCode),
+      execute: async ({ batchCode }) => safeDb(async () => traceBatch(batchCode)),
     }),
   }
 }

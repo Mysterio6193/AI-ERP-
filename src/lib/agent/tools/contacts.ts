@@ -4,7 +4,7 @@ import { db } from "@/lib/db"
 
 import type { AgentPrincipal } from "../context"
 import { defineTool } from "./define"
-import { isStaff } from "./shared"
+import { isStaff, safeDb } from "./shared"
 import { nextDocumentNumber } from "@/lib/numbering"
 
 /**
@@ -47,9 +47,12 @@ export function buildContactTools(principal: AgentPrincipal) {
       inputSchema: z.object({
         customerId: z.string().optional(),
         query: z.string().optional().describe("Search by person's name or email across accounts"),
-        limit: z.number().int().min(1).max(50).optional(),
+        cursor: z.string().optional().describe("ID of the last item from previous page for cursor pagination"),
+        page: z.number().int().min(1).optional().describe("Page number (1-based)"),
+        limit: z.number().int().min(1).max(100).optional().default(20).describe("Number of items to fetch (max 100)")
       }),
-      execute: async ({ customerId, query, limit }) => {
+      execute: async ({ customerId, query, cursor, page, limit }) => safeDb(async () => {
+        const _limit = limit ?? 20;
         const contacts = await db.contact.findMany({
           where: {
             status: "active",
@@ -64,7 +67,9 @@ export function buildContactTools(principal: AgentPrincipal) {
                 }
               : {}),
           },
-          take: limit ?? 20,
+          take: _limit,
+          cursor: cursor ? { id: cursor } : undefined,
+          skip: cursor ? 1 : page ? (page - 1) * _limit : 0,
           orderBy: [{ isPrimary: "desc" }, { name: "asc" }],
           select: {
             id: true,
@@ -82,12 +87,16 @@ export function buildContactTools(principal: AgentPrincipal) {
           },
         })
 
-        return contacts.map((contact) => ({
-          ...contact,
+        const items = contacts.map((contact) => ({
+...contact,
           customer: contact.customer?.name,
           customerId: contact.customer?.id,
-        }))
-      },
+        }));
+        return {
+          items,
+          nextCursor: contacts.length === _limit ? contacts[contacts.length - 1].id : undefined
+        }
+      }),
     }),
 
     upsertContact: defineTool({
@@ -109,7 +118,7 @@ export function buildContactTools(principal: AgentPrincipal) {
         preferredChannel: z.enum(["email", "phone", "whatsapp", "telegram", "sms"]).optional(),
         notes: z.string().optional(),
       }),
-      execute: async ({ contactId, customerId, ...fields }) => {
+      execute: async ({ contactId, customerId, ...fields }) =>  safeDb(async () => {
         if (contactId) {
           const contact = await db.contact.update({
             where: { id: contactId },
@@ -138,7 +147,7 @@ export function buildContactTools(principal: AgentPrincipal) {
         })
 
         return { ok: true as const, created: true, contact }
-      },
+      }),
     }),
 
     logActivity: defineTool({
@@ -165,7 +174,7 @@ export function buildContactTools(principal: AgentPrincipal) {
         outcome: z.string().optional(),
         occurredAt: z.string().optional().describe("ISO datetime, defaults to now"),
       }),
-      execute: async ({ occurredAt, ...fields }) => {
+      execute: async ({ occurredAt, ...fields }) =>  safeDb(async () => {
         const activity = await db.activity.create({
           data: {
             ...fields,
@@ -177,7 +186,7 @@ export function buildContactTools(principal: AgentPrincipal) {
         })
 
         return { ok: true as const, activity }
-      },
+      }),
     }),
 
     listActivities: defineTool({
@@ -187,9 +196,12 @@ export function buildContactTools(principal: AgentPrincipal) {
         contactId: z.string().optional(),
         type: z.string().optional(),
         mineOnly: z.boolean().optional(),
-        limit: z.number().int().min(1).max(50).optional(),
+        cursor: z.string().optional().describe("ID of the last item from previous page for cursor pagination"),
+        page: z.number().int().min(1).optional().describe("Page number (1-based)"),
+        limit: z.number().int().min(1).max(100).optional().default(20).describe("Number of items to fetch (max 100)")
       }),
-      execute: async ({ customerId, contactId, type, mineOnly, limit }) => {
+      execute: async ({ customerId, contactId, type, mineOnly, cursor, page, limit }) => safeDb(async () => {
+        const _limit = limit ?? 20;
         const activities = await db.activity.findMany({
           where: {
             ...(customerId ? { customerId } : {}),
@@ -198,7 +210,9 @@ export function buildContactTools(principal: AgentPrincipal) {
             ...(mineOnly ? { userId: principal.userId } : {}),
           },
           orderBy: { occurredAt: "desc" },
-          take: limit ?? 20,
+          take: _limit,
+          cursor: cursor ? { id: cursor } : undefined,
+          skip: cursor ? 1 : page ? (page - 1) * _limit : 0,
           select: {
             id: true,
             type: true,
@@ -213,13 +227,17 @@ export function buildContactTools(principal: AgentPrincipal) {
           },
         })
 
-        return activities.map((activity) => ({
-          ...activity,
+        const items = activities.map((activity) => ({
+...activity,
           customer: activity.customer?.name ?? null,
           contact: activity.contact?.name ?? null,
           by: activity.user?.name ?? null,
-        }))
-      },
+        }));
+        return {
+          items,
+          nextCursor: activities.length === _limit ? activities[activities.length - 1].id : undefined
+        }
+      }),
     }),
 
     createCase: defineTool({
@@ -237,7 +255,7 @@ export function buildContactTools(principal: AgentPrincipal) {
         orderId: z.string().optional(),
         assignedToId: z.string().optional().describe("Defaults to you"),
       }),
-      execute: async ({ assignedToId, ...fields }) => {
+      execute: async ({ assignedToId, ...fields }) =>  safeDb(async () => {
         const record = await db.case.create({
           data: {
             ...fields,
@@ -252,7 +270,7 @@ export function buildContactTools(principal: AgentPrincipal) {
         })
 
         return { ok: true as const, case: record }
-      },
+      }),
     }),
 
     listCases: defineTool({
@@ -261,9 +279,12 @@ export function buildContactTools(principal: AgentPrincipal) {
         status: z.enum(["open", "in_progress", "resolved", "closed"]).optional(),
         customerId: z.string().optional(),
         mineOnly: z.boolean().optional(),
-        limit: z.number().int().min(1).max(50).optional(),
+        cursor: z.string().optional().describe("ID of the last item from previous page for cursor pagination"),
+        page: z.number().int().min(1).optional().describe("Page number (1-based)"),
+        limit: z.number().int().min(1).max(100).optional().default(20).describe("Number of items to fetch (max 100)")
       }),
-      execute: async ({ status, customerId, mineOnly, limit }) => {
+      execute: async ({ status, customerId, mineOnly, cursor, page, limit }) => safeDb(async () => {
+        const _limit = limit ?? 20;
         const cases = await db.case.findMany({
           where: {
             status: status ?? "open",
@@ -271,7 +292,9 @@ export function buildContactTools(principal: AgentPrincipal) {
             ...(mineOnly ? { assignedToId: principal.userId } : {}),
           },
           orderBy: [{ severity: "desc" }, { createdAt: "asc" }],
-          take: limit ?? 20,
+          take: _limit,
+          cursor: cursor ? { id: cursor } : undefined,
+          skip: cursor ? 1 : page ? (page - 1) * _limit : 0,
           select: {
             id: true,
             caseNumber: true,
@@ -286,14 +309,18 @@ export function buildContactTools(principal: AgentPrincipal) {
           },
         })
 
-        return cases.map((record) => ({
-          ...record,
+        const items = cases.map((record) => ({
+...record,
           customer: record.customer?.name,
           customerId: record.customer?.id,
           contact: record.contact?.name ?? null,
           assignedTo: record.assignedTo?.name ?? null,
-        }))
-      },
+        }));
+        return {
+          items,
+          nextCursor: cases.length === _limit ? cases[cases.length - 1].id : undefined
+        }
+      }),
     }),
 
     resolveCase: defineTool({
@@ -303,7 +330,7 @@ export function buildContactTools(principal: AgentPrincipal) {
         resolution: z.string(),
         status: z.enum(["resolved", "closed"]).optional(),
       }),
-      execute: async ({ caseId, resolution, status }) => {
+      execute: async ({ caseId, resolution, status }) =>  safeDb(async () => {
         const record = await db.case.update({
           where: { id: caseId },
           data: {
@@ -315,7 +342,7 @@ export function buildContactTools(principal: AgentPrincipal) {
         })
 
         return { ok: true as const, case: record }
-      },
+      }),
     }),
   }
 }
