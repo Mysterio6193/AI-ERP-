@@ -54,6 +54,14 @@ const SELF_AUTHENTICATING_API_PREFIXES = [
   "/api/user/",
   "/api/order/",
   "/api/driver/",
+
+  // The scheduler tick. It verifies CRON_SECRET as a Bearer token itself, and
+  // falls back to an admin role check — so it is genuinely self-authenticating.
+  // Without this, middleware demanded a session cookie that no cron service
+  // sends, and the endpoint returned 401 to every scheduled trigger: agents
+  // could never run unattended, and it only looked fine locally because
+  // AUTH_BYPASS short-circuited this file.
+  "/api/cron/",
 ]
 
 /**
