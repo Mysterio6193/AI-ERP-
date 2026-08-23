@@ -704,7 +704,7 @@ export default function AgentStudioPage() {
                       }
 
                       setCreating(false)
-                      setDraft({ name: "", description: "", avatar: "🤖", instructions: "", tools: [] })
+                      setDraft({ name: "", description: "", avatar: "🤖", instructions: "", model: "", tools: [] })
                       await load()
                       toast({
                         title: "Agent created",

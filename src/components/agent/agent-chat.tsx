@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
+import ReactMarkdown from "react-markdown"
 import { useChat } from "@ai-sdk/react"
 import {
   DefaultChatTransport,
@@ -291,7 +292,7 @@ export function AgentChat({ threadKey, suggestions, pageContext, compact }: Agen
       recognitionRef.current = recognition
       setListening(true)
       recognition.start()
-    } else if (navigator?.mediaDevices?.getUserMedia) {
+    } else if (typeof window !== "undefined" && Boolean(navigator?.mediaDevices?.getUserMedia)) {
       void startAudioRecording()
     }
   }
@@ -411,16 +412,25 @@ export function AgentChat({ threadKey, suggestions, pageContext, compact }: Agen
               const key = `${message.id}-${index}`
 
               if (part.type === "text") {
+                if (message.role === "user") {
+                  return (
+                    <div
+                      key={key}
+                      className="ml-auto w-fit max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-sm bg-primary px-4 py-2.5 text-sm text-primary-foreground"
+                    >
+                      {part.text}
+                    </div>
+                  )
+                }
+
                 return (
                   <div
                     key={key}
-                    className={
-                      message.role === "user"
-                        ? "ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-sm bg-primary px-4 py-2.5 text-sm text-primary-foreground"
-                        : "w-fit max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-bl-sm bg-muted px-4 py-2.5 text-sm"
-                    }
+                    className="w-fit max-w-[85%] rounded-2xl rounded-bl-sm bg-muted px-4 py-2.5 text-sm text-foreground"
                   >
-                    {part.text}
+                    <div className="prose prose-sm dark:prose-invert max-w-none break-words space-y-2 text-sm leading-relaxed [&_p]:my-1.5 [&_p]:leading-relaxed [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_ul]:my-1.5 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-1.5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-0.5 [&_strong]:font-semibold [&_code]:rounded [&_code]:bg-background/80 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-xs [&_pre]:my-2 [&_pre]:rounded-lg [&_pre]:bg-background [&_pre]:p-3 [&_pre]:overflow-x-auto [&_table]:my-2 [&_table]:w-full [&_table]:border-collapse [&_th]:border [&_th]:border-border [&_th]:bg-background/50 [&_th]:px-2.5 [&_th]:py-1.5 [&_th]:text-left [&_th]:text-xs [&_th]:font-semibold [&_td]:border [&_td]:border-border [&_td]:px-2.5 [&_td]:py-1.5 [&_td]:text-xs [&_blockquote]:my-2 [&_blockquote]:border-l-2 [&_blockquote]:border-primary [&_blockquote]:pl-3 [&_blockquote]:italic [&_h1]:text-base [&_h1]:font-semibold [&_h2]:text-sm [&_h2]:font-semibold [&_h3]:text-xs [&_h3]:font-semibold [&_hr]:my-2 [&_hr]:border-border">
+                      <ReactMarkdown>{part.text}</ReactMarkdown>
+                    </div>
                   </div>
                 )
               }

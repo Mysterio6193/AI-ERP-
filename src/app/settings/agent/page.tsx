@@ -55,6 +55,8 @@ interface RuntimeInfo {
   model: string
   fastModel?: string
   telegramModel?: string
+  ocrModel?: string
+  voiceModel?: string
   replenishmentModel?: string
   emailModel?: string
   financeModel?: string
