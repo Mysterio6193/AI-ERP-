@@ -23,7 +23,11 @@
     "pg:stop": "node scripts/pg.mjs stop",
     "pg:status": "node scripts/pg.mjs status",
     "telegram:poll": "npx tsx --env-file=.env scripts/telegram-poll.ts",
-    "morning:briefing": "npx tsx --env-file=.env scripts/morning-briefing.ts"
+    "morning:briefing": "npx tsx --env-file=.env scripts/morning-briefing.ts",
+    "docker:dev": "docker compose -f docker-compose.dev.yml up --build",
+    "docker:prod": "docker compose up -d --build",
+    "docker:restart": "docker compose restart web",
+    "docker:stop": "docker compose down"
   },
   "dependencies": {
     "@ai-sdk/google": "^4.0.50",
