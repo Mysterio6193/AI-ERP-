@@ -18,6 +18,7 @@ const DEFAULT_CHART: ChartSeed[] = [
   { code: "1200", name: "Inventory", accountType: "asset", subType: "current_asset", normalSide: "debit", isSystem: true },
   { code: "1300", name: "Prepaid Expenses", accountType: "asset", subType: "current_asset", normalSide: "debit" },
   { code: "2000", name: "Accounts Payable", accountType: "liability", subType: "current_liability", normalSide: "credit", isSystem: true },
+  { code: "2050", name: "Goods Received Not Invoiced", accountType: "liability", subType: "current_liability", normalSide: "credit", isSystem: true, description: "Stock received that the supplier has not yet billed." },
   { code: "2100", name: "GST / Tax Payable", accountType: "liability", subType: "tax", normalSide: "credit", isSystem: true },
   { code: "3000", name: "Owner Equity", accountType: "equity", subType: "equity", normalSide: "credit", isSystem: true },
   { code: "4000", name: "Sales Revenue", accountType: "revenue", subType: "income", normalSide: "credit", isSystem: true },
@@ -50,17 +51,28 @@ export async function getDefaultCompanyId() {
 export async function ensureDefaultChartOfAccounts(companyId?: string | null) {
   if (!companyId) return []
 
-  const existing = await prisma.chartOfAccount.count({
+  // Fill gaps rather than seed-once. This used to be "if the company has no
+  // accounts at all, create them", which meant adding an account to
+  // DEFAULT_CHART later silently did nothing for every existing company — the
+  // new code simply never appeared, and the first posting that referenced it
+  // failed.
+  const existing = await prisma.chartOfAccount.findMany({
     where: { companyId },
+    select: { code: true },
   })
 
-  if (!existing) {
+  const present = new Set(existing.map((account: { code: string }) => account.code))
+  const missing = DEFAULT_CHART.filter((account) => !present.has(account.code))
+
+  if (missing.length > 0) {
     await prisma.chartOfAccount.createMany({
-      data: DEFAULT_CHART.map((account) => ({
+      data: missing.map((account) => ({
         ...account,
         companyId,
         status: "active",
       })),
+      // Never overwrite an account someone has renamed or transacted against.
+      skipDuplicates: true,
     })
   }
 

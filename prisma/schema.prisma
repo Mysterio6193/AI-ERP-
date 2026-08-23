@@ -96,6 +96,8 @@ model Company {
   financeDocuments       FinanceDocument[]
   returns                Return[]
   commerceSettings       CommerceSettings?
+
+  supplierInvoices SupplierInvoice[]
 }
 
 // ============================================
@@ -477,8 +479,9 @@ model Supplier {
   companyId String?
   company   Company? @relation(fields: [companyId], references: [id])
 
-  products       ProductSupplier[]
-  purchaseOrders PurchaseOrder[]
+  products         ProductSupplier[]
+  purchaseOrders   PurchaseOrder[]
+  supplierInvoices SupplierInvoice[]
   communications CommunicationLog[]
 
   createdAt DateTime @default(now())
@@ -1336,6 +1339,8 @@ model PurchaseOrder {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  supplierInvoices SupplierInvoice[]
 }
 
 model PurchaseOrderItem {
@@ -2955,4 +2960,68 @@ model DocumentCounter {
   updatedAt DateTime @updatedAt
 
   @@unique([kind, period, companyKey])
+}
+
+/// A bill from a supplier.
+///
+/// Receiving goods created an asset with no matching liability document behind
+/// it: the ledger credited a payable that no record explained, and nothing in
+/// the system could answer "what do we owe, to whom, by when".
+model SupplierInvoice {
+  id String @id @default(cuid())
+
+  invoiceNumber String
+  supplierId    String
+  supplier      Supplier @relation(fields: [supplierId], references: [id])
+
+  /// The purchase order this bills against, when there is one. Null covers
+  /// bills that arrive without a PO, which is most freight and utilities.
+  purchaseOrderId String?
+  purchaseOrder   PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
+
+  invoiceDate DateTime @default(now())
+  dueDate     DateTime
+
+  subtotal    Float @default(0)
+  taxAmount   Float @default(0)
+  totalAmount Float @default(0)
+
+  paidAmount     Float @default(0)
+  outstandingAmt Float @default(0)
+
+  /// unpaid, partial, paid, disputed, cancelled
+  status String @default("unpaid")
+  notes  String?
+
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+
+  payments SupplierPayment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// One supplier cannot send the same invoice number twice.
+  @@unique([supplierId, invoiceNumber])
+  @@index([status])
+  @@index([dueDate])
+  @@index([companyId])
+}
+
+/// Money paid out against a supplier invoice.
+model SupplierPayment {
+  id String @id @default(cuid())
+
+  supplierInvoiceId String
+  supplierInvoice   SupplierInvoice @relation(fields: [supplierInvoiceId], references: [id], onDelete: Cascade)
+
+  amount    Float
+  method    String   @default("bank_transfer")
+  reference String?
+  paidAt    DateTime @default(now())
+  notes     String?
+
+  createdAt DateTime @default(now())
+
+  @@index([supplierInvoiceId])
 }

@@ -29,6 +29,7 @@ export const ACCOUNTS = {
   accountsReceivable: "1100",
   inventory: "1200",
   accountsPayable: "2000",
+  goodsReceivedNotInvoiced: "2050",
   taxPayable: "2100",
   salesRevenue: "4000",
   costOfGoodsSold: "5000",
@@ -265,11 +266,14 @@ export async function postPaymentReceived(db: DbClient, paymentId: string, poste
 /**
  * Receiving goods against a purchase order.
  *
- *   DR Inventory             cost
- *   CR Accounts Payable      cost
+ *   DR Inventory                        cost
+ *   CR Goods Received Not Invoiced      cost
  *
- * This is the entry whose absence meant receiving stock created an asset with
- * no matching liability, so the books could never balance.
+ * The credit goes to GRNI, not straight to Accounts Payable. The goods are
+ * here and owed for, but the supplier has not billed yet — and when the bill
+ * arrives it clears GRNI into Payables. Crediting Payables at both points
+ * would count the same liability twice, and GRNI is also the number that
+ * answers "what have we received and not been charged for".
  */
 export async function postPurchaseReceipt(
   db: DbClient,
@@ -304,7 +308,7 @@ export async function postPurchaseReceipt(
     postedBy: options?.postedBy,
     lines: [
       { accountCode: ACCOUNTS.inventory, debit: amount },
-      { accountCode: ACCOUNTS.accountsPayable, credit: amount },
+      { accountCode: ACCOUNTS.goodsReceivedNotInvoiced, credit: amount },
     ],
   })
 }
