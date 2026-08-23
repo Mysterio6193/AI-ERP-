@@ -117,7 +117,16 @@ export async function sendCommunicationMessage(input: {
         failureReason = error instanceof Error ? error.message : "Unknown email delivery error"
       }
     } else {
-      console.log(`[COMMUNICATION] SMTP not configured, queued ${input.documentType || "message"} for ${input.to}`)
+      // "queued" was a lie: there is no queue and no retry, so the message was
+      // recorded as pending delivery and would never be sent. Non-email
+      // channels already fail loudly for the same reason — an invoice that
+      // looks sent and reaches nobody is worse than one that visibly failed.
+      status = "failed"
+      failureReason =
+        "No mail transport configured. Set SMTP_HOST, SMTP_USER and SMTP_PASS to send email."
+      console.warn(
+        `[COMMUNICATION] ${failureReason} ${input.documentType || "Message"} for ${input.to} was recorded but not sent.`
+      )
     }
   } else if (deliveryMethod === "telegram") {
     // Telegram could always send — `sendTelegramMessage` has existed the whole
