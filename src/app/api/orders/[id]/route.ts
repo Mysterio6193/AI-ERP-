@@ -5,6 +5,7 @@ import { db } from "@/lib/db"
 import { ensurePickListForOrder } from "@/lib/pick-lists"
 import { ensureDeliveryForOrder } from "@/lib/delivery-routes"
 import { commitStockForOrder, ensureInvoiceForOrder } from "@/lib/order-fulfillment"
+import { recordApproval } from "@/lib/approvals"
 import { resolveLinePrice } from "@/lib/pricing"
 import { releaseReservationsForOrder, reserveStockForOrder } from "@/lib/reservations"
 import { getSettings } from "@/lib/settings/service"
@@ -44,6 +45,12 @@ export async function GET(
         },
         statusLogs: {
           orderBy: { timestamp: "desc" },
+        },
+        // Who signed this off, and what they said. A status log records that
+        // the order changed; this records who decided and why.
+        approvalActions: {
+          orderBy: { createdAt: "desc" },
+          include: { user: { select: { id: true, name: true, role: true } } },
         },
         invoice: true,
       },
@@ -429,6 +436,33 @@ export async function PUT(
         // Was a bare status flip, which left Inventory.reserved holding stock
         // for an order that will never ship.
         await releaseReservationsForOrder(db, id)
+      }
+
+      // Who made the call, from the session rather than the request body —
+      // `userId` above is client-supplied and would be forgeable as an
+      // attribution. ApprovalAction was modelled and never written, so an
+      // order that went out at an unusual discount could be traced to the
+      // moment it changed status and no further.
+      if (status === "approved" && existingOrder.status === "pending_approval") {
+        await recordApproval(db, {
+          entityType: "sales_order",
+          entityId: id,
+          action: "approved",
+          userId: auth.user?.id || "",
+          comments: internalNotes ? String(internalNotes) : null,
+        })
+      }
+
+      if (status === "cancelled" && existingOrder.status === "pending_approval") {
+        // Cancelling something awaiting sign-off is a rejection, and reads as
+        // one on the document.
+        await recordApproval(db, {
+          entityType: "sales_order",
+          entityId: id,
+          action: "rejected",
+          userId: auth.user?.id || "",
+          comments: internalNotes ? String(internalNotes) : null,
+        })
       }
 
       try {
