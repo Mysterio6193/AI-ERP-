@@ -9,12 +9,14 @@ import {
   Bot,
   CircleDollarSign,
   Clock,
+  ExternalLink,
   Loader2,
   Package,
   PhoneOff,
   RefreshCw,
   Sparkles,
   TrendingUp,
+  UserX,
 } from "lucide-react"
 
 import { AgentChat } from "@/components/agent/agent-chat"
@@ -22,9 +24,11 @@ import { AppShell } from "@/components/layout/app-shell"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { KpiCard } from "@/components/ui/kpi-card"
+import { PageHeader } from "@/components/ui/page-header"
 
 /**
- * The dashboard.
+ * The AI Briefing dashboard.
  *
  * Every figure on this page is computed from the database by /api/ai/briefing.
  * The agent panel beside it explains and acts on those figures - it never
@@ -109,179 +113,190 @@ export default function AiDashboardPage() {
       ? ((sales.revenueThisMonth - sales.revenueLastMonthToDate) / sales.revenueLastMonthToDate) * 100
       : null
 
-  const cards = [
-    {
-      label: "Revenue this month",
-      value: money(sales?.revenueThisMonth ?? 0),
-      hint:
-        monthDelta === null
-          ? `${sales?.ordersThisMonth ?? 0} orders`
-          : `${monthDelta >= 0 ? "+" : ""}${monthDelta.toFixed(0)}% vs same point last month`,
-      icon: TrendingUp,
-      trend: monthDelta,
-    },
-    {
-      label: "Overdue receivables",
-      value: money(briefing?.receivables.overdueValue ?? 0),
-      hint: `${briefing?.receivables.overdueCount ?? 0} invoices past due`,
-      icon: CircleDollarSign,
-      trend: null,
-    },
-    {
-      label: "Accounts going quiet",
-      value: String(briefing?.customers.lapsingCount ?? 0),
-      hint: `${money(briefing?.customers.valueAtRisk ?? 0)} / month at risk`,
-      icon: PhoneOff,
-      trend: null,
-    },
-    {
-      label: "Below reorder level",
-      value: String(briefing?.stock.belowReorderCount ?? 0),
-      hint: `${briefing?.stock.outOfStockCount ?? 0} out of stock`,
-      icon: Package,
-      trend: null,
-    },
-  ]
-
   return (
-    <AppShell title="Dashboard">
-      <div className="space-y-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-            <p className="text-sm text-muted-foreground">
-              Live figures from your data, with the agent alongside to explain and act on them.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {briefing ? (
-              <span className="text-xs text-muted-foreground">
-                as at {new Date(briefing.generatedAt).toLocaleTimeString()}
-              </span>
-            ) : null}
-            <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
-              {loading ? (
-                <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <RefreshCw className="mr-2 h-3.5 w-3.5" />
-              )}
-              Refresh
-            </Button>
-          </div>
-        </div>
+    <AppShell title="AI Briefing" breadcrumbs={[{ label: "AI Copilot" }]}>
+      <div className="space-y-6 pb-6">
+        {/* Page Header */}
+        <PageHeader
+          title="Executive Intelligence & Copilot"
+          description="Live computed briefing from real-time operations data, with an AI agent alongside to act on findings."
+          actions={
+            <div className="flex items-center gap-2">
+              {briefing ? (
+                <span className="text-xs text-muted-foreground hidden sm:inline">
+                  Generated {new Date(briefing.generatedAt).toLocaleTimeString()}
+                </span>
+              ) : null}
+              <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
+                {loading ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                )}
+                Refresh
+              </Button>
+            </div>
+          }
+        />
 
+        {/* 4 Core Summary KPI Cards */}
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {cards.map((card) => {
-            const Icon = card.icon
-
-            return (
-              <Card key={card.label}>
-                <CardHeader className="pb-2">
-                  <CardDescription className="flex items-center gap-1.5">
-                    <Icon className="h-3.5 w-3.5" />
-                    {card.label}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-2xl font-semibold">{card.value}</p>
-                  <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                    {card.trend !== null && card.trend !== undefined ? (
-                      card.trend >= 0 ? (
-                        <ArrowUpRight className="h-3 w-3 text-emerald-600" />
-                      ) : (
-                        <ArrowDownRight className="h-3 w-3 text-rose-600" />
-                      )
-                    ) : null}
-                    {card.hint}
-                  </p>
-                </CardContent>
-              </Card>
-            )
-          })}
+          <KpiCard
+            title="Revenue This Month"
+            value={money(sales?.revenueThisMonth ?? 0)}
+            description={
+              monthDelta === null
+                ? `${sales?.ordersThisMonth ?? 0} orders booked`
+                : `${monthDelta >= 0 ? "+" : ""}${monthDelta.toFixed(0)}% vs same point last month`
+            }
+            icon={TrendingUp}
+            change={
+              monthDelta !== null
+                ? {
+                    value: `${monthDelta >= 0 ? "+" : ""}${monthDelta.toFixed(0)}%`,
+                    isPositive: monthDelta >= 0,
+                  }
+                : undefined
+            }
+          />
+          <KpiCard
+            title="Overdue Receivables"
+            value={money(briefing?.receivables.overdueValue ?? 0)}
+            description={`${briefing?.receivables.overdueCount ?? 0} invoices past due terms`}
+            icon={CircleDollarSign}
+          />
+          <KpiCard
+            title="Accounts Going Quiet"
+            value={String(briefing?.customers.lapsingCount ?? 0)}
+            description={`${money(briefing?.customers.valueAtRisk ?? 0)} / mo revenue at risk`}
+            icon={PhoneOff}
+          />
+          <KpiCard
+            title="Below Reorder Level"
+            value={String(briefing?.stock.belowReorderCount ?? 0)}
+            description={`${briefing?.stock.outOfStockCount ?? 0} items completely out of stock`}
+            icon={Package}
+          />
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-[1fr_420px]">
+        {/* Two Column Layout: Briefing Insights vs Agent Assistant */}
+        <div className="grid gap-6 lg:grid-cols-[1fr_440px]">
           <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">What needs attention</CardTitle>
-                <CardDescription>
-                  Ranked across complaints, slipped follow-ups, quiet accounts and money owed.
-                </CardDescription>
+            {/* Attention Focus Card */}
+            <Card className="border-border shadow-sm">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-base font-semibold text-foreground">Action Required</CardTitle>
+                    <CardDescription>
+                      Ranked across customer complaints, overdue receivables, and lapsed accounts.
+                    </CardDescription>
+                  </div>
+                  <Badge variant="outline" className="text-xs">
+                    {briefing?.focus.length || 0} items
+                  </Badge>
+                </div>
               </CardHeader>
-              <CardContent className="space-y-2">
+              <CardContent className="space-y-2.5">
                 {!briefing?.focus.length ? (
-                  <p className="py-6 text-center text-sm text-muted-foreground">
-                    {loading ? "Loading…" : "Nothing outstanding."}
-                  </p>
+                  <div className="py-10 text-center text-sm text-muted-foreground">
+                    {loading ? "Computing priorities…" : "No urgent action items requiring attention."}
+                  </div>
                 ) : (
                   briefing.focus.map((item, index) => (
-                    <div key={index} className="flex items-start gap-3 rounded-lg border p-3">
-                      <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <div
+                      key={index}
+                      className="flex items-start gap-3 rounded-xl border border-border/70 bg-card p-3.5 shadow-xs transition-all hover:bg-muted/30"
+                    >
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        <Clock className="h-4 w-4" />
+                      </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium">{item.title}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {item.customer ? `${item.customer} · ` : ""}
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-sm font-semibold text-foreground">{item.title}</p>
+                          {item.customer && (
+                            <Badge variant="outline" className="text-[10px] font-medium shrink-0">
+                              {item.customer}
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
                           {item.detail}
                         </p>
                       </div>
                     </div>
                   ))
                 )}
-                <Link href="/crm" className="block pt-1 text-xs text-muted-foreground underline">
-                  Open the CRM to act on these
-                </Link>
+                <div className="pt-2 flex justify-end">
+                  <Link
+                    href="/crm"
+                    className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                  >
+                    Open CRM to take action
+                    <ExternalLink className="h-3 w-3" />
+                  </Link>
+                </div>
               </CardContent>
             </Card>
 
+            {/* Debtors and Inactive Accounts Row */}
             <div className="grid gap-4 md:grid-cols-2">
-              <Card>
+              {/* Worst Debtors */}
+              <Card className="border-border shadow-sm">
                 <CardHeader className="pb-3">
-                  <CardTitle className="flex items-center gap-2 text-sm">
-                    <AlertTriangle className="h-3.5 w-3.5 text-rose-600" />
-                    Worst debtors
+                  <CardTitle className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                    <AlertTriangle className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+                    Worst Debtors
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   {!briefing?.receivables.worst.length ? (
-                    <p className="text-xs text-muted-foreground">Nothing overdue.</p>
+                    <p className="text-xs text-muted-foreground py-4 text-center">No overdue invoices.</p>
                   ) : (
                     briefing.receivables.worst.map((invoice) => (
                       <div
                         key={invoice.invoiceNumber}
-                        className="flex items-center justify-between gap-2 text-xs"
+                        className="flex items-center justify-between gap-2 rounded-lg border border-border/50 bg-muted/20 p-2.5 text-xs transition-all hover:bg-muted/40"
                       >
-                        <span className="min-w-0 truncate">
-                          {invoice.customer}
-                          <span className="text-muted-foreground"> · {invoice.daysOverdue}d</span>
-                        </span>
-                        <span className="shrink-0 font-medium">{money(invoice.outstanding)}</span>
+                        <div className="min-w-0 truncate">
+                          <p className="font-medium text-foreground truncate">{invoice.customer || "Unknown Customer"}</p>
+                          <p className="text-[11px] text-muted-foreground">{invoice.invoiceNumber} • {invoice.daysOverdue} days overdue</p>
+                        </div>
+                        <span className="shrink-0 font-bold text-rose-600 dark:text-rose-400">{money(invoice.outstanding)}</span>
                       </div>
                     ))
                   )}
                 </CardContent>
               </Card>
 
-              <Card>
+              {/* Lapsing Accounts */}
+              <Card className="border-border shadow-sm">
                 <CardHeader className="pb-3">
-                  <CardTitle className="flex items-center gap-2 text-sm">
-                    <PhoneOff className="h-3.5 w-3.5 text-orange-600" />
-                    Going quiet
+                  <CardTitle className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                    <UserX className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                    Going Quiet
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   {!briefing?.customers.lapsing.length ? (
-                    <p className="text-xs text-muted-foreground">
-                      Every account is ordering to its usual pattern.
+                    <p className="text-xs text-muted-foreground py-4 text-center">
+                      All active accounts ordering on normal cadence.
                     </p>
                   ) : (
                     briefing.customers.lapsing.map((account) => (
-                      <div key={account.customer} className="text-xs">
-                        <span className="font-medium">{account.customer}</span>
-                        <span className="text-muted-foreground">
-                          {" "}
-                          · usually every {account.usualGapDays}d, silent {account.daysSinceLastOrder}d
-                        </span>
+                      <div
+                        key={account.customer}
+                        className="rounded-lg border border-border/50 bg-muted/20 p-2.5 text-xs transition-all hover:bg-muted/40"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-foreground">{account.customer}</span>
+                          <Badge variant="outline" className="text-[10px] text-amber-600 dark:text-amber-400 border-amber-500/20 bg-amber-500/10">
+                            {account.daysSinceLastOrder}d silent
+                          </Badge>
+                        </div>
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          Cadence was every {account.usualGapDays} days
+                        </p>
                       </div>
                     ))
                   )}
@@ -289,27 +304,43 @@ export default function AiDashboardPage() {
               </Card>
             </div>
 
+            {/* Agent Automation History */}
             {briefing?.agent.recentRuns.length ? (
-              <Card>
+              <Card className="border-border shadow-sm">
                 <CardHeader className="pb-3">
-                  <CardTitle className="flex items-center gap-2 text-sm">
-                    <Bot className="h-3.5 w-3.5" />
-                    Recent agent activity
+                  <CardTitle className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                    <Bot className="h-4 w-4 text-primary" />
+                    Recent Agent Automations & Runs
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-1.5">
+                <CardContent className="space-y-2">
                   {briefing.agent.recentRuns.map((run) => (
-                    <div key={run.id} className="flex items-center gap-2 text-xs">
-                      <Badge
-                        variant={run.status === "succeeded" ? "secondary" : "outline"}
-                        className="text-[10px]"
-                      >
-                        {run.status}
-                      </Badge>
-                      <span className="text-muted-foreground">
-                        {run.persona} · {run.trigger}
-                        {run.channel ? ` · ${run.channel}` : ""} ·{" "}
-                        {new Date(run.startedAt).toLocaleString()}
+                    <div
+                      key={run.id}
+                      className="flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-muted/20 p-2.5 text-xs"
+                    >
+                      <div className="flex items-center gap-2 min-w-0 truncate">
+                        <Badge
+                          variant="outline"
+                          className={
+                            run.status === "succeeded"
+                              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 text-[10px]"
+                              : "text-[10px]"
+                          }
+                        >
+                          {run.status}
+                        </Badge>
+                        <span className="font-medium text-foreground truncate">
+                          {run.persona}: {run.trigger}
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-muted-foreground shrink-0">
+                        {new Date(run.startedAt).toLocaleString("en-AU", {
+                          month: "short",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
                       </span>
                     </div>
                   ))}
@@ -318,25 +349,26 @@ export default function AiDashboardPage() {
             ) : null}
           </div>
 
-          <Card className="flex h-[640px] flex-col">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Sparkles className="h-4 w-4" />
-                Ask about any of this
+          {/* Right Column: AI Operations Agent Chat */}
+          <Card className="flex h-[720px] flex-col border-border shadow-sm">
+            <CardHeader className="p-4 pb-3 border-b border-border">
+              <CardTitle className="flex items-center gap-2 text-base font-semibold text-foreground">
+                <Sparkles className="h-4 w-4 text-primary" />
+                Ask SupplySure Copilot
               </CardTitle>
               <CardDescription>
-                The agent reads the same data and can act on it.
+                The agent has direct access to live operational context and can execute workflows.
               </CardDescription>
             </CardHeader>
-            <CardContent className="min-h-0 flex-1">
+            <CardContent className="min-h-0 flex-1 p-4">
               <AgentChat
                 compact
                 threadKey="dashboard"
                 suggestions={[
-                  "Brief me on today",
-                  "Who should I chase first and what do I say?",
-                  "What should I reorder this week?",
-                  "Draft a win-back for the quietest account",
+                  "Brief me on today's operations",
+                  "Who should I chase for receivables and what do I say?",
+                  "What products need reordering immediately?",
+                  "Draft a re-engagement email for lapsing customers",
                 ]}
                 pageContext="the user is looking at the dashboard, which already shows revenue, overdue receivables, lapsing accounts and stock levels"
               />

@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import type { LucideIcon } from "lucide-react"
 import {
   AlertTriangle,
   ArrowDownRight,
@@ -42,6 +41,8 @@ import { COMMERCE_CHANNEL_COLORS, COMMERCE_CHANNEL_LABELS, isCustomerChannel, no
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { KpiCard } from "@/components/ui/kpi-card"
+import { PageHeader } from "@/components/ui/page-header"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatCurrency, formatCurrencyShort, formatDate } from "@/lib/types"
@@ -268,38 +269,38 @@ const STATUS_LABELS: Record<string, string> = {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  draft: "bg-gray-100 text-gray-700",
-  pending_approval: "bg-amber-100 text-amber-700",
-  approved: "bg-blue-100 text-blue-700",
-  picking: "bg-orange-100 text-orange-700",
-  packed: "bg-violet-100 text-violet-700",
-  dispatched: "bg-indigo-100 text-indigo-700",
-  delivered: "bg-emerald-100 text-emerald-700",
-  invoiced: "bg-teal-100 text-teal-700",
-  cancelled: "bg-red-100 text-red-700",
+  draft: "bg-muted text-muted-foreground border-border",
+  pending_approval: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+  approved: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
+  picking: "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20",
+  packed: "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20",
+  dispatched: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20",
+  delivered: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+  invoiced: "bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20",
+  cancelled: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20",
 }
 
 const ROUTE_STATUS_COLORS: Record<string, string> = {
-  planned: "bg-slate-100 text-slate-700",
-  in_progress: "bg-blue-100 text-blue-700",
-  completed: "bg-emerald-100 text-emerald-700",
-  cancelled: "bg-red-100 text-red-700",
+  planned: "bg-muted text-muted-foreground border-border",
+  in_progress: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
+  completed: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+  cancelled: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20",
 }
 
 const PICK_STATUS_COLORS: Record<string, string> = {
-  pending: "bg-amber-100 text-amber-700",
-  in_progress: "bg-blue-100 text-blue-700",
-  completed: "bg-emerald-100 text-emerald-700",
-  cancelled: "bg-red-100 text-red-700",
+  pending: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+  in_progress: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
+  completed: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+  cancelled: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20",
 }
 
 const CHART_COLORS = {
-  emerald: "#059669",
-  blue: "#2563eb",
-  amber: "#d97706",
-  violet: "#7c3aed",
+  emerald: "#10b981",
+  blue: "#3b82f6",
+  amber: "#f59e0b",
+  violet: "#8b5cf6",
   slate: "#64748b",
-  red: "#dc2626",
+  red: "#ef4444",
 }
 
 const EMPTY_DASHBOARD: DashboardData = {
@@ -358,53 +359,6 @@ function formatShortTime(date: Date | null) {
     hour: "numeric",
     minute: "2-digit",
   })
-}
-
-function MetricCard({
-  title,
-  value,
-  hint,
-  icon: Icon,
-  iconClassName,
-  change,
-}: {
-  title: string
-  value: string
-  hint: string
-  icon: LucideIcon
-  iconClassName: string
-  change?: number
-}) {
-  const isPositive = (change || 0) >= 0
-  const TrendIcon = isPositive ? ArrowUpRight : ArrowDownRight
-  const changeTone = isPositive ? "text-[#0071e3]" : "text-rose-600"
-  const changeLabel =
-    typeof change === "number"
-      ? `${change > 0 ? "+" : ""}${change.toFixed(1)}%`
-      : null
-
-  return (
-    <Card className="apple-kpi">
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className={`rounded-2xl p-3 ${iconClassName}`}>
-            <Icon className="h-5 w-5" />
-          </div>
-          {changeLabel ? (
-            <div className={`inline-flex items-center gap-1 text-xs font-medium ${changeTone}`}>
-              <TrendIcon className="h-3.5 w-3.5" />
-              <span>{changeLabel}</span>
-            </div>
-          ) : null}
-        </div>
-        <div className="mt-4 space-y-1">
-          <p className="text-2xl font-semibold tracking-[-0.03em] text-slate-900">{value}</p>
-          <p className="text-sm font-medium tracking-[-0.014em] text-slate-700">{title}</p>
-          <p className="text-xs text-muted-foreground">{hint}</p>
-        </div>
-      </CardContent>
-    </Card>
-  )
 }
 
 async function fetchCollection<T>(path: string) {
@@ -547,7 +501,7 @@ function buildDashboardData({
   const fulfillmentStages = [
     { key: "approved", label: "Approved", color: "bg-blue-500" },
     { key: "picking", label: "Picking", color: "bg-orange-500" },
-    { key: "packed", label: "Packed", color: "bg-violet-500" },
+    { key: "packed", label: "Packed", color: "bg-purple-500" },
     { key: "dispatched", label: "Dispatched", color: "bg-indigo-500" },
     { key: "delivered", label: "Delivered", color: "bg-emerald-500" },
     { key: "invoiced", label: "Invoiced", color: "bg-teal-500" },
@@ -747,269 +701,303 @@ export default function DashboardPage() {
 
   return (
     <AppShell title="Dashboard">
-      <div className="apple-admin-page pb-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="apple-hero flex-1 space-y-5">
+      <div className="space-y-6 pb-6">
+        {/* Page Header */}
+        <PageHeader
+          title="Operations Command Center"
+          description="Orders, warehouse, delivery, and receivables in real-time."
+          actions={
             <div className="flex flex-wrap items-center gap-2">
-              <Badge className="border-white/14 bg-white/8 text-white">
-                Live Operations
-              </Badge>
-              <Badge className="border-white/14 bg-white/8 text-white/82">
-                Auto refresh every 30s
-              </Badge>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void refreshDashboard()}
+                disabled={refreshing || loading}
+              >
+                {refreshing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                Refresh
+              </Button>
+              <Link href="/orders?action=new">
+                <Button size="sm">
+                  <Plus className="mr-2 h-4 w-4" />
+                  New order
+                </Button>
+              </Link>
+              <Link href="/customers?action=new">
+                <Button variant="outline" size="sm">
+                  <Users className="mr-2 h-4 w-4" />
+                  Add customer
+                </Button>
+              </Link>
+              <Link href="/invoices">
+                <Button variant="outline" size="sm">
+                  <FileText className="mr-2 h-4 w-4" />
+                  Invoices
+                </Button>
+              </Link>
             </div>
-            <div>
-              <h1 className="text-[36px] font-semibold tracking-[-0.04em] text-white md:text-[52px]">Operations command center</h1>
-              <p className="max-w-2xl text-[17px] text-white/70">
-                Orders, warehouse, delivery, and receivables in one React dashboard.
-              </p>
-            </div>
-            <p className="text-xs uppercase tracking-[0.08em] text-white/46">
-              {loading && !lastUpdatedAt ? "Loading live metrics..." : `Last synced at ${formatShortTime(lastUpdatedAt)}`}
-            </p>
+          }
+        >
+          <div className="flex items-center gap-2 text-xs text-muted-foreground pt-1">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 font-medium text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              Live Operations
+            </span>
+            <span>•</span>
+            <span>Auto-refreshing 30s</span>
+            <span>•</span>
+            <span>{loading && !lastUpdatedAt ? "Syncing metrics..." : `Last synced ${formatShortTime(lastUpdatedAt)}`}</span>
           </div>
-
-          <div className="flex flex-wrap gap-3">
-            <Button
-              variant="outline"
-              onClick={() => void refreshDashboard()}
-              disabled={refreshing || loading}
-            >
-              {refreshing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-              Refresh
-            </Button>
-            <Link href="/orders?action=new">
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                New order
-              </Button>
-            </Link>
-            <Link href="/customers?action=new">
-              <Button variant="outline">
-                <Users className="mr-2 h-4 w-4" />
-                Add customer
-              </Button>
-            </Link>
-            <Link href="/invoices">
-              <Button variant="outline">
-                <FileText className="mr-2 h-4 w-4" />
-                Invoices
-              </Button>
-            </Link>
-          </div>
-        </div>
+        </PageHeader>
 
         {error ? (
-          <Card className="border-red-200 bg-red-50">
-            <CardContent className="flex items-center gap-2 p-4 text-sm text-red-700">
+          <Card className="border-rose-500/30 bg-rose-500/5">
+            <CardContent className="flex items-center gap-2 p-4 text-sm text-rose-600 dark:text-rose-400">
               <XCircle className="h-4 w-4" />
               <span>{error}</span>
             </CardContent>
           </Card>
         ) : null}
 
-        <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
-          <Card>
+        {/* Pulse Highlights */}
+        <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
+          <Card className="border-border shadow-sm">
             <CardHeader className="pb-4">
-              <CardTitle className="text-lg">Revenue pulse</CardTitle>
-              <CardDescription>Live demand and cash movement across the last 7 days.</CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-base font-semibold text-foreground">Revenue Pulse</CardTitle>
+                  <CardDescription>Live demand and cash movement across the last 7 days.</CardDescription>
+                </div>
+                <Badge variant="outline" className="text-xs">
+                  7-Day Trend
+                </Badge>
+              </div>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid gap-4 md:grid-cols-3">
-                <div className="rounded-[1.5rem] bg-[#f5f5f7] p-4">
-                  <p className="text-sm font-medium text-slate-700">Today&apos;s sales</p>
-                  <p className="mt-2 text-3xl font-semibold tracking-[-0.03em] text-slate-950">{formatCurrencyShort(data.todaySales)}</p>
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    {data.todayOrders} live order{data.todayOrders === 1 ? "" : "s"} booked today
-                  </p>
+                <div className="rounded-xl border border-border/60 bg-muted/30 p-4 transition-all hover:bg-muted/50">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Today&apos;s Sales</p>
+                  <p className="mt-2 text-2xl font-bold tracking-tight text-foreground">{formatCurrencyShort(data.todaySales)}</p>
+                  <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span className={salesDelta >= 0 ? "font-medium text-emerald-600 dark:text-emerald-400" : "font-medium text-rose-600 dark:text-rose-400"}>
+                      {salesDelta >= 0 ? "+" : ""}{salesDelta.toFixed(1)}%
+                    </span>
+                    <span>vs yesterday</span>
+                  </div>
                 </div>
-                <div className="rounded-[1.5rem] bg-[#f5f5f7] p-4">
-                  <p className="text-sm font-medium text-slate-700">7 day sales</p>
-                  <p className="mt-2 text-3xl font-semibold tracking-[-0.03em] text-slate-950">{formatCurrencyShort(data.weekSales)}</p>
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    {weeklyDelta >= 0 ? "Ahead of" : "Behind"} previous 7 day window
-                  </p>
+                <div className="rounded-xl border border-border/60 bg-muted/30 p-4 transition-all hover:bg-muted/50">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">7 Day Sales</p>
+                  <p className="mt-2 text-2xl font-bold tracking-tight text-foreground">{formatCurrencyShort(data.weekSales)}</p>
+                  <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span className={weeklyDelta >= 0 ? "font-medium text-emerald-600 dark:text-emerald-400" : "font-medium text-rose-600 dark:text-rose-400"}>
+                      {weeklyDelta >= 0 ? "+" : ""}{weeklyDelta.toFixed(1)}%
+                    </span>
+                    <span>vs prev week</span>
+                  </div>
                 </div>
-                <div className="rounded-[1.5rem] bg-[#f5f5f7] p-4">
-                  <p className="text-sm font-medium text-slate-700">Outstanding AR</p>
-                  <p className="mt-2 text-3xl font-semibold tracking-[-0.03em] text-slate-950">{formatCurrencyShort(data.outstandingReceivables)}</p>
+                <div className="rounded-xl border border-border/60 bg-muted/30 p-4 transition-all hover:bg-muted/50">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Outstanding AR</p>
+                  <p className="mt-2 text-2xl font-bold tracking-tight text-foreground">{formatCurrencyShort(data.outstandingReceivables)}</p>
                   <p className="mt-2 text-xs text-muted-foreground">
-                    {data.overdueInvoices} overdue invoice{data.overdueInvoices === 1 ? "" : "s"}
+                    <span className="font-medium text-rose-600 dark:text-rose-400">{data.overdueInvoices} overdue</span> invoice{data.overdueInvoices === 1 ? "" : "s"}
                   </p>
                 </div>
               </div>
 
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                {data.fulfillmentStages.map((stage) => (
-                  <div key={stage.key} className="rounded-[1.25rem] bg-[#f5f5f7] p-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-medium text-slate-700">{stage.label}</p>
-                      <span className="text-lg font-semibold text-slate-900">{stage.value}</span>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">Fulfillment Pipeline Distribution</span>
+                  <span>{data.openOrders} Active Orders</span>
+                </div>
+                <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
+                  {data.fulfillmentStages.map((stage) => (
+                    <div key={stage.key} className="rounded-lg border border-border/60 bg-muted/20 p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs font-medium text-muted-foreground">{stage.label}</p>
+                        <span className="text-sm font-bold text-foreground">{stage.value}</span>
+                      </div>
+                      <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-muted">
+                        <div
+                          className={`h-full rounded-full ${stage.color}`}
+                          style={{
+                            width: `${Math.min(
+                              100,
+                              data.openOrders > 0 ? (stage.value / Math.max(data.openOrders, 1)) * 100 : 0
+                            )}%`,
+                          }}
+                        />
+                      </div>
                     </div>
-                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
-                      <div
-                        className="h-full rounded-full bg-primary"
-                        style={{
-                          width: `${Math.min(
-                            100,
-                            data.openOrders > 0 ? (stage.value / Math.max(data.openOrders, 1)) * 100 : 0
-                          )}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-border shadow-sm">
             <CardHeader className="pb-4">
-              <CardTitle className="text-lg">Fulfilment pulse</CardTitle>
-              <CardDescription>What needs action across picking, dispatch, and delivery.</CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-base font-semibold text-foreground">Fulfilment Pulse</CardTitle>
+                  <CardDescription>Picking, dispatch, and delivery queue.</CardDescription>
+                </div>
+                <Truck className="h-4 w-4 text-primary" />
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="rounded-[1.5rem] bg-[#f5f5f7] p-4">
+              <div className="rounded-xl border border-border/60 bg-muted/30 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-sm font-medium text-slate-700">Delivery progress</p>
-                    <p className="mt-1 text-2xl font-semibold tracking-[-0.03em] text-slate-950">{routeCompletion.toFixed(0)}%</p>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Delivery Completion</p>
+                    <p className="mt-1 text-2xl font-bold tracking-tight text-foreground">{routeCompletion.toFixed(0)}%</p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {data.deliveredToday} delivered today, {data.remainingStops} stops still open
+                      {data.deliveredToday} delivered today • {data.remainingStops} open stops
                     </p>
                   </div>
-                  <Truck className="h-5 w-5 text-primary" />
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <Truck className="h-5 w-5" />
+                  </div>
                 </div>
-                <Progress value={routeCompletion} className="mt-4 h-2.5" />
+                <Progress value={routeCompletion} className="mt-4 h-2" />
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-[1.25rem] bg-[#f5f5f7] p-4">
+                <div className="rounded-xl border border-border/60 bg-muted/20 p-3.5">
                   <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium text-slate-700">Pick queue</p>
-                    <Warehouse className="h-4 w-4 text-primary" />
+                    <p className="text-xs font-semibold text-muted-foreground">Pick Queue</p>
+                    <Warehouse className="h-4 w-4 text-muted-foreground" />
                   </div>
-                  <p className="mt-2 text-2xl font-semibold text-slate-900">{data.pickQueue + data.picksInProgress}</p>
+                  <p className="mt-2 text-xl font-bold text-foreground">{data.pickQueue + data.picksInProgress}</p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {data.pickQueue} waiting, {data.picksInProgress} in progress
+                    {data.pickQueue} waiting • {data.picksInProgress} in progress
                   </p>
                 </div>
-                <div className="rounded-[1.25rem] bg-[#f5f5f7] p-4">
+                <div className="rounded-xl border border-border/60 bg-muted/20 p-3.5">
                   <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium text-slate-700">Live routes</p>
-                    <Truck className="h-4 w-4 text-primary" />
+                    <p className="text-xs font-semibold text-muted-foreground">Live Routes</p>
+                    <Truck className="h-4 w-4 text-muted-foreground" />
                   </div>
-                  <p className="mt-2 text-2xl font-semibold text-slate-900">{data.routesInProgress}</p>
+                  <p className="mt-2 text-xl font-bold text-foreground">{data.routesInProgress}</p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {data.remainingStops} open stop{data.remainingStops === 1 ? "" : "s"}
+                    {data.remainingStops} stop{data.remainingStops === 1 ? "" : "s"} left to service
                   </p>
                 </div>
-                <div className="rounded-[1.25rem] bg-[#f5f5f7] p-4">
+                <div className="rounded-xl border border-border/60 bg-muted/20 p-3.5">
                   <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium text-slate-700">Pending approvals</p>
-                    <Clock className="h-4 w-4 text-primary" />
+                    <p className="text-xs font-semibold text-muted-foreground">Pending Approvals</p>
+                    <Clock className="h-4 w-4 text-muted-foreground" />
                   </div>
-                  <p className="mt-2 text-2xl font-semibold text-slate-900">{data.pendingApprovals}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Orders awaiting release to fulfilment</p>
+                  <p className="mt-2 text-xl font-bold text-foreground">{data.pendingApprovals}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Awaiting release to warehouse</p>
                 </div>
-                <div className="rounded-[1.25rem] bg-[#f5f5f7] p-4">
+                <div className="rounded-xl border border-border/60 bg-muted/20 p-3.5">
                   <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium text-slate-700">COD still due</p>
-                    <DollarSign className="h-4 w-4 text-primary" />
+                    <p className="text-xs font-semibold text-muted-foreground">COD Outstanding</p>
+                    <DollarSign className="h-4 w-4 text-muted-foreground" />
                   </div>
-                  <p className="mt-2 text-2xl font-semibold text-slate-900">{formatCurrencyShort(data.outstandingCod)}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Outstanding collection across routes</p>
+                  <p className="mt-2 text-xl font-bold text-foreground">{formatCurrencyShort(data.outstandingCod)}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Driver collections in field</p>
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-7">
-          <MetricCard
+        {/* 7 KPI Cards Grid */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+          <KpiCard
             title="Sales Today"
             value={formatCurrencyShort(data.todaySales)}
-            hint={`${data.todayOrders} orders booked today`}
+            description={`${data.todayOrders} orders booked today`}
             icon={DollarSign}
-            iconClassName="bg-[#eaf3ff] text-[#0071e3]"
-            change={salesDelta}
+            change={
+              typeof salesDelta === "number"
+                ? {
+                    value: `${salesDelta > 0 ? "+" : ""}${salesDelta.toFixed(1)}%`,
+                    isPositive: salesDelta >= 0,
+                  }
+                : undefined
+            }
           />
-          <MetricCard
+          <KpiCard
             title="Open Orders"
             value={String(data.openOrders)}
-            hint={`${data.totalOrders} total in pipeline`}
+            description={`${data.totalOrders} total in pipeline`}
             icon={ShoppingCart}
-            iconClassName="bg-[#f5f5f7] text-slate-900"
           />
-          <MetricCard
+          <KpiCard
             title="Outstanding AR"
             value={formatCurrencyShort(data.outstandingReceivables)}
-            hint={`${data.overdueInvoices} overdue invoices need follow-up`}
+            description={`${data.overdueInvoices} overdue invoices`}
             icon={BarChart3}
-            iconClassName="bg-[#f5f5f7] text-slate-900"
           />
-          <MetricCard
+          <KpiCard
             title="Low Stock"
             value={String(data.lowStockItems)}
-            hint={`${data.lowStockUnitsShort} units below reorder point`}
+            description={`${data.lowStockUnitsShort} units below reorder`}
             icon={AlertTriangle}
-            iconClassName="bg-[#f5f5f7] text-slate-900"
           />
-          <MetricCard
+          <KpiCard
             title="Active Customers"
             value={String(data.activeCustomers)}
-            hint="Accounts trading on the platform"
+            description="Trading accounts"
             icon={Users}
-            iconClassName="bg-[#f5f5f7] text-slate-900"
           />
-          <MetricCard
+          <KpiCard
             title="Commerce Orders"
             value={String(data.commerceOrders)}
-            hint={`${data.websiteOrders} web • ${data.appOrders} app`}
-            icon={ShoppingCart}
-            iconClassName="bg-[#eaf3ff] text-[#0071e3]"
+            description={`${data.websiteOrders} web • ${data.appOrders} app`}
+            icon={Package}
           />
-          <MetricCard
+          <KpiCard
             title="Delivered Today"
             value={String(data.deliveredToday)}
-            hint={`${data.routesInProgress} route${data.routesInProgress === 1 ? "" : "s"} currently live`}
+            description={`${data.routesInProgress} route${data.routesInProgress === 1 ? "" : "s"} live`}
             icon={CheckCircle}
-            iconClassName="bg-[#f5f5f7] text-slate-900"
           />
         </div>
 
+        {/* Charts & Pipeline Tabs */}
         <Tabs defaultValue="revenue" className="space-y-4">
-          <TabsList className="grid w-full max-w-md grid-cols-2">
-            <TabsTrigger value="revenue">Revenue View</TabsTrigger>
-            <TabsTrigger value="operations">Operations View</TabsTrigger>
-          </TabsList>
+          <div className="flex items-center justify-between">
+            <TabsList>
+              <TabsTrigger value="revenue">Revenue & Accounts</TabsTrigger>
+              <TabsTrigger value="operations">Operations & Dispatch</TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="revenue" className="space-y-0">
             <div className="grid gap-6 lg:grid-cols-2">
-              <Card className="border-slate-200 shadow-sm">
+              <Card className="border-border shadow-sm">
                 <CardHeader>
-                  <CardTitle className="text-base">Sales trend</CardTitle>
-                  <CardDescription>Daily sales and order intake over the last 7 days.</CardDescription>
+                  <CardTitle className="text-base font-semibold text-foreground">Sales Trend (Last 7 Days)</CardTitle>
+                  <CardDescription>Daily sales and order intake volume.</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="h-[300px]">
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={data.salesTrend}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                        <XAxis dataKey="date" stroke="#64748b" fontSize={12} />
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                        <XAxis dataKey="date" className="text-xs text-muted-foreground" stroke="currentColor" />
                         <YAxis
                           yAxisId="sales"
-                          stroke="#64748b"
-                          fontSize={12}
+                          className="text-xs text-muted-foreground"
+                          stroke="currentColor"
                           tickFormatter={(value) => formatCurrencyShort(Number(value))}
                         />
-                        <YAxis yAxisId="orders" orientation="right" stroke="#94a3b8" fontSize={12} />
+                        <YAxis yAxisId="orders" orientation="right" className="text-xs text-muted-foreground" stroke="currentColor" />
                         <Tooltip
                           formatter={(value: number, name: string) => {
                             if (name === "sales") return [formatCurrency(value), "Sales"]
                             return [value, "Orders"]
                           }}
-                          contentStyle={{ borderRadius: "12px", border: "1px solid #e2e8f0" }}
+                          contentStyle={{
+                            backgroundColor: "hsl(var(--card))",
+                            borderColor: "hsl(var(--border))",
+                            borderRadius: "8px",
+                            color: "hsl(var(--card-foreground))",
+                            boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+                          }}
                         />
                         <Line
                           yAxisId="sales"
@@ -1033,28 +1021,28 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
 
-              <Card className="border-slate-200 shadow-sm">
+              <Card className="border-border shadow-sm">
                 <CardHeader>
-                  <CardTitle className="text-base">Top customers by revenue</CardTitle>
-                  <CardDescription>Most valuable trading accounts in the current data set.</CardDescription>
+                  <CardTitle className="text-base font-semibold text-foreground">Top Customers by Revenue</CardTitle>
+                  <CardDescription>Highest volume trading accounts in active period.</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="h-[300px]">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={data.topCustomers} layout="vertical" margin={{ left: 12 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                         <XAxis
                           type="number"
-                          stroke="#64748b"
-                          fontSize={12}
+                          className="text-xs text-muted-foreground"
+                          stroke="currentColor"
                           tickFormatter={(value) => formatCurrencyShort(Number(value))}
                         />
                         <YAxis
                           type="category"
                           dataKey="name"
                           width={120}
-                          stroke="#64748b"
-                          fontSize={11}
+                          className="text-xs text-muted-foreground"
+                          stroke="currentColor"
                           tickFormatter={(value) => String(value).slice(0, 16)}
                         />
                         <Tooltip
@@ -1062,9 +1050,15 @@ export default function DashboardPage() {
                             if (name === "revenue") return [formatCurrency(value), "Revenue"]
                             return [value, "Orders"]
                           }}
-                          contentStyle={{ borderRadius: "12px", border: "1px solid #e2e8f0" }}
+                          contentStyle={{
+                            backgroundColor: "hsl(var(--card))",
+                            borderColor: "hsl(var(--border))",
+                            borderRadius: "8px",
+                            color: "hsl(var(--card-foreground))",
+                            boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+                          }}
                         />
-                        <Bar dataKey="revenue" fill={CHART_COLORS.blue} radius={[0, 8, 8, 0]} />
+                        <Bar dataKey="revenue" fill={CHART_COLORS.blue} radius={[0, 6, 6, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -1075,13 +1069,13 @@ export default function DashboardPage() {
 
           <TabsContent value="operations" className="space-y-0">
             <div className="grid gap-6 lg:grid-cols-[1fr_1.1fr]">
-              <Card className="border-slate-200 shadow-sm">
+              <Card className="border-border shadow-sm">
                 <CardHeader>
-                  <CardTitle className="text-base">Order pipeline</CardTitle>
-                  <CardDescription>Distribution of order statuses across the workflow.</CardDescription>
+                  <CardTitle className="text-base font-semibold text-foreground">Order Status Pipeline</CardTitle>
+                  <CardDescription>Distribution of order statuses across workflow stages.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-[260px]">
+                  <div className="h-[240px]">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
@@ -1090,8 +1084,8 @@ export default function DashboardPage() {
                           nameKey="status"
                           cx="50%"
                           cy="50%"
-                          innerRadius={62}
-                          outerRadius={95}
+                          innerRadius={58}
+                          outerRadius={88}
                           paddingAngle={2}
                         >
                           {data.orderStatusDistribution.map((entry) => (
@@ -1113,7 +1107,15 @@ export default function DashboardPage() {
                             />
                           ))}
                         </Pie>
-                        <Tooltip formatter={(value: number) => [value, "Orders"]} />
+                        <Tooltip
+                          formatter={(value: number) => [value, "Orders"]}
+                          contentStyle={{
+                            backgroundColor: "hsl(var(--card))",
+                            borderColor: "hsl(var(--border))",
+                            borderRadius: "8px",
+                            color: "hsl(var(--card-foreground))",
+                          }}
+                        />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
@@ -1121,7 +1123,7 @@ export default function DashboardPage() {
                     {data.orderStatusDistribution.map((item) => (
                       <Badge
                         key={item.status}
-                        variant="secondary"
+                        variant="outline"
                         className={STATUS_COLORS[item.status] || STATUS_COLORS.draft}
                       >
                         {(STATUS_LABELS[item.status] || item.status).replace("_", " ")}: {item.count}
@@ -1131,57 +1133,66 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
 
-              <Card className="border-slate-200 shadow-sm">
-                <CardHeader className="flex flex-row items-center justify-between">
+              <Card className="border-border shadow-sm">
+                <CardHeader className="flex flex-row items-center justify-between pb-3">
                   <div>
-                    <CardTitle className="text-base">Live activity</CardTitle>
-                    <CardDescription>Latest delivery events and open collections work.</CardDescription>
+                    <CardTitle className="text-base font-semibold text-foreground">Live Delivery & AR Activity</CardTitle>
+                    <CardDescription>Latest delivery updates and pending collections.</CardDescription>
                   </div>
                   <Link href="/routes">
-                    <Button variant="ghost" size="sm" className="text-emerald-700">
+                    <Button variant="ghost" size="sm" className="text-primary hover:text-primary">
                       View routes
                     </Button>
                   </Link>
                 </CardHeader>
-                <CardContent className="grid gap-6 lg:grid-cols-2">
-                  <div className="space-y-3">
+                <CardContent className="grid gap-4 lg:grid-cols-2">
+                  <div className="space-y-2.5">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Route Activity</p>
                     {data.activityFeed.length === 0 ? (
-                      <div className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-muted-foreground">
+                      <div className="rounded-xl border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
                         No route activity yet.
                       </div>
                     ) : (
                       data.activityFeed.map((activity) => (
-                        <div key={activity.id} className="rounded-xl border border-slate-200 p-3">
-                          <div className="flex items-center justify-between gap-3">
-                            <p className="text-sm font-medium text-slate-800">{activity.label}</p>
-                            <Badge variant="outline">{activity.routeNumber}</Badge>
+                        <div key={activity.id} className="rounded-lg border border-border/60 bg-muted/20 p-2.5 transition-all hover:bg-muted/40">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-xs font-medium text-foreground">{activity.label}</p>
+                            <Badge variant="outline" className="text-[10px]">{activity.routeNumber}</Badge>
                           </div>
-                          <p className="mt-1 text-xs text-muted-foreground">{formatDate(activity.at)}</p>
+                          <p className="mt-1 text-[11px] text-muted-foreground">{formatDate(activity.at)}</p>
                         </div>
                       ))
                     )}
                   </div>
 
-                  <div className="space-y-3">
+                  <div className="space-y-2.5">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Receivables Due</p>
                     {data.openInvoices.length === 0 ? (
-                      <div className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-muted-foreground">
+                      <div className="rounded-xl border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
                         No open receivables right now.
                       </div>
                     ) : (
                       data.openInvoices.map((invoice) => (
-                        <div key={invoice.id} className="rounded-xl border border-slate-200 p-3">
-                          <div className="flex items-center justify-between gap-3">
+                        <div key={invoice.id} className="rounded-lg border border-border/60 bg-muted/20 p-2.5 transition-all hover:bg-muted/40">
+                          <div className="flex items-center justify-between gap-2">
                             <div>
-                              <p className="text-sm font-medium text-slate-800">{invoice.invoiceNumber}</p>
-                              <p className="text-xs text-muted-foreground">{invoice.customerName}</p>
+                              <p className="text-xs font-medium text-foreground">{invoice.invoiceNumber}</p>
+                              <p className="text-[11px] text-muted-foreground">{invoice.customerName}</p>
                             </div>
-                            <Badge className={invoice.status === "overdue" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}>
+                            <Badge
+                              variant="outline"
+                              className={
+                                invoice.status === "overdue"
+                                  ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
+                                  : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                              }
+                            >
                               {invoice.status}
                             </Badge>
                           </div>
-                          <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-                            <span>{invoice.dueDate ? `Due ${formatDate(invoice.dueDate)}` : "Due date not set"}</span>
-                            <span className="font-medium text-slate-800">{formatCurrencyShort(invoice.balanceDue)}</span>
+                          <div className="mt-1.5 flex items-center justify-between text-[11px] text-muted-foreground">
+                            <span>{invoice.dueDate ? `Due ${formatDate(invoice.dueDate)}` : "No due date"}</span>
+                            <span className="font-semibold text-foreground">{formatCurrencyShort(invoice.balanceDue)}</span>
                           </div>
                         </div>
                       ))
@@ -1193,55 +1204,57 @@ export default function DashboardPage() {
           </TabsContent>
         </Tabs>
 
+        {/* Operational Cards Row */}
         <div className="grid gap-6 xl:grid-cols-3">
-          <Card className="border-slate-200 shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between">
+          {/* Route Board */}
+          <Card className="border-border shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
               <div>
-                <CardTitle className="text-base">Route board</CardTitle>
-                <CardDescription>Top live routes and their next stop.</CardDescription>
+                <CardTitle className="text-base font-semibold text-foreground">Route Board</CardTitle>
+                <CardDescription>Live routes and next delivery stops.</CardDescription>
               </div>
               <Link href="/routes">
-                <Button variant="ghost" size="sm" className="text-emerald-700">
+                <Button variant="ghost" size="sm" className="text-primary hover:text-primary">
                   Open delivery
                 </Button>
               </Link>
             </CardHeader>
             <CardContent className="space-y-3">
               {data.routeSnapshots.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-muted-foreground">
-                  No delivery routes are scheduled yet.
+                <div className="rounded-xl border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
+                  No delivery routes scheduled yet.
                 </div>
               ) : (
                 data.routeSnapshots.map((route) => (
-                  <div key={route.id} className="rounded-2xl border border-slate-200 p-4">
-                    <div className="flex items-start justify-between gap-3">
+                  <div key={route.id} className="rounded-xl border border-border/70 bg-card p-3.5 shadow-sm transition-all hover:border-border">
+                    <div className="flex items-start justify-between gap-2">
                       <div>
-                        <p className="text-sm font-semibold text-slate-900">{route.routeNumber}</p>
+                        <p className="text-sm font-semibold text-foreground">{route.routeNumber}</p>
                         <p className="text-xs text-muted-foreground">{route.driverName} • {route.vehicle}</p>
                       </div>
-                      <Badge className={ROUTE_STATUS_COLORS[route.status] || ROUTE_STATUS_COLORS.planned}>
+                      <Badge variant="outline" className={ROUTE_STATUS_COLORS[route.status] || ROUTE_STATUS_COLORS.planned}>
                         {route.status.replace("_", " ")}
                       </Badge>
                     </div>
                     <div className="mt-3">
-                      <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
+                      <div className="mb-1.5 flex items-center justify-between text-xs text-muted-foreground">
                         <span>{route.completedStops}/{route.totalStops} stops completed</span>
-                        <span>{route.progress}%</span>
+                        <span className="font-medium text-foreground">{route.progress}%</span>
                       </div>
-                      <Progress value={route.progress} className="h-2" />
+                      <Progress value={route.progress} className="h-1.5" />
                     </div>
-                    <div className="mt-3 grid gap-2 text-xs text-muted-foreground">
-                      <div className="flex items-center justify-between gap-3">
-                        <span>Next stop</span>
-                        <span className="text-right text-slate-700">{route.nextStopLabel}</span>
+                    <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+                      <div className="flex items-center justify-between gap-2">
+                        <span>Next Stop:</span>
+                        <span className="font-medium text-foreground text-right truncate max-w-[180px]">{route.nextStopLabel}</span>
                       </div>
-                      <div className="flex items-center justify-between gap-3">
-                        <span>Warehouse</span>
-                        <span className="text-right text-slate-700">{route.warehouseName}</span>
+                      <div className="flex items-center justify-between gap-2">
+                        <span>Warehouse:</span>
+                        <span className="text-foreground">{route.warehouseName}</span>
                       </div>
-                      <div className="flex items-center justify-between gap-3">
-                        <span>Open COD</span>
-                        <span className="text-right font-medium text-slate-800">{formatCurrencyShort(route.outstandingCod)}</span>
+                      <div className="flex items-center justify-between gap-2">
+                        <span>Open COD:</span>
+                        <span className="font-semibold text-foreground">{formatCurrencyShort(route.outstandingCod)}</span>
                       </div>
                     </div>
                   </div>
@@ -1250,49 +1263,50 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          <Card className="border-slate-200 shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between">
+          {/* Pick Queue */}
+          <Card className="border-border shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
               <div>
-                <CardTitle className="text-base">Pick queue</CardTitle>
-                <CardDescription>Orders moving through warehouse fulfilment.</CardDescription>
+                <CardTitle className="text-base font-semibold text-foreground">Pick Queue</CardTitle>
+                <CardDescription>Orders moving through fulfillment.</CardDescription>
               </div>
               <Link href="/warehouse/picking">
-                <Button variant="ghost" size="sm" className="text-emerald-700">
+                <Button variant="ghost" size="sm" className="text-primary hover:text-primary">
                   Open picks
                 </Button>
               </Link>
             </CardHeader>
             <CardContent className="space-y-3">
               {data.pickSnapshots.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-muted-foreground">
+                <div className="rounded-xl border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
                   No active pick lists right now.
                 </div>
               ) : (
                 data.pickSnapshots.map((pick) => (
-                  <div key={pick.id} className="rounded-2xl border border-slate-200 p-4">
-                    <div className="flex items-start justify-between gap-3">
+                  <div key={pick.id} className="rounded-xl border border-border/70 bg-card p-3.5 shadow-sm transition-all hover:border-border">
+                    <div className="flex items-start justify-between gap-2">
                       <div>
-                        <p className="text-sm font-semibold text-slate-900">{pick.pickNumber}</p>
+                        <p className="text-sm font-semibold text-foreground">{pick.pickNumber}</p>
                         <p className="text-xs text-muted-foreground">{pick.orderNumber} • {pick.customerName}</p>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5">
                         {pick.priority === "high" ? (
-                          <Badge className="bg-red-100 text-red-700">High</Badge>
+                          <Badge variant="outline" className="bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20">High</Badge>
                         ) : null}
-                        <Badge className={PICK_STATUS_COLORS[pick.status] || PICK_STATUS_COLORS.pending}>
+                        <Badge variant="outline" className={PICK_STATUS_COLORS[pick.status] || PICK_STATUS_COLORS.pending}>
                           {pick.status.replace("_", " ")}
                         </Badge>
                       </div>
                     </div>
                     <div className="mt-3">
-                      <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
-                        <span>{pick.itemCount} line{pick.itemCount === 1 ? "" : "s"}</span>
-                        <span>{pick.progress}%</span>
+                      <div className="mb-1.5 flex items-center justify-between text-xs text-muted-foreground">
+                        <span>{pick.itemCount} line item{pick.itemCount === 1 ? "" : "s"}</span>
+                        <span className="font-medium text-foreground">{pick.progress}%</span>
                       </div>
-                      <Progress value={pick.progress} className="h-2" />
+                      <Progress value={pick.progress} className="h-1.5" />
                     </div>
-                    <p className="mt-3 text-xs text-muted-foreground">
-                      Assigned to {pick.assignedTo || "warehouse queue"}
+                    <p className="mt-2.5 text-xs text-muted-foreground">
+                      Assigned: <span className="font-medium text-foreground">{pick.assignedTo || "Warehouse Queue"}</span>
                     </p>
                   </div>
                 ))
@@ -1300,48 +1314,50 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          <Card className="border-slate-200 shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between">
+          {/* Recent Orders */}
+          <Card className="border-border shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
               <div>
-                <CardTitle className="text-base">Recent orders</CardTitle>
-                <CardDescription>Latest activity entering the pipeline.</CardDescription>
+                <CardTitle className="text-base font-semibold text-foreground">Recent Orders</CardTitle>
+                <CardDescription>Latest orders booked in the system.</CardDescription>
               </div>
               <Link href="/orders">
-                <Button variant="ghost" size="sm" className="text-emerald-700">
+                <Button variant="ghost" size="sm" className="text-primary hover:text-primary">
                   View all
                 </Button>
               </Link>
             </CardHeader>
             <CardContent className="space-y-3">
               {data.recentOrders.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-muted-foreground">
-                  Orders will appear here once they are created.
+                <div className="rounded-xl border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
+                  Orders will appear here once created.
                 </div>
               ) : (
                 data.recentOrders.map((order) => (
-                  <div key={order.id} className="rounded-2xl border border-slate-200 p-4">
-                    <div className="flex items-start justify-between gap-3">
+                  <div key={order.id} className="rounded-xl border border-border/70 bg-card p-3.5 shadow-sm transition-all hover:border-border">
+                    <div className="flex items-start justify-between gap-2">
                       <div>
-                        <p className="text-sm font-semibold text-slate-900">{order.orderNumber}</p>
-                        <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-semibold text-foreground">{order.orderNumber}</p>
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
                           <p className="text-xs text-muted-foreground">{order.customer?.name || "Unknown Customer"}</p>
                           <Badge
-                            className={
+                            variant="outline"
+                            className={`text-[10px] ${
                               COMMERCE_CHANNEL_COLORS[normalizeCommerceChannel(order.sourceChannel)] ||
                               COMMERCE_CHANNEL_COLORS.admin
-                            }
+                            }`}
                           >
                             {COMMERCE_CHANNEL_LABELS[normalizeCommerceChannel(order.sourceChannel)]}
                           </Badge>
                         </div>
                       </div>
-                      <Badge className={STATUS_COLORS[order.status] || STATUS_COLORS.draft}>
+                      <Badge variant="outline" className={STATUS_COLORS[order.status] || STATUS_COLORS.draft}>
                         {STATUS_LABELS[order.status] || order.status}
                       </Badge>
                     </div>
-                    <div className="mt-3 flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                    <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
                       <span>{formatDate(order.orderDate)}</span>
-                      <span className="font-medium text-slate-800">{formatCurrencyShort(order.totalAmount)}</span>
+                      <span className="font-semibold text-foreground">{formatCurrencyShort(order.totalAmount)}</span>
                     </div>
                   </div>
                 ))
@@ -1350,35 +1366,38 @@ export default function DashboardPage() {
           </Card>
         </div>
 
+        {/* Low Stock Alerts & Top Products */}
         <div className="grid gap-6 xl:grid-cols-[1.2fr_1fr]">
-          <Card className="border-slate-200 shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between">
+          <Card className="border-border shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
               <div>
-                <CardTitle className="text-base">Low stock alerts</CardTitle>
-                <CardDescription>Live products below reorder point across warehouses.</CardDescription>
+                <CardTitle className="text-base font-semibold text-foreground">Low Stock Alerts</CardTitle>
+                <CardDescription>Inventory items below safe reorder thresholds.</CardDescription>
               </div>
-              <AlertTriangle className="h-4 w-4 text-red-600" />
+              <AlertTriangle className="h-4 w-4 text-amber-500" />
             </CardHeader>
             <CardContent>
               {data.lowStockProducts.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-muted-foreground">
-                  Stock levels look healthy right now.
+                <div className="rounded-xl border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
+                  Stock levels look healthy across all warehouses.
                 </div>
               ) : (
                 <div className="grid gap-3 md:grid-cols-2">
                   {data.lowStockProducts.map((item) => (
-                    <div key={item.id} className="rounded-2xl border border-red-100 bg-red-50/60 p-4">
-                      <div className="flex items-start justify-between gap-3">
+                    <div key={item.id} className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-3.5 transition-all hover:bg-rose-500/10">
+                      <div className="flex items-start justify-between gap-2">
                         <div>
-                          <p className="text-sm font-semibold text-slate-900">{item.name}</p>
+                          <p className="text-sm font-semibold text-foreground">{item.name}</p>
                           <p className="text-xs font-mono text-muted-foreground">{item.sku}</p>
                         </div>
-                        <Badge className="bg-red-100 text-red-700">Low</Badge>
+                        <Badge variant="outline" className="bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20">
+                          Low
+                        </Badge>
                       </div>
-                      <div className="mt-3 flex items-center justify-between text-sm">
+                      <div className="mt-2.5 flex items-center justify-between text-xs">
                         <span className="text-muted-foreground">{item.warehouseName}</span>
-                        <span className="font-medium text-red-700">
-                          {item.quantity} / {item.reorderLevel}
+                        <span className="font-semibold text-rose-600 dark:text-rose-400">
+                          {item.quantity} / {item.reorderLevel} units
                         </span>
                       </div>
                     </div>
@@ -1388,28 +1407,26 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          <Card className="border-slate-200 shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-base">Top products by revenue</CardTitle>
-              <CardDescription>Best performing SKUs based on current order data.</CardDescription>
+          <Card className="border-border shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold text-foreground">Top Products by Revenue</CardTitle>
+              <CardDescription>Highest revenue generating SKUs.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-2.5">
               {data.topProducts.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-muted-foreground">
-                  Top products will populate as order history grows.
+                <div className="rounded-xl border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
+                  Top products will populate as orders are recorded.
                 </div>
               ) : (
                 data.topProducts.map((product, index) => (
-                  <div key={`${product.sku}-${index}`} className="rounded-2xl border border-slate-200 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900">{product.name}</p>
-                        <p className="text-xs font-mono text-muted-foreground">{product.sku}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-semibold text-slate-900">{formatCurrencyShort(product.revenue)}</p>
-                        <p className="text-xs text-muted-foreground">{product.quantity} units</p>
-                      </div>
+                  <div key={`${product.sku}-${index}`} className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/20 p-3 transition-all hover:bg-muted/40">
+                    <div className="min-w-0 flex-1 pr-3">
+                      <p className="text-sm font-medium text-foreground truncate">{product.name}</p>
+                      <p className="text-xs font-mono text-muted-foreground">{product.sku}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-sm font-semibold text-foreground">{formatCurrencyShort(product.revenue)}</p>
+                      <p className="text-xs text-muted-foreground">{product.quantity} units sold</p>
                     </div>
                   </div>
                 ))

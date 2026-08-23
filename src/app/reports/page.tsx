@@ -2,13 +2,38 @@
 
 import { useState, useEffect } from "react"
 import { 
-  TrendingUp, TrendingDown, DollarSign, Package, Users, 
-  ShoppingCart, BarChart3
+  AlertTriangle,
+  ArrowDownToLine,
+  BarChart3,
+  CheckCircle,
+  Clock,
+  DollarSign,
+  Download,
+  FileSpreadsheet,
+  Layers,
+  Package,
+  ShoppingCart,
+  TrendingDown,
+  TrendingUp,
+  Users,
 } from "lucide-react"
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts"
+
 import { AppShell } from "@/components/layout/app-shell"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { formatCurrency, formatCurrencyShort } from "@/lib/types"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { EmptyState } from "@/components/ui/empty-state"
+import { KpiCard } from "@/components/ui/kpi-card"
+import { PageHeader } from "@/components/ui/page-header"
 import {
   Select,
   SelectContent,
@@ -24,8 +49,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { formatCurrency, formatCurrencyShort, formatDate } from "@/lib/types"
 import {
   periodLabel,
   withinPeriod,
@@ -46,6 +71,18 @@ interface DashboardData {
   salesTrend: { date: string; amount: number }[]
 }
 
+const STATUS_BADGE_CLASSES: Record<string, string> = {
+  draft: "bg-muted text-muted-foreground border-border",
+  pending_approval: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+  approved: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
+  picking: "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20",
+  packed: "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20",
+  dispatched: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20",
+  delivered: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+  invoiced: "bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20",
+  cancelled: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20",
+}
+
 export default function ReportsPage() {
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -57,6 +94,7 @@ export default function ReportsPage() {
 
   const fetchDashboardData = async () => {
     try {
+      setLoading(true)
       // Fetch all data in parallel
       const [ordersRes, customersRes, productsRes, inventoryRes, invoicesRes] = await Promise.all([
         fetch("/api/orders"),
@@ -73,9 +111,6 @@ export default function ReportsPage() {
       const invoicesData = await invoicesRes.json()
 
       if (ordersData.success && customersData.success && productsData.success) {
-        // The selector used to change nothing: it sat in this effect's
-        // dependencies and in the export filename, and every period produced
-        // identical figures. Anything dated is now filtered to the window.
         const allOrders = ordersData.data || []
         const allInvoices = invoicesData.success ? invoicesData.data || [] : []
 
@@ -86,8 +121,6 @@ export default function ReportsPage() {
           withinPeriod(invoice.invoiceDate ?? invoice.createdAt, period)
         )
 
-        // Catalogue counts stay absolute — "how many customers do we have" is
-        // not a question about a date range.
         const customers = customersData.data || []
         const products = productsData.data || []
         const inventory = inventoryData.data || []
@@ -170,191 +203,181 @@ export default function ReportsPage() {
     }
   }
 
-  // Using imported formatCurrency and formatCurrencyShort from @/lib/types
-
-  const maxSalesTrend = data?.salesTrend ? Math.max(...data.salesTrend.map(t => t.amount), 1) : 1
+  const exportCsv = () => {
+    if (!data) return
+    const rows = [
+      ["Metric", "Value"],
+      ["Total Revenue", data.totalRevenue.toFixed(2)],
+      ["Total Orders", String(data.totalOrders)],
+      ["Total Customers", String(data.totalCustomers)],
+      ["Total Products", String(data.totalProducts)],
+      ["Pending Orders", String(data.pendingOrders)],
+      ["Low Stock Items", String(data.lowStockItems)],
+      ["Outstanding Invoiced Amount", data.outstandingAmount.toFixed(2)],
+    ]
+    const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n")
+    const encodedUri = encodeURI(csvContent)
+    const link = document.createElement("a")
+    link.setAttribute("href", encodedUri)
+    link.setAttribute("download", `Executive_Report_${period}_${new Date().toISOString().slice(0, 10)}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
 
   return (
-    <AppShell title="Reports" breadcrumbs={[{ label: "Reports" }]}>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Reports & Analytics</h1>
-            <p className="text-muted-foreground">Business insights, financial summaries, and performance metrics</p>
-            <p className="text-xs text-muted-foreground">Figures cover {periodLabel(period)}</p>
+    <AppShell title="Reports" breadcrumbs={[{ label: "Analytics & Reports" }]}>
+      <div className="space-y-6 pb-6">
+        {/* Page Header */}
+        <PageHeader
+          title="Executive Reports & Analytics"
+          description="Business insights, financial performance, inventory velocity, and order summaries."
+          actions={
+            <div className="flex flex-wrap items-center gap-2.5">
+              <Select value={period} onValueChange={(value) => setPeriod(value as ReportPeriod)}>
+                <SelectTrigger className="w-36 h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="today">Today</SelectItem>
+                  <SelectItem value="week">This Week</SelectItem>
+                  <SelectItem value="month">This Month</SelectItem>
+                  <SelectItem value="quarter">This Quarter</SelectItem>
+                  <SelectItem value="year">This Year</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9"
+                onClick={exportCsv}
+                disabled={!data}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Export CSV
+              </Button>
+            </div>
+          }
+        >
+          <div className="flex items-center gap-2 text-xs text-muted-foreground pt-1">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-0.5 font-medium text-primary border border-primary/20">
+              <Clock className="h-3 w-3" />
+              Reporting Window: {periodLabel(period)}
+            </span>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Select value={period} onValueChange={(value) => setPeriod(value as ReportPeriod)}>
-              <SelectTrigger className="w-36">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="today">Today</SelectItem>
-                <SelectItem value="week">This Week</SelectItem>
-                <SelectItem value="month">This Month</SelectItem>
-                <SelectItem value="quarter">This Quarter</SelectItem>
-                <SelectItem value="year">This Year</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                if (!data) return
-                const rows = [
-                  ["Metric", "Value"],
-                  ["Total Revenue", data.totalRevenue.toFixed(2)],
-                  ["Total Orders", data.totalOrders],
-                  ["Total Customers", data.totalCustomers],
-                  ["Total Products", data.totalProducts],
-                  ["Pending Orders", data.pendingOrders],
-                  ["Low Stock Items", data.lowStockItems],
-                  ["Outstanding Invoiced Amount", data.outstandingAmount.toFixed(2)],
-                ]
-                const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n")
-                const encodedUri = encodeURI(csvContent)
-                const link = document.createElement("a")
-                link.setAttribute("href", encodedUri)
-                link.setAttribute("download", `Executive_Report_${period}_${new Date().toISOString().slice(0, 10)}.csv`)
-                document.body.appendChild(link)
-                link.click()
-                document.body.removeChild(link)
-              }}
-            >
-              Export CSV Report
-            </Button>
-          </div>
+        </PageHeader>
+
+        {/* 4 KPI Metrics */}
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <KpiCard
+            title="Booked Revenue"
+            value={formatCurrencyShort(data?.totalRevenue || 0)}
+            description={`Live sales from ${data?.totalOrders || 0} non-draft orders`}
+            icon={DollarSign}
+          />
+          <KpiCard
+            title="Total Orders"
+            value={String(data?.totalOrders || 0)}
+            description={`${data?.pendingOrders || 0} pending fulfillment pipeline`}
+            icon={ShoppingCart}
+          />
+          <KpiCard
+            title="Trading Accounts"
+            value={String(data?.totalCustomers || 0)}
+            description={`${data?.topCustomers?.length || 0} key revenue drivers`}
+            icon={Users}
+          />
+          <KpiCard
+            title="Outstanding AR"
+            value={formatCurrencyShort(data?.outstandingAmount || 0)}
+            description="Open and overdue invoice balances"
+            icon={TrendingUp}
+          />
         </div>
 
-        {/* Key Metrics */}
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardDescription>Total Revenue</CardDescription>
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{formatCurrencyShort(data?.totalRevenue || 0)}</div>
-              <div className="mt-1 text-xs text-muted-foreground">
-                Live booked revenue from non-draft orders
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardDescription>Total Orders</CardDescription>
-              <ShoppingCart className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{data?.totalOrders || 0}</div>
-              <div className="flex items-center text-xs text-muted-foreground mt-1">
-                {data?.pendingOrders || 0} pending fulfillment
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardDescription>Active Customers</CardDescription>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{data?.totalCustomers || 0}</div>
-              <div className="mt-1 text-xs text-muted-foreground">
-                {data?.topCustomers?.length || 0} customers currently driving the most revenue
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardDescription>Outstanding</CardDescription>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-orange-600">
-                {formatCurrencyShort(data?.outstandingAmount || 0)}
-              </div>
-              <div className="flex items-center text-xs text-muted-foreground mt-1">
-                Accounts receivable
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Charts Section */}
-        <div className="grid gap-4 md:grid-cols-2">
-          {/* Sales Trend */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BarChart3 className="h-5 w-5" />
-                Sales Trend
+        {/* Charts & Health Section */}
+        <div className="grid gap-6 lg:grid-cols-2">
+          {/* Sales Trend Bar Chart */}
+          <Card className="border-border shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base font-semibold text-foreground">
+                <BarChart3 className="h-4 w-4 text-primary" />
+                Sales Velocity (Last 7 Days)
               </CardTitle>
-              <CardDescription>Last 7 days revenue</CardDescription>
+              <CardDescription>Daily revenue intake volume across all accounts.</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex items-end gap-2 h-40">
-                {data?.salesTrend.map((day, index) => (
-                  <div key={index} className="flex-1 flex flex-col items-center gap-2">
-                    <div 
-                      className="w-full bg-emerald-500 rounded-t transition-all"
-                      style={{ 
-                        height: `${(day.amount / maxSalesTrend) * 100}%`,
-                        minHeight: day.amount > 0 ? "8px" : "2px"
+              <div className="h-[220px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={data?.salesTrend || []}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis dataKey="date" className="text-xs text-muted-foreground" stroke="currentColor" />
+                    <YAxis
+                      className="text-xs text-muted-foreground"
+                      stroke="currentColor"
+                      tickFormatter={(val) => formatCurrencyShort(Number(val))}
+                    />
+                    <Tooltip
+                      formatter={(val: number) => [formatCurrency(val), "Revenue"]}
+                      contentStyle={{
+                        backgroundColor: "hsl(var(--card))",
+                        borderColor: "hsl(var(--border))",
+                        borderRadius: "8px",
+                        color: "hsl(var(--card-foreground))",
+                        boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
                       }}
                     />
-                    <span className="text-xs text-muted-foreground">{day.date}</span>
-                  </div>
-                ))}
+                    <Bar dataKey="amount" fill="#10b981" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
             </CardContent>
           </Card>
 
-          {/* Inventory Alerts */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Package className="h-5 w-5" />
-                Inventory Alerts
+          {/* Inventory Alerts & Stock Overview */}
+          <Card className="border-border shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base font-semibold text-foreground">
+                <Package className="h-4 w-4 text-primary" />
+                Inventory & Stock Overview
               </CardTitle>
-              <CardDescription>Stock status overview</CardDescription>
+              <CardDescription>Real-time catalog size and reorder health.</CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-200">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
-                      <TrendingDown className="h-5 w-5 text-red-600" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-red-700">Low Stock Items</p>
-                      <p className="text-sm text-red-600">Below reorder level</p>
-                    </div>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between rounded-xl border border-rose-500/20 bg-rose-500/5 p-4 transition-all hover:bg-rose-500/10">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400">
+                    <TrendingDown className="h-5 w-5" />
                   </div>
-                  <span className="text-2xl font-bold text-red-600">{data?.lowStockItems || 0}</span>
-                </div>
-                
-                <div className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center">
-                      <Package className="h-5 w-5 text-yellow-600" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-yellow-700">Total Products</p>
-                      <p className="text-sm text-yellow-600">In catalog</p>
-                    </div>
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Low Stock Items</p>
+                    <p className="text-xs text-muted-foreground">Inventory below safety reorder thresholds</p>
                   </div>
-                  <span className="text-2xl font-bold text-yellow-700">{data?.totalProducts || 0}</span>
                 </div>
+                <Badge variant="outline" className="text-base font-bold px-3 py-1 bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20">
+                  {data?.lowStockItems || 0}
+                </Badge>
+              </div>
+
+              <div className="flex items-center justify-between rounded-xl border border-border/70 bg-muted/20 p-4 transition-all hover:bg-muted/40">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <Layers className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Total Active SKUs</p>
+                    <p className="text-xs text-muted-foreground">Active products maintained in product catalog</p>
+                  </div>
+                </div>
+                <Badge variant="outline" className="text-base font-bold px-3 py-1">
+                  {data?.totalProducts || 0}
+                </Badge>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Tabs for Top Products/Customers */}
+        {/* Detailed Breakdown Tabs */}
         <Tabs defaultValue="products" className="space-y-4">
           <TabsList>
             <TabsTrigger value="products">Top Products</TabsTrigger>
@@ -362,11 +385,12 @@ export default function ReportsPage() {
             <TabsTrigger value="orders">Recent Orders</TabsTrigger>
           </TabsList>
 
+          {/* Top Products */}
           <TabsContent value="products">
-            <Card>
-              <CardHeader>
-                <CardTitle>Top Selling Products</CardTitle>
-                <CardDescription>By revenue generated</CardDescription>
+            <Card className="border-border shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-semibold text-foreground">Top Selling Products</CardTitle>
+                <CardDescription>Ranked by revenue contribution in selected period.</CardDescription>
               </CardHeader>
               <CardContent className="p-0">
                 <Table>
@@ -375,44 +399,49 @@ export default function ReportsPage() {
                       <TableHead>Product</TableHead>
                       <TableHead className="text-center">Units Sold</TableHead>
                       <TableHead className="text-right">Revenue</TableHead>
-                      <TableHead className="text-right">% of Total</TableHead>
+                      <TableHead className="text-right">% of Period Total</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {loading ? (
                       <TableRow>
-                        <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                          Loading...
+                        <TableCell colSpan={4} className="text-center py-12 text-sm text-muted-foreground">
+                          Loading products data...
                         </TableCell>
                       </TableRow>
                     ) : (data?.topProducts?.length || 0) === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                          No sales data yet
+                        <TableCell colSpan={4} className="p-6">
+                          <EmptyState
+                            icon={Package}
+                            title="No product sales data"
+                            description="No products were sold during the selected reporting window."
+                            className="border-none bg-transparent"
+                          />
                         </TableCell>
                       </TableRow>
                     ) : (
                       data?.topProducts?.map((item: any, index: number) => (
-                        <TableRow key={index}>
+                        <TableRow key={index} className="hover:bg-muted/40 transition-colors">
                           <TableCell>
                             <div className="flex items-center gap-3">
-                              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 font-medium text-sm">
+                              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold text-xs shrink-0">
                                 {index + 1}
                               </span>
                               <div>
-                                <p className="font-medium">{item.product.name}</p>
-                                <p className="text-xs text-muted-foreground">{item.product.sku}</p>
+                                <p className="font-medium text-sm text-foreground">{item.product?.name || "Unknown Product"}</p>
+                                <p className="text-xs font-mono text-muted-foreground">{item.product?.sku || "—"}</p>
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell className="text-center">{item.quantity}</TableCell>
-                          <TableCell className="text-right font-medium">
+                          <TableCell className="text-center font-medium text-sm">{item.quantity}</TableCell>
+                          <TableCell className="text-right font-semibold text-sm text-foreground">
                             {formatCurrency(item.revenue)}
                           </TableCell>
                           <TableCell className="text-right">
-                            <span className="text-sm text-muted-foreground">
+                            <Badge variant="secondary" className="font-normal text-xs">
                               {((item.revenue / (data?.totalRevenue || 1)) * 100).toFixed(1)}%
-                            </span>
+                            </Badge>
                           </TableCell>
                         </TableRow>
                       ))
@@ -423,50 +452,56 @@ export default function ReportsPage() {
             </Card>
           </TabsContent>
 
+          {/* Top Customers */}
           <TabsContent value="customers">
-            <Card>
-              <CardHeader>
-                <CardTitle>Top Customers</CardTitle>
-                <CardDescription>By total order value</CardDescription>
+            <Card className="border-border shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-semibold text-foreground">Top Customers</CardTitle>
+                <CardDescription>Ranked by total booked order value.</CardDescription>
               </CardHeader>
               <CardContent className="p-0">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Customer</TableHead>
+                      <TableHead>Customer Account</TableHead>
                       <TableHead className="text-center">Orders</TableHead>
-                      <TableHead className="text-right">Total Value</TableHead>
+                      <TableHead className="text-right">Total Booked Value</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {loading ? (
                       <TableRow>
-                        <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
-                          Loading...
+                        <TableCell colSpan={3} className="text-center py-12 text-sm text-muted-foreground">
+                          Loading customer accounts...
                         </TableCell>
                       </TableRow>
                     ) : (data?.topCustomers?.length || 0) === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
-                          No customer data yet
+                        <TableCell colSpan={3} className="p-6">
+                          <EmptyState
+                            icon={Users}
+                            title="No customer revenue"
+                            description="No customer accounts traded during the selected reporting window."
+                            className="border-none bg-transparent"
+                          />
                         </TableCell>
                       </TableRow>
                     ) : (
                       data?.topCustomers?.map((item: any, index: number) => (
-                        <TableRow key={index}>
+                        <TableRow key={index} className="hover:bg-muted/40 transition-colors">
                           <TableCell>
                             <div className="flex items-center gap-3">
-                              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 text-white font-medium text-sm">
+                              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold text-xs shrink-0">
                                 {index + 1}
                               </span>
                               <div>
-                                <p className="font-medium">{item.customer.name}</p>
-                                <p className="text-xs text-muted-foreground">{item.customer.phone}</p>
+                                <p className="font-medium text-sm text-foreground">{item.customer?.name || "Unknown Customer"}</p>
+                                <p className="text-xs text-muted-foreground">{item.customer?.phone || item.customer?.email || "—"}</p>
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell className="text-center">{item.orders}</TableCell>
-                          <TableCell className="text-right font-medium">
+                          <TableCell className="text-center font-medium text-sm">{item.orders}</TableCell>
+                          <TableCell className="text-right font-semibold text-sm text-foreground">
                             {formatCurrency(item.revenue)}
                           </TableCell>
                         </TableRow>
@@ -478,11 +513,12 @@ export default function ReportsPage() {
             </Card>
           </TabsContent>
 
+          {/* Recent Orders */}
           <TabsContent value="orders">
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Orders</CardTitle>
-                <CardDescription>Latest transactions</CardDescription>
+            <Card className="border-border shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-semibold text-foreground">Recent Orders</CardTitle>
+                <CardDescription>Latest orders booked in selected window.</CardDescription>
               </CardHeader>
               <CardContent className="p-0">
                 <Table>
@@ -498,27 +534,39 @@ export default function ReportsPage() {
                   <TableBody>
                     {loading ? (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                          Loading...
+                        <TableCell colSpan={5} className="text-center py-12 text-sm text-muted-foreground">
+                          Loading orders...
                         </TableCell>
                       </TableRow>
                     ) : (data?.recentOrders?.length || 0) === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                          No orders yet
+                        <TableCell colSpan={5} className="p-6">
+                          <EmptyState
+                            icon={ShoppingCart}
+                            title="No orders found"
+                            description="No orders were placed during the selected reporting window."
+                            className="border-none bg-transparent"
+                          />
                         </TableCell>
                       </TableRow>
                     ) : (
                       data?.recentOrders?.map((order: any) => (
-                        <TableRow key={order.id}>
-                          <TableCell className="font-mono">{order.orderNumber}</TableCell>
-                          <TableCell>{order.customer.name}</TableCell>
-                          <TableCell>{new Date(order.orderDate).toLocaleDateString()}</TableCell>
-                          <TableCell className="text-right font-medium">
+                        <TableRow key={order.id} className="hover:bg-muted/40 transition-colors">
+                          <TableCell className="font-mono text-sm font-semibold text-foreground">{order.orderNumber}</TableCell>
+                          <TableCell className="text-sm font-medium text-foreground">{order.customer?.name || "Unknown Customer"}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {order.orderDate ? formatDate(order.orderDate) : "—"}
+                          </TableCell>
+                          <TableCell className="text-right font-semibold text-sm text-foreground">
                             {formatCurrency(order.totalAmount)}
                           </TableCell>
                           <TableCell className="text-center">
-                            <Badge className="bg-blue-100 text-blue-700">{order.status}</Badge>
+                            <Badge
+                              variant="outline"
+                              className={STATUS_BADGE_CLASSES[order.status] || STATUS_BADGE_CLASSES.draft}
+                            >
+                              {order.status?.replace("_", " ")}
+                            </Badge>
                           </TableCell>
                         </TableRow>
                       ))
@@ -533,3 +581,4 @@ export default function ReportsPage() {
     </AppShell>
   )
 }
+
