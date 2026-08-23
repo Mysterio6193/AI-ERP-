@@ -42,9 +42,11 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
+import { PageHeader } from "@/components/ui/page-header"
+import { KpiCard } from "@/components/ui/kpi-card"
+import { EmptyState } from "@/components/ui/empty-state"
 import { 
   PRICE_LIST_TYPES, formatCurrency, 
 } from "@/lib/types"
@@ -143,8 +145,6 @@ export default function PricingPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      // Same dialog for both: creating posts to the collection, editing
-      // patches the one being edited.
       const response = await fetch(editingId ? `/api/pricing/${editingId}` : "/api/pricing", {
         method: editingId ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
@@ -209,9 +209,6 @@ export default function PricingPage() {
 
   const deletePriceList = async (priceList: PriceList) => {
     setActionError(null)
-
-    // The server refuses when customers are assigned; this is only so nobody
-    // deletes a list by brushing past a menu.
     if (!window.confirm(`Delete "${priceList.name}"? Its price lines go with it.`)) {
       return
     }
@@ -223,200 +220,66 @@ export default function PricingPage() {
     if (response.success) {
       fetchPriceLists()
     } else {
-      // Carries the server's reason, which names the customers still on it.
       setActionError(response.error || "Could not delete that price list.")
     }
   }
 
-  const getTypeColor = (type: string) => {
-    const colors: Record<string, string> = {
-      wholesale: "bg-blue-100 text-blue-700",
-      retail: "bg-purple-100 text-purple-700",
-      contract: "bg-green-100 text-green-700",
-      promotional: "bg-orange-100 text-orange-700",
-    }
-    return colors[type] || "bg-gray-100 text-gray-700"
+  const getTypeBadge = (type: string) => {
+    if (type === "wholesale") return <Badge className="bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20 font-medium">wholesale</Badge>
+    if (type === "retail") return <Badge className="bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/20 font-medium">retail</Badge>
+    if (type === "contract") return <Badge className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 font-medium">contract</Badge>
+    if (type === "promotional") return <Badge className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20 font-medium">promotional</Badge>
+    return <Badge variant="outline" className="font-medium">{type}</Badge>
   }
 
   return (
     <AppShell title="Pricing" breadcrumbs={[{ label: "Pricing" }]}>
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Pricing Engine</h1>
-            <p className="text-muted-foreground">Manage price lists, contract pricing, and discount rules</p>
-          </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <Button onClick={() => { resetForm(); setIsDialogOpen(true) }} className="bg-emerald-600 hover:bg-emerald-700">
+        <PageHeader
+          title="Pricing Engine"
+          description="Manage price lists, contract customer tiers, and volume discount rules."
+          actions={
+            <Button
+              onClick={() => { resetForm(); setIsDialogOpen(true) }}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              size="sm"
+            >
               <Plus className="mr-2 h-4 w-4" />
-              {editingId ? "Save Changes" : "Create Price List"}
+              Create Price List
             </Button>
-            <DialogContent className="max-w-lg">
-              <DialogHeader>
-                <DialogTitle>{editingId ? "Edit Price List" : "Create Price List"}</DialogTitle>
-                <DialogDescription>
-                  {editingId
-                    ? "Changes apply to every order priced from this list from now on."
-                    : "Create a new pricing structure for customers"}
-                </DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleSubmit}>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Price List Name *</Label>
-                    <Input
-                      id="name"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      placeholder="Wholesale Standard"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="description">Description</Label>
-                    <Input
-                      id="description"
-                      value={formData.description}
-                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                      placeholder="Standard wholesale pricing for retailers"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Type</Label>
-                      <Select value={formData.type} onValueChange={(value) => setFormData({ ...formData, type: value })}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {PRICE_LIST_TYPES.map((type) => (
-                            <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Status</Label>
-                      <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="active">Active</SelectItem>
-                          <SelectItem value="inactive">Inactive</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Valid From</Label>
-                      <Input
-                        type="date"
-                        value={formData.validFrom}
-                        onChange={(e) => setFormData({ ...formData, validFrom: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Valid To</Label>
-                      <Input
-                        type="date"
-                        value={formData.validTo}
-                        onChange={(e) => setFormData({ ...formData, validTo: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="isDefault"
-                      checked={formData.isDefault}
-                      onCheckedChange={(checked) => setFormData({ ...formData, isDefault: checked })}
-                    />
-                    <Label htmlFor="isDefault">Set as default price list</Label>
-                  </div>
-                </div>
-                
-                <DialogFooter className="mt-6">
-                  <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700">
-                    Create Price List
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </div>
+          }
+        />
 
         {/* Stats */}
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Total Price Lists</CardDescription>
-              <CardTitle className="text-2xl">{priceLists.length}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Active Lists</CardDescription>
-              <CardTitle className="text-2xl">{priceLists.filter(pl => pl.status === "active").length}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Contract Pricing</CardDescription>
-              <CardTitle className="text-2xl">{priceLists.filter(pl => pl.type === "contract").length}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Products Priced</CardDescription>
-              <CardTitle className="text-2xl">{products.length}</CardTitle>
-            </CardHeader>
-          </Card>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card className="cursor-pointer hover:border-emerald-300 transition-colors" onClick={() => setIsDialogOpen(true)}>
-            <CardContent className="flex items-center gap-4 pt-6">
-              <div className="p-3 bg-emerald-100 rounded-lg">
-                <Plus className="h-6 w-6 text-emerald-600" />
-              </div>
-              <div>
-                <p className="font-medium">Create Price List</p>
-                <p className="text-sm text-muted-foreground">Set up new pricing structure</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="cursor-pointer hover:border-blue-300 transition-colors">
-            <CardContent className="flex items-center gap-4 pt-6">
-              <div className="p-3 bg-blue-100 rounded-lg">
-                <Percent className="h-6 w-6 text-blue-600" />
-              </div>
-              <div>
-                <p className="font-medium">Discount Rules</p>
-                <p className="text-sm text-muted-foreground">Configure volume discounts</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="cursor-pointer hover:border-purple-300 transition-colors">
-            <CardContent className="flex items-center gap-4 pt-6">
-              <div className="p-3 bg-purple-100 rounded-lg">
-                <Settings className="h-6 w-6 text-purple-600" />
-              </div>
-              <div>
-                <p className="font-medium">Approval Thresholds</p>
-                <p className="text-sm text-muted-foreground">Set discount limits</p>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <KpiCard
+            title="Total Price Lists"
+            value={priceLists.length}
+            description="Active & draft lists"
+            icon={Tag}
+          />
+          <KpiCard
+            title="Active Lists"
+            value={priceLists.filter(pl => pl.status === "active").length}
+            description="Applied in live orders"
+            icon={DollarSign}
+          />
+          <KpiCard
+            title="Contract Pricing"
+            value={priceLists.filter(pl => pl.type === "contract").length}
+            description="Customer specific tiers"
+            icon={Users}
+          />
+          <KpiCard
+            title="Products Priced"
+            value={products.length}
+            description="Catalog SKUs"
+            icon={Package}
+          />
         </div>
 
         {/* Filters */}
-        <Card>
+        <Card className="border-border shadow-sm">
           <CardContent className="pt-6">
             <div className="flex flex-col gap-4 md:flex-row md:items-center">
               <div className="relative flex-1">
@@ -425,11 +288,11 @@ export default function PricingPage() {
                   placeholder="Search price lists..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="pl-8"
+                  className="pl-8 text-sm"
                 />
               </div>
               <Select value={typeFilter} onValueChange={setTypeFilter}>
-                <SelectTrigger className="w-48">
+                <SelectTrigger className="w-48 text-xs">
                   <SelectValue placeholder="Type" />
                 </SelectTrigger>
                 <SelectContent>
@@ -444,94 +307,99 @@ export default function PricingPage() {
         </Card>
 
         {actionError ? (
-          // Carries the server's own words — the delete refusal names how many
-          // customers are still on the list, which is what makes it actionable.
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive font-medium">
             {actionError}
           </div>
         ) : null}
 
         {/* Price Lists Table */}
-        <Card>
+        <Card className="border-border shadow-sm overflow-hidden">
           <CardContent className="p-0">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead>Price List</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead className="text-center">Products</TableHead>
-                  <TableHead className="text-center">Customers</TableHead>
-                  <TableHead>Validity</TableHead>
-                  <TableHead className="text-center">Status</TableHead>
+                <TableRow className="bg-muted/40">
+                  <TableHead className="font-semibold">Price List</TableHead>
+                  <TableHead className="font-semibold">Type</TableHead>
+                  <TableHead className="text-center font-semibold">Products</TableHead>
+                  <TableHead className="text-center font-semibold">Customers</TableHead>
+                  <TableHead className="font-semibold">Validity</TableHead>
+                  <TableHead className="text-center font-semibold">Status</TableHead>
                   <TableHead className="w-12"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center py-12 text-muted-foreground text-sm">
                       Loading price lists...
                     </TableCell>
                   </TableRow>
                 ) : filteredPriceLists.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                      No price lists found. Create your first price list to get started.
+                    <TableCell colSpan={7} className="py-12">
+                      <EmptyState
+                        icon={Tag}
+                        title="No price lists found"
+                        description="Create your first price list to configure wholesale tiers and customer contract pricing."
+                        action={
+                          <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => { resetForm(); setIsDialogOpen(true) }}>
+                            <Plus className="mr-1.5 h-3.5 w-3.5" /> Create Price List
+                          </Button>
+                        }
+                      />
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredPriceLists.map((pl) => (
-                    <TableRow key={pl.id} className="group">
+                    <TableRow key={pl.id} className="group hover:bg-muted/30 transition-colors">
                       <TableCell>
                         <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 text-white">
-                            <Tag className="h-5 w-5" />
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary border border-primary/20">
+                            <Tag className="h-4 w-4" />
                           </div>
-                          <div>
-                            <div className="font-medium flex items-center gap-2">
-                              {pl.name}
+                          <div className="min-w-0">
+                            <div className="font-medium text-sm text-foreground flex items-center gap-2">
+                              <span className="truncate">{pl.name}</span>
                               {pl.isDefault && (
-                                <Badge variant="secondary" className="text-xs">Default</Badge>
+                                <Badge variant="secondary" className="text-[10px] h-4 px-1.5">Default</Badge>
                               )}
                             </div>
-                            <div className="text-xs text-muted-foreground">
+                            <div className="text-xs text-muted-foreground truncate">
                               {pl.description || "No description"}
                             </div>
                           </div>
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge className={getTypeColor(pl.type)}>
-                          {pl.type}
-                        </Badge>
+                        {getTypeBadge(pl.type)}
                       </TableCell>
-                      <TableCell className="text-center">
-                        <span className="font-medium">{pl._count?.items || 0}</span>
+                      <TableCell className="text-center text-sm font-semibold text-foreground">
+                        {pl._count?.items || 0}
                       </TableCell>
-                      <TableCell className="text-center">
-                        <span className="font-medium">{pl._count?.customers || 0}</span>
+                      <TableCell className="text-center text-sm font-semibold text-foreground">
+                        {pl._count?.customers || 0}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="text-sm">
                         {pl.validFrom && pl.validTo ? (
-                          <div className="text-sm">
-                            <div>{new Date(pl.validFrom).toLocaleDateString()}</div>
-                            <div className="text-xs text-muted-foreground">
-                              to {new Date(pl.validTo).toLocaleDateString()}
-                            </div>
+                          <div className="text-xs">
+                            <span className="text-foreground">{new Date(pl.validFrom).toLocaleDateString()}</span>
+                            <span className="text-muted-foreground"> to {new Date(pl.validTo).toLocaleDateString()}</span>
                           </div>
                         ) : (
-                          <span className="text-muted-foreground">Always valid</span>
+                          <span className="text-xs text-muted-foreground">Always valid</span>
                         )}
                       </TableCell>
                       <TableCell className="text-center">
-                        <Badge className={pl.status === "active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-700"}>
-                          {pl.status}
-                        </Badge>
+                        {pl.status === "active" ? (
+                          <Badge className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 font-medium">active</Badge>
+                        ) : (
+                          <Badge variant="secondary" className="font-medium">{pl.status}</Badge>
+                        )}
                       </TableCell>
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100">
+                            <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity">
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
@@ -555,7 +423,7 @@ export default function PricingPage() {
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
-                              className="text-red-600"
+                              className="text-destructive focus:text-destructive"
                               onClick={() => void deletePriceList(pl)}
                             >
                               <Trash2 className="mr-2 h-4 w-4" />
@@ -572,6 +440,105 @@ export default function PricingPage() {
           </CardContent>
         </Card>
 
+        {/* Create / Edit Dialog */}
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>{editingId ? "Edit Price List" : "Create Price List"}</DialogTitle>
+              <DialogDescription>
+                {editingId
+                  ? "Changes apply to every order priced from this list from now on."
+                  : "Create a new pricing structure for customers and accounts"}
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleSubmit}>
+              <div className="space-y-4 py-2">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Price List Name *</Label>
+                  <Input
+                    id="name"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="e.g. Tier 1 Wholesale Standard"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="description">Description</Label>
+                  <Input
+                    id="description"
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    placeholder="Standard wholesale pricing for food distributors"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Type</Label>
+                    <Select value={formData.type} onValueChange={(value) => setFormData({ ...formData, type: value })}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PRICE_LIST_TYPES.map((type) => (
+                          <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Status</Label>
+                    <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="inactive">Inactive</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Valid From</Label>
+                    <Input
+                      type="date"
+                      value={formData.validFrom}
+                      onChange={(e) => setFormData({ ...formData, validFrom: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Valid To</Label>
+                    <Input
+                      type="date"
+                      value={formData.validTo}
+                      onChange={(e) => setFormData({ ...formData, validTo: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2 pt-2">
+                  <Switch
+                    id="isDefault"
+                    checked={formData.isDefault}
+                    onCheckedChange={(checked) => setFormData({ ...formData, isDefault: checked })}
+                  />
+                  <Label htmlFor="isDefault" className="text-sm font-normal">Set as default price list for new customers</Label>
+                </div>
+              </div>
+              
+              <DialogFooter className="mt-6 gap-2">
+                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                  {editingId ? "Save Changes" : "Create Price List"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
         {/* Price List Detail Dialog */}
         <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -580,78 +547,67 @@ export default function PricingPage() {
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2">
                     {selectedPriceList.name}
-                    <Badge className={getTypeColor(selectedPriceList.type)}>
-                      {selectedPriceList.type}
-                    </Badge>
+                    {getTypeBadge(selectedPriceList.type)}
                   </DialogTitle>
                   <DialogDescription>
-                    {selectedPriceList.description || "Manage pricing for this list"}
+                    {selectedPriceList.description || "Manage item-specific pricing overrides and volume breaks for this list."}
                   </DialogDescription>
                 </DialogHeader>
                 
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <h4 className="font-medium">Priced Products</h4>
-                    <Button size="sm">
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Products
-                    </Button>
+                <div className="space-y-4 py-2">
+                  <div className="rounded-lg border border-border overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-muted/40">
+                          <TableHead className="font-semibold">Product</TableHead>
+                          <TableHead className="text-right font-semibold">Base Price</TableHead>
+                          <TableHead className="text-right font-semibold">List Price</TableHead>
+                          <TableHead className="text-center font-semibold">Min Qty</TableHead>
+                          <TableHead className="text-right font-semibold">Discount</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {selectedPriceList.items?.map((item) => (
+                          <TableRow key={item.id}>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium text-sm text-foreground">{item.product.name}</p>
+                                <p className="text-xs text-muted-foreground font-mono">{item.product.sku}</p>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right text-sm text-muted-foreground">
+                              {formatCurrency(item.product.wholesalePrice)}
+                            </TableCell>
+                            <TableCell className="text-right font-medium text-sm text-foreground">
+                              {formatCurrency(item.price)}
+                            </TableCell>
+                            <TableCell className="text-center text-sm">{item.minQty}</TableCell>
+                            <TableCell className="text-right text-sm">
+                              {item.discountPercent > 0 && (
+                                <span className="text-emerald-600 dark:text-emerald-400 font-medium">-{item.discountPercent}%</span>
+                              )}
+                              {item.discountFlat > 0 && (
+                                <span className="text-emerald-600 dark:text-emerald-400 font-medium">-{formatCurrency(item.discountFlat)}</span>
+                              )}
+                              {!item.discountPercent && !item.discountFlat && "—"}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                        {(!selectedPriceList.items || selectedPriceList.items.length === 0) && (
+                          <TableRow>
+                            <TableCell colSpan={5} className="text-center py-8 text-muted-foreground text-xs">
+                              No product lines customized for this list yet.
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
                   </div>
-                  
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Product</TableHead>
-                        <TableHead className="text-right">Base Price</TableHead>
-                        <TableHead className="text-right">List Price</TableHead>
-                        <TableHead className="text-center">Min Qty</TableHead>
-                        <TableHead className="text-right">Discount</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {selectedPriceList.items?.map((item) => (
-                        <TableRow key={item.id}>
-                          <TableCell>
-                            <div>
-                              <p className="font-medium">{item.product.name}</p>
-                              <p className="text-xs text-muted-foreground font-mono">{item.product.sku}</p>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right text-muted-foreground">
-                            {formatCurrency(item.product.wholesalePrice)}
-                          </TableCell>
-                          <TableCell className="text-right font-medium">
-                            {formatCurrency(item.price)}
-                          </TableCell>
-                          <TableCell className="text-center">{item.minQty}</TableCell>
-                          <TableCell className="text-right">
-                            {item.discountPercent > 0 && (
-                              <span className="text-green-600">-{item.discountPercent}%</span>
-                            )}
-                            {item.discountFlat > 0 && (
-                              <span className="text-green-600">-{formatCurrency(item.discountFlat)}</span>
-                            )}
-                            {!item.discountPercent && !item.discountFlat && "-"}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      {(!selectedPriceList.items || selectedPriceList.items.length === 0) && (
-                        <TableRow>
-                          <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                            No products added yet. Click "Add Products" to start.
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
                 </div>
                 
-                <DialogFooter>
+                <DialogFooter className="gap-2">
                   <Button variant="outline" onClick={() => setIsDetailOpen(false)}>
                     Close
-                  </Button>
-                  <Button className="bg-emerald-600 hover:bg-emerald-700">
-                    Save Changes
                   </Button>
                 </DialogFooter>
               </>

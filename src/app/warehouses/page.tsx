@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Edit, MoreHorizontal, Plus, Search, Trash2, Warehouse } from "lucide-react"
+import { Edit, MoreHorizontal, Plus, Search, Trash2, Warehouse, MapPin, Phone, Mail } from "lucide-react"
 import { toast } from "sonner"
 
 import { AppShell } from "@/components/layout/app-shell"
@@ -20,12 +20,17 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { PageHeader } from "@/components/ui/page-header"
+import { KpiCard } from "@/components/ui/kpi-card"
+import { EmptyState } from "@/components/ui/empty-state"
 import { AUSTRALIAN_STATES, type AustralianState } from "@/lib/types"
 
 type LocationRecord = {
@@ -178,6 +183,7 @@ export default function WarehousesPage() {
   }
 
   async function handleDelete(location: LocationRecord) {
+    if (!confirm(`Are you sure you want to delete ${location.name}?`)) return
     try {
       const response = await fetch(`/api/warehouses/${location.id}`, { method: "DELETE" })
       const payload = await response.json()
@@ -199,44 +205,44 @@ export default function WarehousesPage() {
   return (
     <AppShell title="Locations" breadcrumbs={[{ label: "Locations" }]}>
       <div className="space-y-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Locations</h1>
-            <p className="text-muted-foreground">Create and manage multiple warehouses or operating locations across the business.</p>
-          </div>
-          <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={openCreateDialog}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Location
-          </Button>
+        <PageHeader
+          title="Locations & Warehouses"
+          description="Create and manage multi-site storage locations, fulfillment facilities, and primary dispatch hubs."
+          actions={
+            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" size="sm" onClick={openCreateDialog}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add Location
+            </Button>
+          }
+        />
+
+        <div className="grid gap-4 sm:grid-cols-3">
+          <KpiCard
+            title="Total Locations"
+            value={locations.length}
+            description="Configured warehouses"
+            icon={Warehouse}
+          />
+          <KpiCard
+            title="Active Facilities"
+            value={activeLocations}
+            description="Receiving & shipping"
+            icon={Warehouse}
+          />
+          <KpiCard
+            title="Default Dispatch Hub"
+            value={defaultLocations}
+            description="Primary fulfillment site"
+            icon={Warehouse}
+          />
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Total locations</CardDescription>
-              <CardTitle className="text-2xl">{locations.length}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Active locations</CardDescription>
-              <CardTitle className="text-2xl">{activeLocations}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Default ship location</CardDescription>
-              <CardTitle className="text-2xl">{defaultLocations}</CardTitle>
-            </CardHeader>
-          </Card>
-        </div>
-
-        <Card>
+        <Card className="border-border shadow-sm">
           <CardContent className="pt-6">
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
-                className="pl-8"
+                className="pl-8 text-sm"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Search by name, code, city, or location..."
@@ -245,78 +251,96 @@ export default function WarehousesPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Operational locations</CardTitle>
-            <CardDescription>These locations are used by inventory, purchasing, picking, and delivery routing.</CardDescription>
+        <Card className="border-border shadow-sm overflow-hidden">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-semibold text-foreground">Operational Locations</CardTitle>
+            <CardDescription className="text-xs">
+              These facilities are designated for stock holdings, purchase order receipts, order picking, and transport dispatch.
+            </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead>Location</TableHead>
-                  <TableHead>Code</TableHead>
-                  <TableHead>Address</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Stock Lines</TableHead>
+                <TableRow className="bg-muted/40">
+                  <TableHead className="font-semibold">Location</TableHead>
+                  <TableHead className="font-semibold">Code</TableHead>
+                  <TableHead className="font-semibold">Physical Address</TableHead>
+                  <TableHead className="font-semibold">Status</TableHead>
+                  <TableHead className="font-semibold text-center">Stock Lines</TableHead>
                   <TableHead className="w-12"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
-                      Loading locations...
+                    <TableCell colSpan={6} className="py-12 text-center text-muted-foreground text-sm">
+                      Loading warehouse locations...
                     </TableCell>
                   </TableRow>
                 ) : filteredLocations.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
-                      No locations found.
+                    <TableCell colSpan={6} className="py-12">
+                      <EmptyState
+                        icon={Warehouse}
+                        title="No locations found"
+                        description="No facilities match your search query."
+                        action={
+                          <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={openCreateDialog}>
+                            <Plus className="mr-1.5 h-3.5 w-3.5" /> Add Location
+                          </Button>
+                        }
+                      />
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredLocations.map((location) => (
-                    <TableRow key={location.id}>
+                    <TableRow key={location.id} className="hover:bg-muted/30 transition-colors">
                       <TableCell>
                         <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
-                            <Warehouse className="h-5 w-5" />
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary border border-primary/20">
+                            <Warehouse className="h-4 w-4" />
                           </div>
                           <div>
                             <div className="flex items-center gap-2">
-                              <p className="font-medium">{location.name}</p>
-                              {location.isDefault && <Badge variant="outline">Default</Badge>}
+                              <p className="font-medium text-sm text-foreground">{location.name}</p>
+                              {location.isDefault && (
+                                <Badge variant="secondary" className="text-[10px] h-4 px-1.5">Default Hub</Badge>
+                              )}
                             </div>
                             <p className="text-xs text-muted-foreground">{location.location}</p>
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell className="font-mono">{location.code}</TableCell>
-                      <TableCell>
+                      <TableCell className="font-mono text-xs font-semibold text-foreground">{location.code}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground max-w-xs truncate">
                         {[location.address, location.city, location.state, location.postcode]
                           .filter(Boolean)
-                          .join(", ") || "No address"}
+                          .join(", ") || "No address specified"}
                       </TableCell>
                       <TableCell>
-                        <Badge className={location.status === "active" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-700"}>
-                          {location.status}
-                        </Badge>
+                        {location.status === "active" ? (
+                          <Badge className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 font-medium">active</Badge>
+                        ) : (
+                          <Badge variant="secondary" className="font-medium">{location.status}</Badge>
+                        )}
                       </TableCell>
-                      <TableCell>{location.productCount || 0}</TableCell>
+                      <TableCell className="text-center font-mono text-sm font-semibold text-foreground">{location.productCount || 0}</TableCell>
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
+                            <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity">
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={() => openEditDialog(location)}>
                               <Edit className="mr-2 h-4 w-4" />
-                              Edit
+                              Edit Details
                             </DropdownMenuItem>
-                            <DropdownMenuItem className="text-red-600" onClick={() => void handleDelete(location)}>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => void handleDelete(location)}>
                               <Trash2 className="mr-2 h-4 w-4" />
                               Delete
                             </DropdownMenuItem>
@@ -331,74 +355,113 @@ export default function WarehousesPage() {
           </CardContent>
         </Card>
 
+        {/* Add/Edit Location Dialog */}
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="max-w-3xl">
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>{selectedLocation ? "Edit Location" : "Add Location"}</DialogTitle>
+              <DialogTitle>{selectedLocation ? "Edit Location" : "Add Warehouse Location"}</DialogTitle>
               <DialogDescription>
-                Use multiple locations for stock, purchasing, routing, and fulfillment control.
+                Configure warehouse parameters, state jurisdiction, contacts, and default status.
               </DialogDescription>
             </DialogHeader>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Name</Label>
-                  <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required />
+            <form onSubmit={handleSubmit} className="space-y-4 py-2">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Location Name *</Label>
+                  <Input
+                    placeholder="e.g. Sydney Central DC"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    required
+                  />
                 </div>
-                <div className="space-y-2">
-                  <Label>Code</Label>
-                  <Input value={formData.code} onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })} required />
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Location Code *</Label>
+                  <Input
+                    placeholder="e.g. SYD-01"
+                    value={formData.code}
+                    onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
+                    required
+                  />
                 </div>
-                <div className="space-y-2">
-                  <Label>Internal Location Label</Label>
-                  <Input value={formData.location} onChange={(e) => setFormData({ ...formData, location: e.target.value })} required />
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label className="text-xs">Internal Location Label *</Label>
+                  <Input
+                    placeholder="e.g. Building 3, Alexandria Industrial Estate"
+                    value={formData.location}
+                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                    required
+                  />
                 </div>
-                <div className="space-y-2">
-                  <Label>Address</Label>
-                  <Input value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} />
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label className="text-xs">Street Address</Label>
+                  <Input
+                    placeholder="e.g. 142 Botany Rd"
+                    value={formData.address}
+                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                  />
                 </div>
-                <div className="space-y-2">
-                  <Label>City</Label>
-                  <Input value={formData.city} onChange={(e) => setFormData({ ...formData, city: e.target.value })} />
+                <div className="space-y-1.5">
+                  <Label className="text-xs">City / Suburb</Label>
+                  <Input
+                    placeholder="e.g. Alexandria"
+                    value={formData.city}
+                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                  />
                 </div>
-                <div className="space-y-2">
-                  <Label>State</Label>
-                  <Select value={formData.state} onValueChange={(value) => setFormData({ ...formData, state: value as AustralianState })}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {AUSTRALIAN_STATES.map((state) => (
-                        <SelectItem key={state} value={state}>
-                          {state}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">State</Label>
+                    <Select value={formData.state} onValueChange={(value) => setFormData({ ...formData, state: value as AustralianState })}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {AUSTRALIAN_STATES.map((state) => (
+                          <SelectItem key={state} value={state}>
+                            {state}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Postcode</Label>
+                    <Input
+                      placeholder="2015"
+                      value={formData.postcode}
+                      onChange={(e) => setFormData({ ...formData, postcode: e.target.value })}
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Postcode</Label>
-                  <Input value={formData.postcode} onChange={(e) => setFormData({ ...formData, postcode: e.target.value })} />
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Facility Contact Name</Label>
+                  <Input
+                    placeholder="e.g. John Smith"
+                    value={formData.contactName}
+                    onChange={(e) => setFormData({ ...formData, contactName: e.target.value })}
+                  />
                 </div>
-                <div className="space-y-2">
-                  <Label>Contact Name</Label>
-                  <Input value={formData.contactName} onChange={(e) => setFormData({ ...formData, contactName: e.target.value })} />
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Contact Phone</Label>
+                  <Input
+                    placeholder="e.g. 02 9123 4567"
+                    value={formData.contactPhone}
+                    onChange={(e) => setFormData({ ...formData, contactPhone: e.target.value })}
+                  />
                 </div>
-                <div className="space-y-2">
-                  <Label>Contact Phone</Label>
-                  <Input value={formData.contactPhone} onChange={(e) => setFormData({ ...formData, contactPhone: e.target.value })} />
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Contact Email</Label>
+                  <Input
+                    type="email"
+                    placeholder="warehouse@company.com.au"
+                    value={formData.contactEmail}
+                    onChange={(e) => setFormData({ ...formData, contactEmail: e.target.value })}
+                  />
                 </div>
-                <div className="space-y-2">
-                  <Label>Contact Email</Label>
-                  <Input value={formData.contactEmail} onChange={(e) => setFormData({ ...formData, contactEmail: e.target.value })} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Capacity</Label>
-                  <Input value={formData.capacity} onChange={(e) => setFormData({ ...formData, capacity: e.target.value })} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Status</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Status</Label>
                   <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
                     <SelectTrigger>
                       <SelectValue />
@@ -411,21 +474,24 @@ export default function WarehousesPage() {
                 </div>
               </div>
 
-              <label className="flex items-center gap-2 rounded-xl border border-slate-200 p-4 text-sm text-slate-700">
+              <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 p-3 text-xs text-foreground mt-2">
                 <input
                   type="checkbox"
+                  id="isDefault"
                   checked={formData.isDefault}
                   onChange={(e) => setFormData({ ...formData, isDefault: e.target.checked })}
-                  className="rounded"
+                  className="rounded border-border h-4 w-4"
                 />
-                Make this the default location for new purchasing and fulfillment flows
-              </label>
+                <Label htmlFor="isDefault" className="text-xs font-normal cursor-pointer">
+                  Make this the default location for new purchase order receipts and dispatch fulfillment
+                </Label>
+              </div>
 
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+              <DialogFooter className="gap-2 pt-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => setDialogOpen(false)}>
                   Cancel
                 </Button>
-                <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700" disabled={saving}>
+                <Button type="submit" size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" disabled={saving}>
                   {saving ? "Saving..." : selectedLocation ? "Save Location" : "Create Location"}
                 </Button>
               </DialogFooter>
