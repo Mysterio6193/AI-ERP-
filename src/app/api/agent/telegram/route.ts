@@ -12,7 +12,7 @@ import {
   sendTypingIndicator,
   verifyTelegramSecret,
 } from "@/lib/agent/channels/telegram"
-import { resolveProposal, runAgentTurn, type PendingApproval } from "@/lib/agent/runtime"
+import { resolveProposal, runAgentTurn, type AgentTurn, type PendingApproval } from "@/lib/agent/runtime"
 import { db } from "@/lib/db"
 import { processDocumentOcr } from "@/lib/ocr/engine"
 import { transcribeAudio } from "@/lib/voice/transcribe"
@@ -453,7 +453,7 @@ async function handleMessage(message: NonNullable<TelegramUpdate["message"]>) {
     clearInterval(typingTimer)
   }
 
-  const reply = turn.text || (turn.pendingApprovals.length ? "That needs your approval:" : "Done.")
+  const reply = ("ok" in turn ? turn.error : turn.text) || (turn.pendingApprovals.length ? "That needs your approval:" : "Done.")
 
   // 1. Send text reply immediately so the user gets it right away
   await sendTelegramMessage(
@@ -530,9 +530,15 @@ async function handleCallback(callback: NonNullable<TelegramUpdate["callback_que
       note: approved ? "Approved from Telegram" : "Rejected from Telegram",
     })
 
+    if ("ok" in turn && turn.ok === false) {
+      await sendTelegramMessage(chatId, turn.error)
+      return
+    }
+
+    const successfulTurn = turn as AgentTurn
     await sendTelegramMessage(
       chatId,
-      turn.text || (approved ? `Done: ${proposal.summary}` : `Cancelled: ${proposal.summary}`)
+      successfulTurn.text || (approved ? `Done: ${proposal.summary}` : `Cancelled: ${proposal.summary}`)
     )
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not complete that"

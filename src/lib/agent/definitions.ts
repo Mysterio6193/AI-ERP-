@@ -113,7 +113,7 @@ const SALES_TOOLS = [
 const WAREHOUSE_TOOLS = [
   "searchProducts", "getProductUnits", "convertQuantity",
   "getStock", "stockOutlook", "adjustInventory", "checkStockAvailability",
-  "listPickLists", "createPickList", "listDeliveries", "listRoutes", "trackDelivery",
+  "listPickLists", "createPickList", "listDeliveries", "listDeliveryRoutes", "trackDelivery",
   "getBatches", "expiringStock", "traceBatch", "quarantineStock", "releaseStock",
   "checkAllergens",
   "recallMemories", "remember",

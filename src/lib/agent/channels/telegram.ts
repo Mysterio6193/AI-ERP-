@@ -34,7 +34,8 @@ export function isTelegramConfigured() {
 export function verifyTelegramSecret(headerValue: string | null) {
   const expected = process.env.TELEGRAM_WEBHOOK_SECRET
   if (!expected) {
-    return true
+    console.warn("TELEGRAM_WEBHOOK_SECRET is not set. Rejecting incoming webhook.")
+    return false
   }
 
   return headerValue === expected
@@ -117,7 +118,7 @@ export async function sendTelegramVoice(
 ) {
   const formData = new FormData()
   formData.append("chat_id", String(chatId))
-  const blob = new Blob([audioBuffer], { type: "audio/mpeg" })
+  const blob = new Blob([new Uint8Array(audioBuffer)], { type: "audio/mpeg" })
   formData.append("voice", blob, "voice_reply.mp3")
   if (caption) {
     formData.append("caption", caption.slice(0, 1024))
@@ -156,7 +157,7 @@ export async function sendTelegramDocument(
 ) {
   const formData = new FormData()
   formData.append("chat_id", String(chatId))
-  const blob = new Blob([fileBuffer], { type: "application/pdf" })
+  const blob = new Blob([new Uint8Array(fileBuffer)], { type: "application/pdf" })
   formData.append("document", blob, fileName)
   if (caption) {
     formData.append("caption", caption.slice(0, 1024))

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { requireAdminUser } from "@/lib/admin-auth"
 import { resolveStaffPrincipal } from "@/lib/agent/context"
-import { resolveProposal, runAgentTurn } from "@/lib/agent/runtime"
+import { resolveProposal, runAgentTurn, type AgentTurn } from "@/lib/agent/runtime"
 import { db } from "@/lib/db"
 
 /**
@@ -43,9 +43,14 @@ export async function POST(request: NextRequest) {
         note: approve.approved ? "Approved in demo" : "Rejected in demo",
       })
 
+      if ("ok" in turn && turn.ok === false) {
+        return NextResponse.json({ success: false, error: turn.error }, { status: 403 })
+      }
+
+      const successfulTurn = turn as AgentTurn
       return NextResponse.json({
         success: true,
-        data: { text: turn.text, pendingApprovals: turn.pendingApprovals },
+        data: { text: successfulTurn.text, pendingApprovals: successfulTurn.pendingApprovals },
       })
     }
 
@@ -64,9 +69,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
-        text: turn.text,
-        pendingApprovals: turn.pendingApprovals,
-        threadId: turn.threadId,
+        text: 'ok' in turn ? '' : turn.text,
+        pendingApprovals: 'ok' in turn ? [] : turn.pendingApprovals,
+        threadId: 'ok' in turn ? '' : turn.threadId,
       },
     })
   } catch (error) {

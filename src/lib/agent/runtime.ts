@@ -212,12 +212,12 @@ export async function loadThread(input: {
   return { threadId: thread.id, messages }
 }
 
-export async function persistMessages(threadId: string, runId: string, messages: ModelMessage[]) {
+export async function persistMessages(threadId: string, runId: string, messages: ModelMessage[], tx: any = db) {
   if (!messages.length) {
     return
   }
 
-  await db.agentMessage.createMany({
+  await tx.agentMessage.createMany({
     data: messages.map((message) => ({
       threadId,
       runId,
@@ -251,8 +251,8 @@ function textFrom(result: { text?: string; steps?: any[]; content?: any[] }) {
   return ""
 }
 
-export async function finishRun(runId: string, patch: Record<string, unknown>) {
-  await db.agentRun.update({
+export async function finishRun(runId: string, patch: Record<string, unknown>, tx: any = db) {
+  await tx.agentRun.update({
     where: { id: runId },
     data: { finishedAt: new Date(), ...patch },
   })
@@ -494,7 +494,7 @@ export async function resolveProposal(input: {
   principal: AgentPrincipal
   decidedByUserId?: string
   note?: string
-}): Promise<AgentTurn> {
+}): Promise<AgentTurn | { ok: false; error: string }> {
   const proposal = await db.agentProposal.findUnique({
     where: { id: input.proposalId },
   })
@@ -509,6 +509,18 @@ export async function resolveProposal(input: {
 
   if (!proposal.threadId || !proposal.approvalId) {
     throw new Error("Proposal cannot be resumed")
+  }
+
+  const toolPolicy = TOOL_POLICY[proposal.toolName]
+  if (input.principal.kind !== "staff") {
+    return { ok: false, error: "Unauthorized: your role cannot approve this action" }
+  }
+  if (
+    input.principal.role !== "admin" &&
+    toolPolicy?.roles &&
+    !toolPolicy.roles.includes(input.principal.role)
+  ) {
+    return { ok: false, error: "Unauthorized: your role cannot approve this action" }
   }
 
   const thread = await db.agentThread.findUnique({
@@ -567,24 +579,30 @@ export async function resolveProposal(input: {
     const agent = await buildAgent(input.principal, thread.channel, thresholds, definition)
     const result = await agent.generate({ messages: [...messages, approvalMessage] })
 
-    await persistMessages(thread.id, run.id, [approvalMessage, ...result.responseMessages])
+    await db.$transaction(async (tx) => {
+      await persistMessages(thread.id, run.id, [approvalMessage, ...result.responseMessages], tx)
 
-    await db.agentProposal.update({
-      where: { id: proposal.id },
-      data: {
-        status: input.approved ? "executed" : "rejected",
-        decidedByUserId: input.decidedByUserId,
-        decidedAt: new Date(),
-        decisionNote: input.note,
-        executedAt: input.approved ? new Date() : null,
-        resultJson: JSON.stringify({ text: textFrom(result) }),
-      },
-    })
+      await tx.agentProposal.update({
+        where: { id: proposal.id },
+        data: {
+          status: input.approved ? "executed" : "rejected",
+          decidedByUserId: input.decidedByUserId,
+          decidedAt: new Date(),
+          decisionNote: input.note,
+          executedAt: input.approved ? new Date() : null,
+          resultJson: JSON.stringify({ text: textFrom(result) }),
+        },
+      })
 
-    await finishRun(run.id, {
-      status: "succeeded",
-      outputJson: JSON.stringify({ text: textFrom(result) }),
-      steps: result.steps?.length ?? 1,
+      await finishRun(
+        run.id,
+        {
+          status: "succeeded",
+          outputJson: JSON.stringify({ text: textFrom(result) }),
+          steps: result.steps?.length ?? 1,
+        },
+        tx
+      )
     })
 
     return { text: textFrom(result), threadId: thread.id, runId: run.id, pendingApprovals: [] }

@@ -229,6 +229,7 @@ export function decide(input: {
   toolName: string
   meta: ToolPolicyMeta | undefined
   value: number | undefined
+  trueValue?: number | undefined
   principal: AgentPrincipal
   thresholds: AgentThresholds
 }): PolicyDecision {
@@ -262,11 +263,13 @@ export function decide(input: {
   }
 
   const limit = thresholdFor(toolName, thresholds)
-  if (meta.valueField && typeof value === "number") {
-    if (value > limit) {
+  const actualValue = input.trueValue ?? value
+
+  if (meta.valueField && typeof actualValue === "number") {
+    if (actualValue > limit) {
       return {
         type: "approve",
-        reason: `$${value.toFixed(2)} is over the $${limit.toFixed(2)} auto-approval limit.`,
+        reason: `$${actualValue.toFixed(2)} is over the $${limit.toFixed(2)} auto-approval limit.`,
       }
     }
 
