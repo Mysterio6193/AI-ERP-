@@ -2396,6 +2396,15 @@ model AgentDefinition {
   /// never do more than they could.
   runAsUserId String?
 
+  /// Where a scheduled run's report is delivered.
+  ///
+  /// Null sends it to the run-as user's own Telegram, which is a private DM to
+  /// one person. Pointing it at a group channel puts the report where the team
+  /// that owns the work can see it — a stock finding belongs to the warehouse,
+  /// an overdue invoice to accounts, and neither belongs only in an admin's
+  /// inbox.
+  deliverToGroupId String?
+
   lastRunAt     DateTime?
   /// succeeded, failed or skipped, so a quietly broken schedule is visible.
   lastRunStatus String?

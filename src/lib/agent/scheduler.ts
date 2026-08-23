@@ -124,6 +124,7 @@ export async function runScheduledAgent(definitionId: string) {
     // every morning and reaches no one may as well not run.
     const delivery = await deliverAgentOutput({
       userId: definition.runAsUserId,
+      groupId: definition.deliverToGroupId,
       text: turn.text,
       subject: `${definition.name || definition.slug} report`,
     }).catch((error) => {

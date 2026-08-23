@@ -14,6 +14,7 @@ import { existsSync } from "node:fs"
 
 import { checkEnvironment } from "../src/lib/env-guard"
 import { db } from "../src/lib/db"
+import { looksLikeFillerText, looksLikePlaceholder } from "../src/lib/placeholder-detect"
 
 type Level = "fatal" | "warn" | "ok"
 const rows: Array<{ level: Level; area: string; message: string }> = []
@@ -85,7 +86,30 @@ async function main() {
 
     if (!payable) {
       add("fatal", "invoicing", `${company.name} has no bank details, so its invoices cannot be paid.`)
-    } else if (!company.accountName) {
+    } else {
+      // Filled-in but invented details are worse than empty ones: absence is
+      // caught by the check above, while a fabricated account number reaches a
+      // customer looking exactly like a real one.
+      for (const [label, value] of [
+        ["BSB", company.bsb],
+        ["account number", company.accountNumber],
+      ] as const) {
+        const check = looksLikePlaceholder(value)
+        if (check.suspicious) {
+          add(
+            "fatal",
+            "invoicing",
+            `${company.name}'s ${label} (${value}) looks like placeholder data — ${check.reason}. Confirm it before any invoice goes out.`
+          )
+        }
+      }
+
+      if (looksLikeFillerText(company.accountName) || looksLikeFillerText(company.bankName)) {
+        add("fatal", "invoicing", `${company.name}'s bank or account name looks like filler text.`)
+      }
+    }
+
+    if (payable && !company.accountName) {
       add("warn", "invoicing", `${company.name} has no account name on its remittance details.`)
     }
 

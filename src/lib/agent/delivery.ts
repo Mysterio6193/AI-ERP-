@@ -48,6 +48,14 @@ export async function deliverAgentOutput(input: {
   userId: string | null
   text: string | null
   subject?: string
+  /**
+   * A registered group channel to post into instead of a private message.
+   *
+   * A finding usually belongs to a team rather than to one person — stock to
+   * the warehouse, an overdue invoice to accounts — and a report that only
+   * ever lands in an admin's DM is seen by exactly one pair of eyes.
+   */
+  groupId?: string | null
   /** Sent even when the agent had nothing to say. Off by default. */
   force?: boolean
 }): Promise<DeliveryResult> {
@@ -55,6 +63,23 @@ export async function deliverAgentOutput(input: {
 
   if (!input.force && !isWorthSending(text)) {
     return { delivered: false, channel: null, reason: "Nothing worth reporting" }
+  }
+
+  if (input.groupId) {
+    const group = await db.agentGroupChannel.findUnique({
+      where: { id: input.groupId },
+      select: { externalId: true, name: true, status: true },
+    })
+
+    if (group && group.status === "active") {
+      try {
+        await sendTelegramMessage(group.externalId, text)
+        return { delivered: true, channel: `group:${group.name}` }
+      } catch (error) {
+        // Fall through to the individual rather than losing the report.
+        console.error("Scheduled delivery to group failed:", error)
+      }
+    }
   }
 
   if (!input.userId) {
