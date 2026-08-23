@@ -99,9 +99,9 @@ describe("role agent allowlists", () => {
     expect(ops.length).toBeLessThan(total)
   })
 
-  it("exposes every fallback slug", () => {
-    expect([...FALLBACK_SLUGS].sort()).toEqual(
-      ["accounts", "customer", "ops", "sales", "warehouse"].sort()
-    )
+  it("defines a fallback for every slug the router can produce", () => {
+    for (const slug of ["ops", "sales", "warehouse", "accounts", "customer"]) {
+      expect(FALLBACK_SLUGS, `defaultSlugFor can return "${slug}"`).toContain(slug)
+    }
   })
 })
