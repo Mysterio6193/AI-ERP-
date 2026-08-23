@@ -107,6 +107,53 @@ export function checkEnvironment(env: NodeJS.ProcessEnv = process.env): EnvIssue
     })
   }
 
+  // Driver session signing is already covered by the DEV_FALLBACKS loop above,
+  // which reports the same missing secret. getSecret() now refuses to fall back
+  // in production, so boot fails loudly rather than serving forgeable tokens.
+
+  // --- Customer sign-up ---------------------------------------------------
+  if (isProduction && env.CUSTOMER_OTP_EXPOSE === "true") {
+    issues.push({
+      level: "fatal",
+      key: "CUSTOMER_OTP_EXPOSE",
+      message:
+        "Returns the sign-up code in the API response. Anyone could verify any email address without receiving it.",
+    })
+  }
+
+  // --- Outbound email -----------------------------------------------------
+  // Without a transport, sendCommunicationMessage logs the message and returns
+  // success. Invoices and order confirmations look sent and reach nobody.
+  if (isProduction && !env.SMTP_HOST && !env.SMTP_USER) {
+    issues.push({
+      level: "warn",
+      key: "SMTP_HOST",
+      message:
+        "No mail transport. Invoices, order confirmations and statements will be recorded as sent and never leave the building.",
+    })
+  }
+
+  // --- Webhook verification ----------------------------------------------
+  // Both webhooks verify their own secret and refuse without it, so a missing
+  // one is a silently dead integration rather than an open door.
+  if (env.STRIPE_SECRET_KEY && !env.STRIPE_WEBHOOK_SECRET) {
+    issues.push({
+      level: "warn",
+      key: "STRIPE_WEBHOOK_SECRET",
+      message:
+        "Stripe is configured but its webhook secret is not, so payment confirmations will be refused and orders will never be marked paid.",
+    })
+  }
+
+  if (env.TELEGRAM_BOT_TOKEN && !env.TELEGRAM_WEBHOOK_SECRET) {
+    issues.push({
+      level: "warn",
+      key: "TELEGRAM_WEBHOOK_SECRET",
+      message:
+        "The Telegram bot is configured but its webhook secret is not, so inbound messages will be refused.",
+    })
+  }
+
   return issues
 }
 
