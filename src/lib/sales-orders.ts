@@ -2,7 +2,7 @@ import { sendSalesOrderEmail } from "@/lib/communications"
 import { checkCreditForOrder } from "@/lib/credit"
 import { db } from "@/lib/db"
 import { ensurePickListForOrder, resolveDefaultWarehouseId } from "@/lib/pick-lists"
-import { resolveLinePrice } from "@/lib/pricing"
+import { applyOrderDiscounts, resolveLinePrice } from "@/lib/pricing"
 import { getSettings } from "@/lib/settings/service"
 import { computeLineTax } from "@/lib/tax"
 import { nextDocumentNumber } from "@/lib/numbering"
@@ -232,10 +232,32 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
     return { ok: false, error: priced.error, code: "product_not_found" }
   }
 
-  // Exposure includes orders already placed but not yet invoiced. Checking
-  // creditBalance alone let a customer place unlimited orders against a limit,
-  // because that field only moves when an invoice is created.
-  const credit = await checkCreditForOrder(input.customerId, priced.totalAmount)
+  // Order-level discounts. `applyOrderDiscounts` was written and never called,
+  // so DiscountRule was a table nothing consulted — the same shape as the
+  // price lists before Phase 4. Off unless `enableDiscountRules` is on, so
+  // landing this changes no total by itself.
+  const pricingSettings = await getSettings("pricing", { companyId: customer.companyId })
+
+  const rules = pricingSettings.enableDiscountRules
+    ? await db.discountRule.findMany({ where: { status: "active" } })
+    : []
+
+  const discount = applyOrderDiscounts(
+    {
+      subtotal: priced.subtotal,
+      quantity: input.items.reduce((sum, item) => sum + item.quantity, 0),
+      customerId: input.customerId,
+    },
+    rules,
+    pricingSettings
+  )
+
+  const discountedTotal = Math.round((priced.totalAmount - discount.discountAmount) * 100) / 100
+
+  // Checked against what the customer will actually be charged, not the
+  // pre-discount figure — otherwise a discount could push an order over the
+  // limit that should have fitted under it.
+  const credit = await checkCreditForOrder(input.customerId, discountedTotal)
 
   if (!credit.ok) {
     return {
@@ -252,7 +274,8 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
   })
   const resolvedWarehouseId =
     input.warehouseId || (await resolveDefaultWarehouseId(db, customer.companyId))
-  const status = input.status || "draft"
+  const status =
+    input.status || (discount.requiresApproval ? "pending_approval" : "draft")
 
   const order = await createOrderRecord({
     orderNumber,
@@ -265,7 +288,11 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
     warehouseId: resolvedWarehouseId,
     subtotal: priced.subtotal,
     taxAmount: priced.taxAmount,
-    totalAmount: priced.totalAmount,
+    discountAmount: discount.discountAmount,
+    totalAmount: discountedTotal,
+    // A rule that demands sign-off routes the order to the existing approval
+    // status rather than quietly applying itself.
+    requiresApproval: discount.requiresApproval,
     sourceChannel: input.sourceChannel || "admin",
     items: {
       create: priced.items.map((item) => ({
