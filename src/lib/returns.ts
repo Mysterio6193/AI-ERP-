@@ -3,6 +3,7 @@ import type { Prisma, PrismaClient } from "@prisma/client"
 import { receiveBatch } from "@/lib/batches"
 import { db } from "@/lib/db"
 import { nextDocumentNumber } from "@/lib/numbering"
+import { issueCreditNote } from "@/lib/credit-notes"
 
 type DbClient = PrismaClient | Prisma.TransactionClient
 
@@ -33,20 +34,6 @@ const ALLOWED: Record<ReturnStatus, ReturnStatus[]> = {
 export function canTransition(from: string, to: string) {
   const allowed = ALLOWED[from as ReturnStatus]
   return Boolean(allowed?.includes(to as ReturnStatus))
-}
-
-async function nextCreditNoteNumber(client: DbClient) {
-  const year = new Date().getFullYear()
-  const prefix = `CN-${year}-`
-
-  const last = await client.creditNote.findFirst({
-    where: { cnNumber: { startsWith: prefix } },
-    orderBy: { cnNumber: "desc" },
-    select: { cnNumber: true },
-  })
-
-  const sequence = last ? Number(last.cnNumber.slice(prefix.length)) + 1 : 1
-  return `${prefix}${String(sequence).padStart(4, "0")}`
 }
 
 /**
@@ -226,49 +213,23 @@ export async function completeReturn(returnId: string, options?: { userId?: stri
         })
       : null
 
-    const creditNote = await tx.creditNote.create({
-      data: {
-        cnNumber: await nextDocumentNumber("creditNote", {
-          db: tx,
-          legacy: () => nextCreditNoteNumber(tx),
-        }),
-        invoiceId: invoice?.id || null,
-        customerId: record.customerId,
-        amount: net,
-        reason: record.reason || `Return ${record.returnNumber}`,
-        status: "active",
-        appliedToInvoice: invoice?.id || null,
-        appliedAmount: invoice ? net : 0,
-      },
+    // One implementation of "reduce what they owe", shared with the credit
+    // notes API. This used to move creditBalance only: it never reduced the
+    // invoice and never reached the ledger.
+    const credited = await issueCreditNote(tx, {
+      customerId: record.customerId,
+      invoiceId: invoice?.id || null,
+      amount: net,
+      reason: record.reason || `Return ${record.returnNumber}`,
+      userId: options?.userId,
     })
 
-    // Reduce what they owe. Atomic, so a concurrent invoice charge is not lost.
-    const customer = await tx.customer.update({
-      where: { id: record.customerId },
-      data: { creditBalance: { decrement: net } },
-      select: { creditBalance: true, creditLimit: true, creditStatus: true },
-    })
-
-    if (
-      customer.creditStatus === "on_hold" &&
-      (customer.creditLimit <= 0 || customer.creditBalance <= customer.creditLimit)
-    ) {
-      await tx.customer.update({
-        where: { id: record.customerId },
-        data: { creditStatus: "active" },
-      })
+    if (!credited.ok) {
+      throw new Error(credited.error)
     }
 
-    await tx.creditTransaction.create({
-      data: {
-        customerId: record.customerId,
-        type: "refund",
-        amount: -net,
-        balanceAfter: customer.creditBalance,
-        description: `Credit note ${creditNote.cnNumber} for return ${record.returnNumber}`,
-        referenceType: "credit_note",
-        referenceId: creditNote.id,
-      },
+    const creditNote = await tx.creditNote.findUniqueOrThrow({
+      where: { id: credited.creditNoteId },
     })
 
     const updated = await tx.return.update({
