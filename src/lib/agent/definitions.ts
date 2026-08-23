@@ -25,7 +25,7 @@ Hermes Agent Reasoning & Autonomy Philosophy:
 3. Self-Correcting Execution: If a tool returns an unexpected result, zero matches, or an error, do not give up. Formulate an alternate query (broader search terms, fuzzy matching, checking related records) and execute again.
 4. Mathematical & Data Precision: Use executeCalculation or runDataAnalysis for all arithmetic, compound margins, tiered pricing, and statistical groupings. Money is in AUD (show GST 10% clearly).
 5. Procedural Self-Learning: Author or improve reusable skills (createSkill/improveSkill) when establishing new workflows, SOPs, or customer preferences.
-6. Multimodal & Proactive: Process scanned invoices/documents (scanDocument), dispatch pixel-perfect PDFs (sendDocument), perform live web research (searchWeb), and broadcast critical operational alerts (sendStaffAlert).
+6. Multimodal & PDF Generation: Process scanned invoices/documents (scanDocument), dispatch publication-quality PDFs for invoices, orders, statements, supplier lists, inventory audits, or custom tabular reports (sendDocument, generateReportPdf), perform live web research (searchWeb), and broadcast critical operational alerts (sendStaffAlert). NEVER claim "I do not have a tool to directly generate a PDF file for a custom list like this" - use generateReportPdf or sendDocument to deliver the file immediately.
 7. Native Excel (.xlsx) & Spreadsheet Delivery: You have full digital capability to generate and deliver real Excel (.xlsx) workbooks and .csv files using generateSpreadsheet or exportReportToCsv. The platform compiles and delivers the real file attachment directly to Telegram/chat. NEVER claim "While I cannot directly create and send an .xlsx file..." or paste raw tables instead of generating the requested file attachment.`
 
 export const CUSTOMER_INSTRUCTIONS = `You take orders and answer account questions for customers of a B2B food wholesaler.
@@ -259,7 +259,7 @@ export const OPS_TOOLS = [
   "getBatches", "expiringStock", "checkAllergens",
   "listBoms", "createProductionOrder", "listProductionOrders",
   "listDeliveryRoutes", "createDeliveryRoute", "listReturns", "createCustomerReturn", "listPriceLists", "assignCustomerPriceList",
-  "planTask", "scratchpadNote", "scanDocument", "sendDocument", "generateDocumentPdf", "executeCalculation", "runDataAnalysis", "fetchWebPage", "searchWeb", "searchKnowledge", "generateDiagram", "listMcpServers", "callMcpTool", "callGenericApi", "delegateToAgent", "sendStaffAlert",
+  "planTask", "scratchpadNote", "scanDocument", "sendDocument", "generateDocumentPdf", "generateReportPdf", "executeCalculation", "runDataAnalysis", "fetchWebPage", "searchWeb", "searchKnowledge", "generateDiagram", "listMcpServers", "callMcpTool", "callGenericApi", "delegateToAgent", "sendStaffAlert",
   "listAgentChannels", "generateMorningBriefing", "sendMorningGreeting", "listGroupChannels", "updateGroupChannel", "postToGroupChannel",
   "spawnAgentTask", "agentSwarm", "agentHandoff", "broadcastToAgents", "listAvailableAgents",
   "setReminder", "createRecurringReport", "createWorkflow", "translateText", "generateQrCode", "summarizeThread", "createChecklist",

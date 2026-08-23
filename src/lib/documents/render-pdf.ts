@@ -145,3 +145,35 @@ export async function renderCustomerStatementPdfBuffer(customerIdOrName: string)
     fileName: `statement-${customer.name.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`,
   }
 }
+
+export async function renderCustomReportPdfBuffer(options: {
+  title: string
+  subtitle?: string
+  headers: string[]
+  rows: Array<Array<string | number | boolean | null>>
+  summaryCards?: Array<{ label: string; value: string | number }>
+  fileName?: string
+}): Promise<{ buffer: Buffer; fileName: string }> {
+  const company = await db.company.findFirst()
+  const CustomReportPDF = (await import("@/components/documents/CustomReportPDF")).default
+
+  const docElement = React.createElement(CustomReportPDF, {
+    title: options.title,
+    subtitle: options.subtitle,
+    headers: options.headers,
+    rows: options.rows,
+    summaryCards: options.summaryCards,
+    companyName: company?.name || "SupplySure OS Wholesale Distribution",
+  })
+
+  const blob = await pdf(docElement as any).toBlob()
+  const arrayBuffer = await blob.arrayBuffer()
+  const cleanFileName = options.fileName
+    ? (options.fileName.endsWith(".pdf") ? options.fileName : `${options.fileName}.pdf`)
+    : `${options.title.toLowerCase().replace(/[^a-z0-9]+/g, "_")}.pdf`
+
+  return {
+    buffer: Buffer.from(arrayBuffer),
+    fileName: cleanFileName,
+  }
+}

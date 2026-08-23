@@ -246,6 +246,7 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
   scanDocument: { risk: "read" },
   sendDocument: { risk: "low" },
   generateDocumentPdf: { risk: "read" },
+  generateReportPdf: { risk: "low" },
 
   // Communication Channels & Morning Briefings
   listAgentChannels: { risk: "read" },
