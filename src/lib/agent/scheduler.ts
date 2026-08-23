@@ -5,6 +5,7 @@ import { resolveStaffPrincipal } from "./context"
 import { heartbeat, type HeartbeatResult } from "./heartbeat"
 import { runAgentTurn } from "./runtime"
 import { summariseBacklog } from "./summarise"
+import { deliverAgentOutput } from "@/lib/agent/delivery"
 
 /**
  * Scheduled agent runs.
@@ -118,6 +119,18 @@ export async function runScheduledAgent(definitionId: string) {
       agentSlug: definition.slug,
     })
 
+    // The run produced text and delivered it nowhere: the reply went into the
+    // cron endpoint's JSON response, which nothing reads. A briefing that runs
+    // every morning and reaches no one may as well not run.
+    const delivery = await deliverAgentOutput({
+      userId: definition.runAsUserId,
+      text: turn.text,
+      subject: `${definition.name || definition.slug} report`,
+    }).catch((error) => {
+      console.error("Scheduled delivery failed:", error)
+      return { delivered: false, channel: null, reason: "Delivery threw" }
+    })
+
     await db.agentDefinition.update({
       where: { id: definition.id },
       data: { lastRunStatus: "succeeded", lastRunError: null },
@@ -126,6 +139,7 @@ export async function runScheduledAgent(definitionId: string) {
     return {
       ok: true as const,
       text: turn.text,
+      delivery,
       pending: turn.pendingApprovals.length,
       threadId: turn.threadId,
     }

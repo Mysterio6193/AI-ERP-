@@ -261,6 +261,10 @@ export const OPS_TOOLS = [
   "planTask", "scratchpadNote", "scanDocument", "sendDocument", "generateDocumentPdf", "executeCalculation", "runDataAnalysis", "fetchWebPage", "searchWeb", "searchKnowledge", "generateDiagram", "listMcpServers", "callMcpTool", "callGenericApi", "delegateToAgent", "sendStaffAlert",
   "listAgentChannels", "generateMorningBriefing", "sendMorningGreeting", "listGroupChannels", "updateGroupChannel", "postToGroupChannel",
   "spawnAgentTask", "agentSwarm", "agentHandoff", "broadcastToAgents", "listAvailableAgents",
+  "setReminder", "createRecurringReport", "createWorkflow", "translateText", "generateQrCode", "summarizeThread", "createChecklist",
+  "generateSpreadsheet", "exportReportToCsv", "parseSpreadsheet",
+  "sendEmail", "draftEmail", "listCommunicationHistory",
+  "scheduleMeeting", "listUpcomingEvents",
   "listSkills", "readSkill", "createSkill", "improveSkill", "recordSkillOutcome", "recallMemories", "remember",
 ]
 

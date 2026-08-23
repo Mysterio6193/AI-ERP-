@@ -25,7 +25,10 @@ import { buildPriceListTools } from "./pricing-tiers"
 import { buildReturnTools } from "./returns"
 import { buildRouteTools } from "./routes"
 import { buildAutomationTools } from "./automation"
+import { buildCalendarTools } from "./calendar"
+import { buildEmailTools } from "./email"
 import { buildMultiAgentTools } from "./multi-agent"
+import { buildSpreadsheetTools } from "./spreadsheets"
 import { buildSettingsTools } from "./settings"
 import { buildPipelineTools } from "./pipeline"
 import { buildPurchasingTools } from "./purchasing"
@@ -269,6 +272,20 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
   listPriceLists: { risk: "read" },
   assignCustomerPriceList: { risk: "low", roles: ["admin", "sales"] },
 
+  // Spreadsheets & Data Exports
+  generateSpreadsheet: { risk: "read" },
+  exportReportToCsv: { risk: "read" },
+  parseSpreadsheet: { risk: "read" },
+
+  // Email System & CRM Communication
+  sendEmail: { risk: "low", roles: ["admin", "sales", "warehouse", "accounts"] },
+  draftEmail: { risk: "read" },
+  listCommunicationHistory: { risk: "read" },
+
+  // Calendar & Scheduling
+  scheduleMeeting: { risk: "low", roles: ["admin", "sales", "warehouse", "accounts"] },
+  listUpcomingEvents: { risk: "read" },
+
   // Freight. Drafting writes a row and contacts nobody; sending commits the
   // business to a third party who acts on it immediately, so it is the gate.
   listCarriers: { risk: "read" },
@@ -322,7 +339,10 @@ export function buildTools(principal: AgentPrincipal, channel?: string): ToolSet
     buildDocumentTools(principal, channel),
     buildSettingsTools(principal),
     buildAutomationTools(principal),
+    buildCalendarTools(principal),
+    buildEmailTools(principal),
     buildMultiAgentTools(principal),
+    buildSpreadsheetTools(principal),
     buildSkillTools(principal),
     buildPurchasingTools(principal),
     buildReportingTools(principal),
