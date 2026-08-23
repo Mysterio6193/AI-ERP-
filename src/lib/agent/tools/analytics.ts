@@ -46,7 +46,8 @@ export function buildAnalyticsTools(principal: AgentPrincipal) {
         const totalReceivables = openInvoices.reduce((sum, i) => sum + i.outstandingAmt, 0)
         const totalPayables = openPos.reduce((sum, p) => sum + p.totalAmount, 0)
         const netCashProjection = totalReceivables - totalPayables
-        const historical30DayInflow = recentPayments.reduce((sum, p) => sum + p.amount, 0)
+        // Payment.amount is a Decimal, so it needs coercing before arithmetic.
+        const historical30DayInflow = recentPayments.reduce((sum, p) => sum + Number(p.amount), 0)
 
         // Split into aging buckets
         const dueSoonInvoices = openInvoices.filter((i) => i.dueDate <= targetDate)
@@ -109,7 +110,9 @@ export function buildAnalyticsTools(principal: AgentPrincipal) {
           }),
           db.creditNote.findMany({
             where: { createdAt: { gte: startDate } },
-            select: { totalAmount: true },
+            // CreditNote stores the net and the tax separately; there is no
+            // totalAmount column.
+            select: { amount: true, taxAmount: true },
           }),
         ])
 
@@ -128,7 +131,11 @@ export function buildAnalyticsTools(principal: AgentPrincipal) {
           }
         }
 
-        const totalReturnsAndCredits = creditNotes.reduce((sum, c) => sum + c.totalAmount, 0)
+        // Both columns are Decimal, so they are coerced before arithmetic.
+        const totalReturnsAndCredits = creditNotes.reduce(
+          (sum, c) => sum + Number(c.amount) + Number(c.taxAmount),
+          0
+        )
         const netRevenue = grossRevenue - totalReturnsAndCredits
         const grossProfit = netRevenue - totalCogs
         const grossMarginPercent = netRevenue > 0 ? (grossProfit / netRevenue) * 100 : 0
@@ -254,29 +261,50 @@ export function buildAnalyticsTools(principal: AgentPrincipal) {
             purchaseOrders: {
               select: { id: true, totalAmount: true, status: true, expectedDate: true, createdAt: true },
             },
-            batches: { select: { isQuarantined: true } },
           },
         })
 
+        // InventoryBatch carries a supplierId but Supplier has no relation
+        // back to it, so quality has to be counted separately rather than
+        // included. Grouped once for every supplier instead of per row.
+        const batchCounts = await db.inventoryBatch.groupBy({
+          by: ["supplierId", "status"],
+          where: { supplierId: { in: suppliers.map((s) => s.id) } },
+          _count: { _all: true },
+        })
+
+        const batchesBySupplier = new Map<string, { total: number; quarantined: number }>()
+        for (const row of batchCounts) {
+          if (!row.supplierId) continue
+          const entry = batchesBySupplier.get(row.supplierId) ?? { total: 0, quarantined: 0 }
+          entry.total += row._count._all
+          if (row.status === "quarantined") entry.quarantined += row._count._all
+          batchesBySupplier.set(row.supplierId, entry)
+        }
+
         const scorecards = suppliers.map((s) => {
+          const batches = batchesBySupplier.get(s.id) ?? { total: 0, quarantined: 0 }
           const totalSpend = s.purchaseOrders.reduce((sum, po) => sum + po.totalAmount, 0)
           const totalPos = s.purchaseOrders.length
           const completedPos = s.purchaseOrders.filter((po) => po.status === "received").length
-          const quarantinedBatches = s.batches.filter((b) => b.isQuarantined).length
-          const qualityScore = s.batches.length > 0
-            ? (((s.batches.length - quarantinedBatches) / s.batches.length) * 100).toFixed(0)
+          const quarantinedBatches = batches.quarantined
+          const qualityScore = batches.total > 0
+            ? (((batches.total - quarantinedBatches) / batches.total) * 100).toFixed(0)
             : 100
 
           return {
             id: s.id,
             name: s.name,
-            code: s.code,
+            // Supplier has no code; the ABN is the identifier it does carry.
+            abn: s.abn,
             totalSpend: money(totalSpend),
             totalPurchaseOrders: totalPos,
             completedPOs: completedPos,
             qualityPassRate: `${qualityScore}%`,
-            leadTimeDays: s.leadTimeDays || 3,
-            paymentTerms: `${s.paymentTermsDays || 30} days`,
+            batchesReceived: batches.total,
+            // Lead time is per product-supplier link, not per supplier, so it
+            // is not reported here rather than invented.
+            paymentTerms: `${s.paymentTerms || 30} days`,
             status: s.status,
           }
         })

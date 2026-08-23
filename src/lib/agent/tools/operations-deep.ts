@@ -49,9 +49,10 @@ export function buildDeepOperationsTools(principal: AgentPrincipal) {
           supplierName: ps.supplier.name,
           supplierSku: ps.supplierSku || product.sku,
           unitCost: money(ps.costPrice),
-          leadTimeDays: ps.supplier.leadTimeDays || 3,
+          // Lead time is a property of the link, not the supplier.
+          leadTimeDays: ps.leadTime ?? 7,
           minOrderQty: ps.minOrderQty || 1,
-          paymentTerms: `${ps.supplier.paymentTermsDays || 30} days`,
+          paymentTerms: `${ps.supplier.paymentTerms || 30} days`,
           isPreferred: ps.isPreferred,
         }))
 
@@ -62,11 +63,11 @@ export function buildDeepOperationsTools(principal: AgentPrincipal) {
 
         return {
           ok: true as const,
-          product: { id: product.id, name: product.name, sku: product.sku, currentSellPrice: money(product.basePrice) },
+          product: { id: product.id, name: product.name, sku: product.sku, currentSellPrice: money(product.wholesalePrice) },
           totalSuppliers: suppliers.length,
           supplierQuotes: suppliers,
           bestPriceRecommendation: bestPrice
-            ? `Best rate: ${bestPrice.supplierName} @ $${bestPrice.unitCost} (Lead time: ${bestPrice.leadTimeDays} days). Estimated gross margin: ${(((product.basePrice - bestPrice.unitCost) / product.basePrice) * 100).toFixed(1)}%.`
+            ? `Best rate: ${bestPrice.supplierName} @ $${bestPrice.unitCost} (Lead time: ${bestPrice.leadTimeDays} days). Estimated gross margin: ${(((product.wholesalePrice - bestPrice.unitCost) / product.wholesalePrice) * 100).toFixed(1)}%.`
             : "No supplier mappings configured for this product.",
         }
       },
@@ -91,7 +92,8 @@ export function buildDeepOperationsTools(principal: AgentPrincipal) {
           },
           include: {
             product: true,
-            lines: { include: { componentProduct: true } },
+            // BomLine's relation to the component is `component`.
+            lines: { include: { component: true } },
           },
         })
 
@@ -101,8 +103,9 @@ export function buildDeepOperationsTools(principal: AgentPrincipal) {
 
         let totalRawCost = 0
         const lineBreakdown = bom.lines.map((line) => {
-          const comp = line.componentProduct
-          const unitCost = comp?.costPrice || (comp?.basePrice ? comp.basePrice * 0.6 : 1.0)
+          const comp = line.component
+          // The sell column is wholesalePrice; there is no basePrice.
+          const unitCost = comp?.costPrice || (comp?.wholesalePrice ? comp.wholesalePrice * 0.6 : 1.0)
           const qty = line.quantity * batchMultiplier
           const lineCost = unitCost * qty * (1 + (line.wastePercent || 0) / 100)
           totalRawCost += lineCost
@@ -111,16 +114,16 @@ export function buildDeepOperationsTools(principal: AgentPrincipal) {
             ingredient: comp?.name || "Raw Material",
             sku: comp?.sku || "N/A",
             quantityNeeded: qty,
-            unit: line.unit || comp?.unit || "kg",
+            unit: line.unit || comp?.baseUnit || "kg",
             unitCost: money(unitCost),
             wastePercent: `${line.wastePercent || 0}%`,
             lineTotalCost: money(lineCost),
           }
         })
 
-        const totalBatchYield = bom.yieldQuantity * batchMultiplier
+        const totalBatchYield = bom.yieldQty * batchMultiplier
         const costPerYieldUnit = totalBatchYield > 0 ? totalRawCost / totalBatchYield : totalRawCost
-        const sellPrice = targetSellPrice || bom.product.basePrice
+        const sellPrice = targetSellPrice || bom.product.wholesalePrice
         const grossMarginPerUnit = sellPrice - costPerYieldUnit
         const grossMarginPercent = sellPrice > 0 ? (grossMarginPerUnit / sellPrice) * 100 : 0
 
@@ -265,22 +268,39 @@ export function buildDeepOperationsTools(principal: AgentPrincipal) {
         batchNumberOrSku: z.string().describe("Batch number or SKU to simulate recall on"),
       }),
       execute: async ({ batchNumberOrSku }) => {
-        const batch = await db.batch.findFirst({
+        // InventoryBatch has no relation to Product or Supplier — only ids —
+        // so an SKU lookup resolves the product first, and the names are
+        // fetched alongside the batch rather than joined.
+        const skuMatch = await db.product.findFirst({
+          where: { sku: { equals: batchNumberOrSku, mode: "insensitive" } },
+          select: { id: true },
+        })
+
+        const batch = await db.inventoryBatch.findFirst({
           where: {
             OR: [
-              { batchNumber: { equals: batchNumberOrSku, mode: "insensitive" } },
-              { product: { sku: { equals: batchNumberOrSku, mode: "insensitive" } } },
+              { batchCode: { equals: batchNumberOrSku, mode: "insensitive" } },
+              ...(skuMatch ? [{ productId: skuMatch.id }] : []),
             ],
-          },
-          include: {
-            product: true,
-            supplier: true,
           },
         })
 
         if (!batch) {
           return { ok: false as const, error: `Batch or SKU '${batchNumberOrSku}' not found.` }
         }
+
+        const [batchProduct, batchSupplier] = await Promise.all([
+          db.product.findUnique({
+            where: { id: batch.productId },
+            select: { id: true, name: true, sku: true },
+          }),
+          batch.supplierId
+            ? db.supplier.findUnique({
+                where: { id: batch.supplierId },
+                select: { id: true, name: true, email: true, phone: true },
+              })
+            : Promise.resolve(null),
+        ])
 
         // Find customer orders that contain this product since batch creation
         const affectedOrders = await db.salesOrder.findMany({
@@ -304,17 +324,17 @@ export function buildDeepOperationsTools(principal: AgentPrincipal) {
           ok: true as const,
           drillType: "HACCP Mock Recall Traceability Drill",
           targetBatch: {
-            batchNumber: batch.batchNumber,
-            productName: batch.product.name,
-            sku: batch.product.sku,
+            batchNumber: batch.batchCode,
+            productName: batchProduct!.name,
+            sku: batchProduct!.sku,
             expiryDate: batch.expiryDate?.toISOString().split("T")[0] || "N/A",
-            initialQuantity: batch.initialQty,
-            currentWarehouseStock: batch.currentQty,
-            quarantined: batch.isQuarantined,
+            initialQuantity: batch.quantity,
+            currentWarehouseStock: batch.quantity,
+            quarantined: (batch.status === "quarantined"),
           },
           backwardTraceSupplier: {
-            supplierName: batch.supplier?.name || "Direct Wholesale",
-            supplierContact: batch.supplier?.email || "N/A",
+            supplierName: batchSupplier?.name || "Direct Wholesale",
+            supplierContact: batchSupplier?.email || "N/A",
             receivedDate: batch.createdAt.toISOString().split("T")[0],
           },
           forwardTraceDispatchedCustomers: {
@@ -329,9 +349,9 @@ export function buildDeepOperationsTools(principal: AgentPrincipal) {
             })),
           },
           containmentActions: [
-            `1. Quarantine remaining ${batch.currentQty} unit(s) in warehouse via quarantineStock.`,
+            `1. Quarantine remaining ${batch.quantity} unit(s) in warehouse via quarantineStock.`,
             `2. Dispatch recall notification emails to ${affectedOrders.length} affected customer(s).`,
-            `3. Contact supplier (${batch.supplier?.name || "Vendor"}) for root cause and corrective action report.`,
+            `3. Contact supplier (${batchSupplier?.name || "Vendor"}) for root cause and corrective action report.`,
           ],
         }
       },
@@ -391,9 +411,9 @@ export function buildDeepOperationsTools(principal: AgentPrincipal) {
           customer: {
             id: customer.id,
             name: customer.name,
-            code: customer.code,
+            // Customer has no code column.
             creditLimit: money(creditLimit),
-            paymentTerms: `${customer.paymentTermsDays || 30} days`,
+            paymentTerms: `${customer.paymentTerms || 30} days`,
             status: customer.status,
           },
           exposure: {

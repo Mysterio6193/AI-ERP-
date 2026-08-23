@@ -199,52 +199,56 @@ export function buildSpreadsheetTools(principal: AgentPrincipal, channel?: strin
             const inventory = await db.inventory.findMany({
               take: limit,
               orderBy: { product: { name: "asc" } },
-              include: { product: true },
+              // `category` is a relation, not a column, so it has to be
+              // included to be read.
+              include: { product: { include: { category: true } } },
             })
             rows = inventory.map((inv) => [
               inv.product.sku,
               inv.product.name,
-              inv.product.category || "General",
+              inv.product.category?.name || "General",
               inv.quantity,
-              inv.product.unit || "unit",
+              // The unit column is `baseUnit`; the sell price is
+              // `wholesalePrice`. There is no `unit` or `basePrice`.
+              inv.product.baseUnit || "unit",
               money(inv.product.costPrice || 0),
-              money(inv.product.basePrice),
-              money(inv.quantity * (inv.product.costPrice || inv.product.basePrice)),
+              money(inv.product.wholesalePrice),
+              money(inv.quantity * (inv.product.costPrice || inv.product.wholesalePrice)),
             ])
             break
           }
           case "customers": {
-            headers = ["Account Code", "Business Name", "Contact", "Phone", "Email", "Payment Terms", "Credit Limit", "Status"]
+            headers = ["Business Name", "Contact", "Phone", "Email", "Payment Terms", "Credit Limit", "Status"]
             const customers = await db.customer.findMany({
               take: limit,
               orderBy: { name: "asc" },
             })
             rows = customers.map((c) => [
-              c.code || "N/A",
               c.name,
-              c.contactName || "N/A",
+              c.contactPerson || "N/A",
               c.phone || "N/A",
               c.email || "N/A",
-              `${c.paymentTermsDays || 30} days`,
+              `${c.paymentTerms || 30} days`,
               money(c.creditLimit || 0),
               c.status,
             ])
             break
           }
           case "suppliers": {
-            headers = ["Supplier Name", "Code", "Contact Person", "Phone", "Email", "Payment Terms", "Lead Time (Days)", "Status"]
+            headers = ["Supplier Name", "ABN", "Contact Person", "Phone", "Email", "Payment Terms", "Status"]
             const suppliers = await db.supplier.findMany({
               take: limit,
               orderBy: { name: "asc" },
             })
             rows = suppliers.map((s) => [
               s.name,
-              s.code || "N/A",
-              s.contactName || "N/A",
+              // Supplier has no code; the ABN is the identifier it carries.
+              // Lead time is per product-supplier link, not per supplier.
+              s.abn || "N/A",
+              s.contactPerson || "N/A",
               s.phone || "N/A",
               s.email || "N/A",
-              `${s.paymentTermsDays || 30} days`,
-              s.leadTimeDays || 3,
+              `${s.paymentTerms || 30} days`,
               s.status,
             ])
             break
@@ -268,21 +272,40 @@ export function buildSpreadsheetTools(principal: AgentPrincipal, channel?: strin
             break
           }
           case "batches": {
-            headers = ["Batch Number", "Product Name", "SKU", "Initial Qty", "Current Qty", "Expiry Date", "Supplier", "Quarantine Status"]
-            const batches = await db.batch.findMany({
+            headers = ["Batch Code", "Product Name", "SKU", "On Hand", "Reserved", "Expiry Date", "Supplier", "Status"]
+            const batches = await db.inventoryBatch.findMany({
               take: limit,
               orderBy: { expiryDate: "asc" },
-              include: { product: true, supplier: true },
             })
+
+            // InventoryBatch carries productId and supplierId but has no
+            // relation to either, so the names are resolved in two queries
+            // rather than joined per row.
+            const [batchProducts, batchSuppliers] = await Promise.all([
+              db.product.findMany({
+                where: { id: { in: batches.map((b) => b.productId) } },
+                select: { id: true, name: true, sku: true },
+              }),
+              db.supplier.findMany({
+                where: { id: { in: batches.map((b) => b.supplierId).filter(Boolean) as string[] } },
+                select: { id: true, name: true },
+              }),
+            ])
+
+            const productById = new Map(batchProducts.map((x) => [x.id, x]))
+            const supplierById = new Map(batchSuppliers.map((x) => [x.id, x]))
+
             rows = batches.map((b) => [
-              b.batchNumber,
-              b.product?.name || "N/A",
-              b.product?.sku || "N/A",
-              b.initialQty,
-              b.currentQty,
+              // The column is batchCode, the quantity is `quantity`, and
+              // quarantine is a value of `status`, not a boolean.
+              b.batchCode,
+              productById.get(b.productId)?.name || "N/A",
+              productById.get(b.productId)?.sku || "N/A",
+              b.quantity,
+              b.reserved,
               b.expiryDate ? b.expiryDate.toISOString().split("T")[0] : "N/A",
-              b.supplier?.name || "N/A",
-              b.isQuarantined ? "QUARANTINED" : "Active",
+              (b.supplierId && supplierById.get(b.supplierId)?.name) || "N/A",
+              b.status === "quarantined" ? "QUARANTINED" : b.status,
             ])
             break
           }

@@ -56,11 +56,14 @@ export function buildCalendarTools(principal: AgentPrincipal) {
         const now = new Date()
 
         // Create a corresponding database Task so it's tracked in SupplySure OS
-        const task = await db.task.create({
+        // The model is CrmTask; its body is `notes` and its due column is
+        // `dueAt`. A `type` is required.
+        const task = await db.crmTask.create({
           data: {
             title: `📅 Meeting: ${title}`,
-            description: `${description || "Scheduled meeting"}\n\nLocation: ${location}\nAttendees: ${attendees?.join(", ") || "N/A"}\nDuration: ${durationMinutes} mins`,
-            dueDate: start,
+            notes: `${description || "Scheduled meeting"}\n\nLocation: ${location}\nAttendees: ${attendees?.join(", ") || "N/A"}\nDuration: ${durationMinutes} mins`,
+            type: "meeting",
+            dueAt: start,
             status: "pending",
             priority: "high",
             assignedToId: userId,
@@ -115,13 +118,13 @@ export function buildCalendarTools(principal: AgentPrincipal) {
         const end = new Date(now.getTime() + daysAhead * 86400000)
 
         const [tasks, routes] = await Promise.all([
-          db.task.findMany({
+          db.crmTask.findMany({
             where: {
-              dueDate: { gte: now, lte: end },
+              dueAt: { gte: now, lte: end },
               status: { not: "completed" },
             },
-            orderBy: { dueDate: "asc" },
-            include: { assignedTo: { select: { name: true } } },
+            orderBy: { dueAt: "asc" },
+            // No relation from CrmTask to User; names resolved below.
           }),
           db.deliveryRoute.findMany({
             where: {
@@ -132,15 +135,23 @@ export function buildCalendarTools(principal: AgentPrincipal) {
           }),
         ])
 
+        // CrmTask carries assignedToId but has no relation back to User, so
+        // the names are resolved in one query rather than joined per row.
+        const assignees = await db.user.findMany({
+          where: { id: { in: tasks.map((t) => t.assignedToId).filter(Boolean) as string[] } },
+          select: { id: true, name: true },
+        })
+        const assigneeNames = new Map(assignees.map((u) => [u.id, u.name]))
+
         return {
           ok: true as const,
           timeRange: `Next ${daysAhead} days`,
           scheduledTasksAndMeetings: tasks.map((t) => ({
             id: t.id,
             title: t.title,
-            due: t.dueDate?.toISOString(),
+            due: t.dueAt?.toISOString(),
             priority: t.priority,
-            assignedTo: t.assignedTo?.name || "Unassigned",
+            assignedTo: (t.assignedToId && assigneeNames.get(t.assignedToId)) || "Unassigned",
           })),
           scheduledDeliveryRoutes: routes.map((r) => ({
             id: r.id,
