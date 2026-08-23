@@ -26,6 +26,11 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  periodLabel,
+  withinPeriod,
+  type ReportPeriod,
+} from "@/lib/reporting-period"
 
 interface DashboardData {
   totalRevenue: number
@@ -44,7 +49,7 @@ interface DashboardData {
 export default function ReportsPage() {
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [period, setPeriod] = useState("month")
+  const [period, setPeriod] = useState<ReportPeriod>("month")
 
   useEffect(() => {
     fetchDashboardData()
@@ -68,11 +73,24 @@ export default function ReportsPage() {
       const invoicesData = await invoicesRes.json()
 
       if (ordersData.success && customersData.success && productsData.success) {
-        const orders = ordersData.data || []
+        // The selector used to change nothing: it sat in this effect's
+        // dependencies and in the export filename, and every period produced
+        // identical figures. Anything dated is now filtered to the window.
+        const allOrders = ordersData.data || []
+        const allInvoices = invoicesData.success ? invoicesData.data || [] : []
+
+        const orders = allOrders.filter((order: any) =>
+          withinPeriod(order.orderDate ?? order.createdAt, period)
+        )
+        const invoices = allInvoices.filter((invoice: any) =>
+          withinPeriod(invoice.invoiceDate ?? invoice.createdAt, period)
+        )
+
+        // Catalogue counts stay absolute — "how many customers do we have" is
+        // not a question about a date range.
         const customers = customersData.data || []
         const products = productsData.data || []
         const inventory = inventoryData.data || []
-        const invoices = invoicesData.success ? invoicesData.data || [] : []
 
         // Calculate metrics
         const completedOrders = orders.filter((o: any) => 
@@ -121,8 +139,9 @@ export default function ReportsPage() {
           const date = new Date()
           date.setDate(date.getDate() - i)
           const dateStr = date.toISOString().split("T")[0]
-          const dayOrders = orders.filter((o: any) => 
-            o.orderDate.split("T")[0] === dateStr && !["draft", "cancelled"].includes(o.status)
+          const dayOrders = allOrders.filter((o: any) =>
+            (o.orderDate || o.createdAt || "").split("T")[0] === dateStr &&
+            !["draft", "cancelled"].includes(o.status)
           )
           salesTrend.push({
             date: date.toLocaleDateString("en-US", { weekday: "short" }),
@@ -163,9 +182,10 @@ export default function ReportsPage() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Reports & Analytics</h1>
             <p className="text-muted-foreground">Business insights, financial summaries, and performance metrics</p>
+            <p className="text-xs text-muted-foreground">Figures cover {periodLabel(period)}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Select value={period} onValueChange={setPeriod}>
+            <Select value={period} onValueChange={(value) => setPeriod(value as ReportPeriod)}>
               <SelectTrigger className="w-36">
                 <SelectValue />
               </SelectTrigger>
