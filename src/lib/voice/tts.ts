@@ -75,7 +75,7 @@ export async function synthesizeSpeech(options: SynthesizeSpeechOptions): Promis
 
   const voiceName = options.voice || process.env.EDGE_TTS_VOICE || "en-AU-NatashaNeural"
 
-  // Method 1: Edge Neural High-Definition Speech (Zero cost, ultra-natural, fast)
+  // Method 1: Edge Neural High-Definition Speech (Fast, local, zero cost)
   try {
     const tts = new EdgeTTS({
       voice: voiceName,
@@ -97,39 +97,58 @@ export async function synthesizeSpeech(options: SynthesizeSpeechOptions): Promis
       }
     }
   } catch (edgeError) {
-    console.warn("Edge Neural TTS note, trying secondary fallback:", edgeError)
+    console.warn("Edge Neural TTS note, trying OpenRouter Fish Audio fallback:", edgeError)
   }
 
-  // Method 2: OpenRouter / OpenAI TTS fallback
+  // Method 2: OpenRouter Fish Audio TTS (fish-audio/s2.1-pro-free) / OpenAI TTS
   const apiKey = process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY
   if (apiKey) {
     try {
-      const ttsUrl = process.env.OPENROUTER_API_KEY
+      const isOR = Boolean(process.env.OPENROUTER_API_KEY)
+      const ttsUrl = isOR
         ? "https://openrouter.ai/api/v1/audio/speech"
         : "https://api.openai.com/v1/audio/speech"
 
+      const headers: Record<string, string> = {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      }
+
+      if (isOR) {
+        headers["HTTP-Referer"] = "https://supplysure.os"
+        headers["X-Title"] = "SupplySure OS"
+      }
+
+      const model = isOR
+        ? process.env.AGENT_TTS_MODEL || "fish-audio/s2.1-pro-free"
+        : "tts-1"
+
       const response = await fetch(ttsUrl, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify({
-          model: "tts-1",
+          model,
           input: textToSpeak,
-          voice: "nova",
+          voice: options.voice || (isOR ? "b347db033a6549378b48d00acb0d06cd" : "nova"),
+          response_format: "mp3",
         }),
       })
 
       if (response.ok) {
         const arrayBuffer = await response.arrayBuffer()
-        return {
-          buffer: Buffer.from(arrayBuffer),
-          mimeType: "audio/mpeg",
+        const buffer = Buffer.from(arrayBuffer)
+        if (buffer.length > 200) {
+          return {
+            buffer,
+            mimeType: response.headers.get("content-type") || "audio/mpeg",
+          }
         }
+      } else {
+        const err = await response.text()
+        console.warn("OpenRouter TTS API response not ok:", response.status, err)
       }
     } catch (apiTtsError) {
-      console.warn("OpenAI/OpenRouter TTS fallback note:", apiTtsError)
+      console.warn("OpenRouter Fish Audio TTS error:", apiTtsError)
     }
   }
 
