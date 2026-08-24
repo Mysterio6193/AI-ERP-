@@ -40,6 +40,7 @@ import { buildAnalyticsTools } from "./analytics"
 import { buildDeepOperationsTools } from "./operations-deep"
 import { buildUniversalTools } from "./universal"
 import { buildWebSearchTools } from "./websearch"
+import { TOOL_NAMES } from "./define"
 
 /**
  * The tool registry.
@@ -232,6 +233,10 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
   runDataAnalysis: { risk: "read" },
   fetchWebPage: { risk: "read" },
   searchWeb: { risk: "read" },
+
+  // The agent's view of its own tools. Reads only.
+  checkToolHealth: { risk: "read" },
+  acknowledgeToolFault: { risk: "low", roles: ["admin"] },
   searchKnowledge: { risk: "read" },
   generateDiagram: { risk: "read" },
   delegateToAgent: { risk: "read", roles: ["admin", "sales", "warehouse", "accounts"] },
@@ -378,7 +383,17 @@ export function buildTools(principal: AgentPrincipal, channel?: string): ToolSet
     buildPriceListTools(principal),
   ]
 
-  return Object.assign({}, ...builders) as ToolSet
+  const assembled = Object.assign({}, ...builders) as ToolSet
+
+  // defineTool never sees the key a tool is registered under, so the mapping
+  // from description to name is filled in here. Without it a health record
+  // reads as a hash and nobody can tell which tool is broken.
+  for (const [name, definition] of Object.entries(assembled)) {
+    const description = (definition as { description?: string })?.description
+    if (description) TOOL_NAMES.set(description, name)
+  }
+
+  return assembled
 }
 
 /** Every tool the registry can produce, for settings screens and docs. */

@@ -2,6 +2,8 @@ import { z } from "zod"
 
 import type { AgentPrincipal } from "../context"
 import { defineTool } from "./define"
+import { acknowledgeTool, brokenTools, describeBroken, healthSummary } from "@/lib/agent/tool-health"
+import { db } from "@/lib/db"
 
 /**
  * General digital problem solving & Hermes Reasoning tools.
@@ -15,6 +17,51 @@ export function buildGeneralTools(principal: AgentPrincipal) {
   const principalKey = principal.kind === "staff" ? principal.userId : principal.customerId
 
   return {
+    checkToolHealth: defineTool({
+      description:
+        "Which of the agent's own tools are failing, with the last error for each. Use this when a tool behaves oddly, when asked whether anything is broken, or before reporting that something cannot be done.",
+      inputSchema: z.object({
+        includeWorking: z.boolean().optional().default(false).describe("Also list tools that are working"),
+      }),
+      // Watching the watcher would record a failure of the health check as a
+      // failure to report health, which is circular and unhelpful.
+      skipHealthTracking: true,
+      execute: async ({ includeWorking }) => {
+        const [broken, summary] = await Promise.all([brokenTools(), healthSummary()])
+
+        return {
+          ok: true as const,
+          summary,
+          broken,
+          report: describeBroken(broken),
+          ...(includeWorking
+            ? {
+                working: await db.toolHealth.findMany({
+                  where: { consecutiveFailures: 0, successCount: { gt: 0 } },
+                  select: { toolName: true, successCount: true, lastSucceededAt: true },
+                  orderBy: { successCount: "desc" },
+                  take: 25,
+                }),
+              }
+            : {}),
+        }
+      },
+    }),
+
+    acknowledgeToolFault: defineTool({
+      description:
+        "Mark a known tool fault as seen, so it stops being reported every morning. Use only when a person has decided what to do about it.",
+      inputSchema: z.object({
+        toolName: z.string().describe("The tool to acknowledge, e.g. searchWeb"),
+      }),
+      skipHealthTracking: true,
+      execute: async ({ toolName }) => {
+        await acknowledgeTool(toolName)
+        return { ok: true as const, message: `${toolName} acknowledged. It will be reported again if it fails after its next success.` }
+      },
+    }),
+
+
     planTask: defineTool({
       description:
         "Hermes Multi-Step Planner: Use when solving a complex multi-action request. Break down the user's goal into explicit sequential sub-steps before executing tools.",

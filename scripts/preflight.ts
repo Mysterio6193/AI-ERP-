@@ -15,6 +15,7 @@ import { existsSync } from "node:fs"
 import { checkEnvironment } from "../src/lib/env-guard"
 import { db } from "../src/lib/db"
 import { looksLikeFillerText, looksLikePlaceholder } from "../src/lib/placeholder-detect"
+import { brokenTools } from "../src/lib/agent/tool-health"
 
 type Level = "fatal" | "warn" | "ok"
 const rows: Array<{ level: Level; area: string; message: string }> = []
@@ -129,6 +130,19 @@ async function main() {
       "warn",
       "multi-entity",
       `${orphanCustomers} customer(s) belong to no company, so their orders and invoices inherit none.`
+    )
+  }
+
+  // --- Agent tools ----------------------------------------------------------
+  // A tool that has stopped working makes every answer built on it wrong, and
+  // it looks identical to a tool nobody used.
+  const faulty = await brokenTools()
+
+  for (const tool of faulty) {
+    add(
+      "warn",
+      "agent tools",
+      `${tool.toolName} ${tool.neverWorked ? "has never succeeded" : `failed its last ${tool.consecutiveFailures} calls`}: ${tool.lastError ?? "unknown error"}`
     )
   }
 

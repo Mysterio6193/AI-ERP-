@@ -39,7 +39,9 @@ const SCHEDULED: Array<{ slug: string; schedule: string; prompt: string; why: st
     why: "weekday mornings, 7am — the overall sweep",
     prompt: `Review the business since yesterday.
 
-Check: invoices now overdue, stock at or below reorder level, orders sitting in pending_approval, deliveries that failed, and customers over their credit limit.${QUIET_RULE}`,
+Check: invoices now overdue, stock at or below reorder level, orders sitting in pending_approval, deliveries that failed, and customers over their credit limit.
+
+Also run checkToolHealth. A tool that has quietly stopped working makes every answer after it wrong, and nobody notices until a decision is made on bad information — report any broken tool alongside the business items.${QUIET_RULE}`,
   },
   {
     slug: "warehouse",
