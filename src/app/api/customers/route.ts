@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAdminUser } from "@/lib/admin-auth"
 import { db } from "@/lib/db"
 import { normalizeEmail } from "@/lib/customer-auth"
+import { getActiveCompanyId } from "@/lib/active-company"
 
 // GET /api/customers - List all customers
 export async function GET(request: NextRequest) {
@@ -101,8 +102,19 @@ export async function POST(request: NextRequest) {
       locations,
     } = body
 
+    /**
+     * The entity this customer belongs to.
+     *
+     * Nothing set this, so every customer created here had no company — which
+     * produces orders with no company, invoices with no company, and a journal
+     * posting with nowhere to land. That is the shape that broke invoicing
+     * outright before the ledger learned to fall back.
+     */
+    const companyId = await getActiveCompanyId(request)
+
     const customer = await db.customer.create({
       data: {
+        companyId,
         name,
         tradingName,
         abn,

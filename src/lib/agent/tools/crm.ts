@@ -71,8 +71,16 @@ export function buildCrmTools(principal: AgentPrincipal) {
         deliveryNotes: z.string().optional().describe("Delivery instructions or loading dock access"),
       }),
       execute: async (input) => {
+        // A customer with no company produces orders and invoices with none
+        // either, so it follows the staff member who created it.
+        const creator =
+          principal.kind === "staff"
+            ? await db.user.findUnique({ where: { id: principal.userId }, select: { companyId: true } })
+            : null
+
         const customer = await db.customer.create({
           data: {
+            companyId: creator?.companyId ?? null,
             name: input.name.trim(),
             tradingName: input.tradingName?.trim() || null,
             contactPerson: input.contactPerson?.trim() || null,
