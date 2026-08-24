@@ -56,14 +56,38 @@ export async function deliverAgentOutput(input: {
    * ever lands in an admin's DM is seen by exactly one pair of eyes.
    */
   groupId?: string | null
+  /**
+   * Actions the run wants to take that need a person to say yes.
+   *
+   * A scheduled agent that proposes a purchase order and delivers the text
+   * without it leaves the proposal sitting in the table with nothing pointing
+   * at it — the work was done and nobody was asked. These ride along with the
+   * report, on the same approve/reject buttons the interactive chat uses, so a
+   * decision is one tap rather than a trip to a screen.
+   */
+  approvals?: Array<{ proposalId: string; summary: string; reason?: string }>
   /** Sent even when the agent had nothing to say. Off by default. */
   force?: boolean
 }): Promise<DeliveryResult> {
   const text = (input.text || "").trim()
 
-  if (!input.force && !isWorthSending(text)) {
+  const approvals = input.approvals ?? []
+
+  // Something waiting on a person is never a quiet day, whatever the text says.
+  if (!input.force && approvals.length === 0 && !isWorthSending(text)) {
     return { delivered: false, channel: null, reason: "Nothing worth reporting" }
   }
+
+  const buttons = approvals.length
+    ? approvals.map((a) => [
+        { text: `✅ Approve: ${a.summary}`.slice(0, 60), callbackData: `approve:${a.proposalId}` },
+        { text: "❌ Reject", callbackData: `reject:${a.proposalId}` },
+      ])
+    : undefined
+
+  const body = approvals.length
+    ? `${text || "Awaiting your decision."}\n\n${approvals.length} action${approvals.length === 1 ? "" : "s"} need${approvals.length === 1 ? "s" : ""} approval:`
+    : text
 
   if (input.groupId) {
     const group = await db.agentGroupChannel.findUnique({
@@ -73,7 +97,7 @@ export async function deliverAgentOutput(input: {
 
     if (group && group.status === "active") {
       try {
-        await sendTelegramMessage(group.externalId, text)
+        await sendTelegramMessage(group.externalId, body, buttons)
         return { delivered: true, channel: `group:${group.name}` }
       } catch (error) {
         // Fall through to the individual rather than losing the report.
@@ -93,7 +117,7 @@ export async function deliverAgentOutput(input: {
 
   if (identity?.externalId) {
     try {
-      await sendTelegramMessage(identity.externalId, text)
+      await sendTelegramMessage(identity.externalId, body, buttons)
       return { delivered: true, channel: "telegram" }
     } catch (error) {
       // Fall through to email rather than losing the report entirely.
@@ -114,7 +138,11 @@ export async function deliverAgentOutput(input: {
     to: user.email,
     method: "email",
     subject: input.subject || "Agent report",
-    message: text,
+    // Email has no buttons, so it says where the decision lives instead of
+    // silently dropping the actions.
+    message: approvals.length
+      ? `${body}\n\n${approvals.map((a, i) => `${i + 1}. ${a.summary}`).join("\n")}\n\nApprove or reject these in Settings → Agent, or from Telegram.`
+      : text,
     companyId: user.companyId,
   })
 

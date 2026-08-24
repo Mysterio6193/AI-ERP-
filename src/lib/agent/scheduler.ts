@@ -126,6 +126,13 @@ export async function runScheduledAgent(definitionId: string) {
       userId: definition.runAsUserId,
       groupId: definition.deliverToGroupId,
       text: turn.text,
+      // The run counted these and delivered none of them, so a proposal sat in
+      // the table with nothing pointing at it.
+      approvals: turn.pendingApprovals.map((a) => ({
+        proposalId: a.proposalId,
+        summary: a.summary,
+        reason: a.reason,
+      })),
       subject: `${definition.name || definition.slug} report`,
     }).catch((error) => {
       console.error("Scheduled delivery failed:", error)

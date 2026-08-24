@@ -59,3 +59,32 @@ describe("isWorthSending", () => {
     expect(NOTHING_TO_REPORT).toBe("nothing needs attention")
   })
 })
+
+describe("pending approvals change what counts as quiet", () => {
+  it("a proposal is never a quiet day", async () => {
+    // A scheduled agent that proposes a purchase order and says nothing else
+    // must still reach someone — the action is waiting on them.
+    const { deliverAgentOutput } = await import("./delivery")
+
+    const result = await deliverAgentOutput({
+      userId: null,
+      text: "Nothing needs attention.",
+      approvals: [{ proposalId: "p1", summary: "Raise PO for 40 bases" }],
+    })
+
+    // No user to deliver to, but crucially not skipped as "nothing to report".
+    expect(result.reason).not.toBe("Nothing worth reporting")
+  })
+
+  it("still stays quiet when there is neither text nor a proposal", async () => {
+    const { deliverAgentOutput } = await import("./delivery")
+
+    const result = await deliverAgentOutput({
+      userId: null,
+      text: "Nothing needs attention.",
+      approvals: [],
+    })
+
+    expect(result.reason).toBe("Nothing worth reporting")
+  })
+})
