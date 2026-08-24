@@ -258,6 +258,11 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
   updateGroupChannel: { risk: "low", roles: ["admin"] },
   postToGroupChannel: { risk: "low", roles: ["admin", "sales", "warehouse", "accounts"] },
 
+  // Message templates. Both are reads: drafting fills a template in and hands
+  // the text back, it does not send anything.
+  listMessageTemplates: { risk: "read" },
+  draftFromTemplate: { risk: "read" },
+
   // Manufacturing & BOM Recipes
   listBoms: { risk: "read" },
   createProductionOrder: { risk: "medium", roles: ["admin", "warehouse"] },
