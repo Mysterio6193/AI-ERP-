@@ -526,14 +526,17 @@ export function AppSidebar({ user }: AppSidebarProps) {
 
   return (
     <Sidebar className="border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
-      <SidebarHeader className="border-b border-sidebar-border p-4">
-        <Link href="/" className="flex items-center gap-3 px-1">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
-            <Building2 className="h-5 w-5" />
+      <SidebarHeader className="border-b border-sidebar-border/70 p-4">
+        <Link href="/" className="flex items-center gap-3 px-1 group">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-blue-600 text-primary-foreground shadow-md shadow-primary/25 ring-1 ring-white/20 transition-transform group-hover:scale-105">
+            <Building2 className="h-4.5 w-4.5" />
           </div>
           <div className="flex flex-col min-w-0">
-            <span className="truncate text-sm font-semibold tracking-tight text-sidebar-foreground">{getCompanyDisplayName(company)}</span>
-            <span className="text-[10px] font-medium uppercase tracking-widest text-sidebar-foreground/60">SupplySure OS</span>
+            <span className="truncate text-sm font-bold tracking-tight text-sidebar-foreground group-hover:text-primary transition-colors">{getCompanyDisplayName(company)}</span>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
+              <span className="text-[9px] font-semibold uppercase tracking-widest text-sidebar-foreground/50">SupplySure OS</span>
+            </div>
           </div>
         </Link>
 
@@ -544,7 +547,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
               <DropdownMenuTrigger asChild>
                 <button
                   disabled={switching}
-                  className="flex w-full items-center justify-between gap-2 rounded-md border border-sidebar-border bg-sidebar-accent/50 px-3 py-1.5 text-left transition-colors hover:bg-sidebar-accent disabled:opacity-60"
+                  className="flex w-full items-center justify-between gap-2 rounded-xl border border-sidebar-border/80 bg-sidebar-accent/40 px-3 py-1.5 text-left transition-all hover:bg-sidebar-accent hover:border-primary/30 disabled:opacity-60 shadow-xs"
                 >
                   <span className="min-w-0">
                     <span className="block truncate text-xs font-medium text-sidebar-foreground">
@@ -552,14 +555,14 @@ export function AppSidebar({ user }: AppSidebarProps) {
                         entities.find((entity) => entity.id === activeEntityId)?.name ||
                         "Select entity"}
                     </span>
-                    <span className="block text-[10px] text-sidebar-foreground/60">
+                    <span className="block text-[10px] text-sidebar-foreground/50">
                       Entity · {entities.length} in group
                     </span>
                   </span>
-                  <ChevronDown className="h-3.5 w-3.5 shrink-0 text-sidebar-foreground/60" />
+                  <ChevronDown className="h-3.5 w-3.5 shrink-0 text-sidebar-foreground/50" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-64 border border-border bg-popover text-popover-foreground shadow-lg">
+              <DropdownMenuContent align="start" className="w-64 border border-border bg-popover text-popover-foreground shadow-xl rounded-xl">
                 {entities.map((entity) => (
                   <DropdownMenuItem
                     key={entity.id}
@@ -594,7 +597,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
                       ) : null}
                     </div>
                     {entity.id === activeEntityId ? (
-                      <Check className="ml-auto h-3.5 w-3.5 shrink-0" />
+                      <Check className="ml-auto h-3.5 w-3.5 shrink-0 text-primary" />
                     ) : null}
                   </DropdownMenuItem>
                 ))}
@@ -603,7 +606,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
           </div>
         ) : null}
       </SidebarHeader>
-      <SidebarContent className="overflow-y-auto px-2 py-3">
+      <SidebarContent className="overflow-y-auto px-2.5 py-3 space-y-1">
         {groupOrder.map((group) => {
           const items = groupedItems[group]
           if (!items || items.length === 0) return null
@@ -611,12 +614,12 @@ export function AppSidebar({ user }: AppSidebarProps) {
           return (
             <SidebarGroup key={group} className="py-1">
               {group !== "Main" && (
-                <SidebarGroupLabel className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
+                <SidebarGroupLabel className="px-2.5 py-1 text-[9px] font-bold uppercase tracking-widest text-sidebar-foreground/40">
                   {group}
                 </SidebarGroupLabel>
               )}
               <SidebarGroupContent>
-                <SidebarMenu>
+                <SidebarMenu className="space-y-0.5">
                   {items.map((item) => {
                     const isActive = pathname === item.href ||
                       (item.href !== "/" && pathname.startsWith(item.href))
@@ -626,18 +629,18 @@ export function AppSidebar({ user }: AppSidebarProps) {
                           asChild
                           isActive={isActive}
                           className={`
-                            w-full justify-start gap-2.5 rounded-md px-2.5 py-2 text-xs font-medium transition-all duration-150
+                            w-full justify-start gap-2.5 rounded-xl px-2.5 py-2 text-xs font-medium transition-all duration-150
                             ${isActive
-                              ? "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 hover:text-primary-foreground font-semibold"
-                              : "text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                              ? "bg-primary/15 text-primary border border-primary/25 shadow-sm shadow-primary/10 font-semibold"
+                              : "text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
                             }
                           `}
                         >
                           <Link href={item.href}>
-                            <item.icon className="h-4 w-4 shrink-0" />
+                            <item.icon className={`h-4 w-4 shrink-0 transition-transform ${isActive ? "text-primary scale-105" : "text-sidebar-foreground/60"}`} />
                             <span className="truncate">{item.label}</span>
                             {item.badge ? (
-                              <Badge className="ml-auto h-4 px-1.5 text-[10px] font-semibold border-0 bg-primary-foreground/20 text-sidebar-foreground">
+                              <Badge className="ml-auto h-4 px-1.5 text-[10px] font-semibold border-0 bg-primary/20 text-primary">
                                 {item.badge}
                               </Badge>
                             ) : null}

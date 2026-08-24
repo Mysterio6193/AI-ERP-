@@ -24,10 +24,15 @@
     "pg:status": "node scripts/pg.mjs status",
     "telegram:poll": "npx tsx --env-file=.env scripts/telegram-poll.ts",
     "morning:briefing": "npx tsx --env-file=.env scripts/morning-briefing.ts",
-    "docker:dev": "docker compose -f docker-compose.dev.yml up --build",
-    "docker:prod": "docker compose up -d --build",
+    "docker:dev": "docker compose up --build",
+    "docker:watch": "docker compose watch",
+    "docker:prod": "docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build",
+    "docker:build": "docker compose -f docker-compose.yml -f docker-compose.prod.yml build",
+    "docker:logs": "docker compose logs -f",
+    "docker:sh": "docker compose exec web sh",
     "docker:restart": "docker compose restart web",
-    "docker:stop": "docker compose down"
+    "docker:stop": "docker compose down",
+    "docker:reset": "docker compose down -v --remove-orphans"
   },
   "dependencies": {
     "@ai-sdk/google": "^4.0.50",

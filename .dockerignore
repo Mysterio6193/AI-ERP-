@@ -1,19 +1,34 @@
+# Build context exclusions.
+#
+# This only affects `COPY` in the build stages. The dev container gets its source
+# from a bind mount, which .dockerignore does not apply to — so excluding a file
+# here never hides it from the dev server.
+
 # version control
 .git
 .gitignore
+.gitattributes
 
-# dependencies & build outputs
+# dependencies & build output — reinstalled and rebuilt inside the image, and
+# the host's copies target a different libc and Prisma engine
 node_modules
+apps/driver-app/node_modules
 .next
 apps/driver-app/.next
 .pgdata
 
-# secrets and env files (except example)
+# incremental compiler state — stale here, and large
+tsconfig.tsbuildinfo
+*.tsbuildinfo
+
+# secrets. .env must never enter an image layer: layers are readable by anyone
+# who can pull the image, and deleting the file in a later layer does not remove
+# it. Configuration reaches the container at runtime via compose env_file.
 .env
-.env*.local
+.env.*
 !.env.example
 
-# databases — runtime SQLite DBs (Postgres data is in volume)
+# runtime SQLite databases (Postgres lives in a volume)
 *.db
 *.db-journal
 *.db-wal
@@ -21,14 +36,27 @@ apps/driver-app/.next
 db/
 prisma/db/
 
-# runtime uploads
+# runtime uploads — a volume in every environment
 public/uploads/
 
 # logs
 *.log
+dev.log
+server.log
 
-# docs / scratch / archives
-docs.zip
+# docker's own files: editing a compose file should not invalidate the build
+# cache, since none of them are copied into an image
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# docs & scratch
+README.md
+PRODUCT.md
+CLAUDE.md
+GEMINI.md
+docs/
+examples/
 *.zip
 upload/
 download/
@@ -36,8 +64,15 @@ download/
 # local AI-tooling config
 .claude
 .codex
+.agents
+.impeccable
+.mcp.json
+skills-lock.json
 skills
 
-# tests
+# tests & coverage — the images do not run them; CI does
 test
+tests
 coverage
+vitest.config.mts
+**/*.test.ts

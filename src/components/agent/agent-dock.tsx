@@ -11,8 +11,9 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 /**
  * The agent, available from every page.
  *
- * Opens on Cmd/Ctrl+K and carries the current page as context, so "chase this
- * one" on a customer page means something without the user restating it.
+ * Listens for the "open-agent" custom event (e.g. from Command Palette)
+ * and carries the current page as context, so "chase this one" on a
+ * customer page means something without the user restating it.
  */
 
 /** Human-readable description of where the user is, passed to the agent. */
@@ -54,15 +55,9 @@ export function AgentDock() {
   const pathname = usePathname()
 
   useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key.toLowerCase() === "k" && (event.metaKey || event.ctrlKey)) {
-        event.preventDefault()
-        setOpen((current) => !current)
-      }
-    }
-
-    window.addEventListener("keydown", onKeyDown)
-    return () => window.removeEventListener("keydown", onKeyDown)
+    const handleOpenAgent = () => setOpen(true)
+    document.addEventListener("open-agent", handleOpenAgent)
+    return () => document.removeEventListener("open-agent", handleOpenAgent)
   }, [])
 
   const section = pathname.split("/").filter(Boolean)[0] || ""

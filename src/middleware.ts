@@ -24,6 +24,7 @@ const PUBLIC_PAGE_ROUTES = new Set(["/signin", "/setup"])
 
 /** Endpoints that must work with no credential at all. */
 const PUBLIC_API_ROUTES = [
+  "/api/health", // liveness probe; the route itself withholds detail from non-admins
   "/api/admin/session", // admin sign-in
   "/api/admin/setup", // first-run admin creation, self-gating once complete
   "/api/user/login",

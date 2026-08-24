@@ -1,0 +1,102 @@
+# ==============================================================================
+# SupplySure OS — development overlay. Auto-loaded by `docker compose up`.
+#
+# Hot reload here means the container watches the working tree directly. The
+# whole repository is bind-mounted, rather than the previous per-file list of
+# mounts: that list had grown to eight entries and still omitted
+# postcss.config.mjs, without which Tailwind v4 cannot compile at all. A mount
+# of the repository root cannot develop that class of gap.
+#
+# Three named volumes are layered back on top of the mount:
+#
+#   node_modules            the host's tree is built for a different libc and a
+#                           different Prisma engine target than this image
+#   .next                   host and container build caches must not interleave
+#   apps/driver-app/.next   likewise for the driver PWA
+#
+# Because those volumes outlive an image rebuild, docker/dev-entrypoint.sh
+# stamps them with a hash of package-lock.json and reinstalls when it changes.
+# ==============================================================================
+
+services:
+  db:
+    # Loopback only. Bound to every interface it would expose a trust-password
+    # Postgres to anything that can route to this machine.
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+
+  # ── Core ERP — hot reload ───────────────────────────────────────────────────
+  web:
+    build:
+      target: dev
+    image: supplysure-os/dev:local
+    # A dev server that crashes should stay down and show you the stack trace,
+    # not disappear into a restart loop.
+    restart: "no"
+    environment:
+      NODE_ENV: development
+      # Bind mounts do not deliver inotify events reliably across the host
+      # boundary, so the watchers poll instead.
+      WATCHPACK_POLLING: "true"
+      CHOKIDAR_USEPOLLING: "true"
+      NODE_OPTIONS: --max-old-space-size=4096
+      # Defaults, not overrides: a real value in .env still wins, because
+      # Compose resolves ${VAR:-default} against .env before merging.
+      ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:-supplysure-admin-dev-secret-key-for-local-testing-12345}
+      DRIVER_SESSION_SECRET: ${DRIVER_SESSION_SECRET:-driver-session-dev-secret-key-for-local-testing-12345}
+      CRON_SECRET: ${CRON_SECRET:-dev-cron-secret-12345}
+      AUTH_BYPASS: ${AUTH_BYPASS:-true}
+      CUSTOMER_OTP_EXPOSE: ${CUSTOMER_OTP_EXPOSE:-true}
+    volumes:
+      - .:/app
+      - node_modules:/app/node_modules
+      - next_cache:/app/.next
+      # Overrides the base file's named volume for this target so uploaded files
+      # are visible on the host while developing. Already gitignored.
+      - ./public/uploads:/app/public/uploads
+    # `next dev` directly rather than `npm run dev`: the package script pipes
+    # through `tee dev.log`, and the pipe both swallows the signal that should
+    # stop the dev server and writes a log file the container does not need —
+    # `docker compose logs -f web` is the log.
+    command: ["npx", "next", "dev", "--webpack", "-p", "3000"]
+    develop:
+      watch:
+        # Source changes arrive over the bind mount and need no action here.
+        # A dependency change does need the image rebuilt, and only
+        # `docker compose watch` can do that unprompted.
+        - action: rebuild
+          path: ./package-lock.json
+        - action: rebuild
+          path: ./package.json
+
+  # ── Driver PWA — hot reload ─────────────────────────────────────────────────
+  # The dev stack previously ran this service from the *production* image with
+  # NODE_ENV=production, so editing the driver app did nothing until a rebuild.
+  driver-app:
+    build:
+      target: dev
+    image: supplysure-os/dev:local
+    restart: "no"
+    environment:
+      NODE_ENV: development
+      WATCHPACK_POLLING: "true"
+      CHOKIDAR_USEPOLLING: "true"
+      CORE_APP_URL: http://web:3000
+      DRIVER_SESSION_SECRET: ${DRIVER_SESSION_SECRET:-driver-session-dev-secret-key-for-local-testing-12345}
+      AUTH_BYPASS: ${AUTH_BYPASS:-true}
+    volumes:
+      - .:/app
+      - node_modules:/app/node_modules
+      - driver_next_cache:/app/apps/driver-app/.next
+    command: ["npm", "--prefix", "apps/driver-app", "run", "dev"]
+    depends_on:
+      # Not service_healthy: in development both dev servers should compile in
+      # parallel. The driver app degrades to a retry if the ERP is not up yet,
+      # which is a better trade than waiting out a cold Next.js compile.
+      web:
+        condition: service_started
+
+volumes:
+  node_modules:
+  next_cache:
+  driver_next_cache:

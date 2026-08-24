@@ -1,17 +1,60 @@
+# ==============================================================================
+# SupplySure OS — shared base stack.
+#
+# This file is the single definition of the topology. It is never run alone:
+#
+#   docker compose up                                   → base + override (dev)
+#   docker compose -f docker-compose.yml \
+#                  -f docker-compose.prod.yml up -d     → base + prod
+#
+# The previous layout kept a full copy of the service definitions in both
+# docker-compose.yml and docker-compose.dev.yml, so an environment variable
+# added to one was simply missing from the other. Anything true of both
+# environments belongs here exactly once; the overlays hold only differences.
+#
+# Application configuration comes from `.env` through `env_file`, not from an
+# enumerated list. Enumerating meant every new variable — SMTP_*, TELEGRAM_*,
+# STRIPE_WEBHOOK_SECRET, the per-purpose AGENT_MODEL_* set — was silently absent
+# inside the container until someone remembered to add it here too. The explicit
+# `environment` block below is only for values that must differ in a container,
+# and it wins over `.env` by Compose's own precedence rules.
+# ==============================================================================
+
 name: supplysure-os
 
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+# Wiring that is a property of running in Compose rather than of the app: the
+# host's .env points DATABASE_URL at localhost, which inside a container is the
+# container itself.
+x-container-wiring: &container-wiring
+  HOSTNAME: 0.0.0.0
+  DB_HOST: db
+  DB_PORT: 5432
+  DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-supplysure}?schema=public
+
+x-env-file: &env-file
+  # required:false so the stack still comes up on a clean checkout with no .env.
+  - path: .env
+    required: false
+
 services:
-  # ── 1. PostgreSQL Database ──────────────────────────────────────────────────
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
   db:
-    image: postgres:16-alpine
-    container_name: supplysure-db
-    restart: unless-stopped
+    image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+    logging: *logging
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-supplysure}
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      # Postgres reinitialises the cluster only when this directory is empty;
+      # pointing at a subdirectory of the mount keeps the volume's lost+found
+      # from being mistaken for existing data.
+      PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -19,56 +62,68 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    # No `ports` here on purpose. The overlay publishes it on loopback for dev;
+    # in production the database is reachable only over the Compose network.
 
-  # ── 2. Core ERP Web Application (Next.js 16) ────────────────────────────────
+  # ── Core ERP (Next.js 16) ───────────────────────────────────────────────────
   web:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: supplysure-web
-    restart: unless-stopped
+      target: core
+    image: supplysure-os/core:${IMAGE_TAG:-local}
+    logging: *logging
+    env_file: *env-file
+    environment:
+      <<: *container-wiring
+      PORT: 3000
     ports:
       - "${PORT:-3000}:3000"
-    environment:
-      NODE_ENV: production
-      PORT: 3000
-      HOSTNAME: "0.0.0.0"
-      DB_HOST: db
-      DB_PORT: 5432
-      DATABASE_URL: "postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-supplysure}?schema=public"
-      ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:-supplysure-admin-dev-secret-key-for-local-testing-12345}
-      DRIVER_SESSION_SECRET: ${DRIVER_SESSION_SECRET:-driver-session-dev-secret-key-for-local-testing-12345}
-      CRON_SECRET: ${CRON_SECRET:-dev-cron-secret-12345}
-      AUTH_BYPASS: ${AUTH_BYPASS:-true}
-      CUSTOMER_OTP_EXPOSE: ${CUSTOMER_OTP_EXPOSE:-true}
-      AGENT_PROVIDER: ${AGENT_PROVIDER:-openrouter}
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      AGENT_MODEL: ${AGENT_MODEL:-stealth/ox-alpha}
-      AGENT_MODEL_FAST: ${AGENT_MODEL_FAST:-stealth/ox-alpha}
-      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+    volumes:
+      # Product images and driver proof-of-delivery photos are written to
+      # public/uploads at runtime (src/app/api/products/upload/route.ts,
+      # src/app/api/driver/uploads/route.ts). Without this volume every
+      # container replacement silently discarded them.
+      - uploads:/app/public/uploads
     depends_on:
       db:
         condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 30s
 
-  # ── 3. Driver Mobile PWA (Port 3001) ─────────────────────────────────────────
+  # ── Driver PWA ──────────────────────────────────────────────────────────────
+  # Holds no database credentials; it proxies the ERP over CORE_APP_URL.
   driver-app:
     build:
       context: .
-      dockerfile: Dockerfile.driver
-    container_name: supplysure-driver-app
-    restart: unless-stopped
+      dockerfile: Dockerfile
+      target: driver
+    image: supplysure-os/driver:${IMAGE_TAG:-local}
+    logging: *logging
+    env_file: *env-file
+    environment:
+      PORT: 3001
+      HOSTNAME: 0.0.0.0
+      CORE_APP_URL: http://web:3000
+      # Explicitly blanked. `.env` arrives through env_file and defines a
+      # DATABASE_URL pointing at localhost — which inside this container is this
+      # container. Left set, the entrypoint would wait on a database this app
+      # never uses and then push a schema at nothing. Blanking it also makes the
+      # claim above true rather than aspirational: no database credentials here.
+      DATABASE_URL: ""
     ports:
       - "${DRIVER_PORT:-3001}:3001"
-    environment:
-      NODE_ENV: production
-      PORT: 3001
-      HOSTNAME: "0.0.0.0"
-      CORE_APP_URL: "http://web:3000"
-      DRIVER_SESSION_SECRET: ${DRIVER_SESSION_SECRET:-driver-session-dev-secret-key-for-local-testing-12345}
-      AUTH_BYPASS: ${AUTH_BYPASS:-true}
     depends_on:
-      - web
+      web:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 30s
 
 volumes:
   postgres_data:
-    driver: local
+  uploads:

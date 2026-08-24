@@ -4,7 +4,14 @@ import { AgentDock } from "@/components/agent/agent-dock"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { AppSidebar } from "./app-sidebar"
 import { Header } from "./header"
+import { KeyboardShortcuts } from "./keyboard-shortcuts"
 import { type UserRole } from "@/lib/types"
+
+function readSidebarCookie(): boolean {
+  if (typeof document === "undefined") return true
+  const m = document.cookie.match(/(?:^|;\s*)sidebar_state=([^;]*)/)
+  return m ? m[1] !== "false" : true
+}
 
 interface AppShellProps {
   children: React.ReactNode
@@ -20,7 +27,8 @@ interface AppShellProps {
 
 export function AppShell({ children, title, breadcrumbs, user }: AppShellProps) {
   return (
-    <SidebarProvider>
+    <SidebarProvider defaultOpen={readSidebarCookie()}>
+      <KeyboardShortcuts />
       <AppSidebar user={user} />
       <SidebarInset className="bg-background min-h-screen flex flex-col">
         <Header title={title} breadcrumbs={breadcrumbs} />
