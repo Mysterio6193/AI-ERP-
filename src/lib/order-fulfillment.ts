@@ -6,6 +6,7 @@ import { postInvoiceRaised } from "@/lib/ledger"
 import { fulfilReservationsForOrder } from "@/lib/reservations"
 import { getSettings } from "@/lib/settings/service"
 import { nextDocumentNumber } from "@/lib/numbering"
+import { logCustomerActivity } from "@/lib/customer-timeline"
 
 type DbClient = PrismaClient | Prisma.TransactionClient
 
@@ -252,6 +253,22 @@ export async function ensureInvoiceForOrder(db: DbClient, orderId: string) {
           : order.customer.creditStatus,
     },
   })
+
+  await logCustomerActivity(db, {
+    customerId: order.customerId,
+    event: "invoice_raised",
+    detail: `${invoice.invoiceNumber} — $${order.totalAmount.toFixed(2)}, due ${dueDate.toLocaleDateString()}`,
+    orderId: order.id,
+  })
+
+  // A hold is the single most useful thing to see before ringing someone.
+  if (order.customer.creditLimit > 0 && nextCreditBalance > order.customer.creditLimit) {
+    await logCustomerActivity(db, {
+      customerId: order.customerId,
+      event: "credit_hold",
+      detail: `Balance $${nextCreditBalance.toFixed(2)} is over the $${order.customer.creditLimit.toFixed(2)} limit`,
+    })
+  }
 
   await db.creditTransaction.create({
     data: {

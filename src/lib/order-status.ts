@@ -5,6 +5,7 @@ import { commitStockForOrder, ensureInvoiceForOrder } from "@/lib/order-fulfillm
 import { ensurePickListForOrder } from "@/lib/pick-lists"
 import { releaseReservationsForOrder, reserveStockForOrder } from "@/lib/reservations"
 import { getSettings } from "@/lib/settings/service"
+import { logCustomerActivity } from "@/lib/customer-timeline"
 
 type DbClient = PrismaClient | Prisma.TransactionClient
 
@@ -209,6 +210,19 @@ export async function applyOrderStatus(
   }
 
   if (next === "cancelled") {
+    const cancelled = await db.salesOrder.findUnique({
+      where: { id: orderId },
+      select: { customerId: true, orderNumber: true, totalAmount: true },
+    })
+
+    await logCustomerActivity(db, {
+      customerId: cancelled?.customerId,
+      event: "order_cancelled",
+      detail: cancelled ? `${cancelled.orderNumber} — $${cancelled.totalAmount.toFixed(2)}` : null,
+      userId: options?.userId,
+      orderId,
+    })
+
     await db.pickList.updateMany({ where: { orderId }, data: { status: "cancelled" } })
     await db.delivery.updateMany({ where: { orderId }, data: { status: "failed" } })
     await releaseReservationsForOrder(db, orderId)

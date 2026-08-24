@@ -6,6 +6,7 @@ import { applyOrderDiscounts, resolveLinePrice } from "@/lib/pricing"
 import { getSettings } from "@/lib/settings/service"
 import { computeLineTax } from "@/lib/tax"
 import { nextDocumentNumber } from "@/lib/numbering"
+import { logCustomerActivity } from "@/lib/customer-timeline"
 
 /**
  * Shared sales order creation.
@@ -331,6 +332,15 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
   if (order.status === "approved" || order.status === "picking") {
     await ensurePickListForOrder(db, order.id)
   }
+
+  // The customer's timeline showed only what someone had typed; an order they
+  // actually placed left no trace on it.
+  await logCustomerActivity(db, {
+    customerId: order.customerId,
+    event: "order_placed",
+    detail: `${order.orderNumber} — $${order.totalAmount.toFixed(2)}`,
+    orderId: order.id,
+  })
 
   try {
     await sendSalesOrderEmail(order.id, "created")
