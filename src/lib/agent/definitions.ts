@@ -99,7 +99,7 @@ Rules:
 - You cannot adjust stock or create orders. If asked, say which team can.`
 
 /** Tools a sales rep actually reaches for. */
-const SALES_TOOLS = [
+export const SALES_TOOLS = [
   "searchProducts", "getProductUnits", "convertQuantity", "getStock",
   "quoteBasket", "listQuotes", "createSalesOrder", "listOrders", "getOrder",
   "findCustomers", "getCustomer", "lapsedAccounts", "accountTimeline",
@@ -111,7 +111,7 @@ const SALES_TOOLS = [
 ]
 
 /** No prices, no invoices, no customer balances. */
-const WAREHOUSE_TOOLS = [
+export const WAREHOUSE_TOOLS = [
   "searchProducts", "getProductUnits", "convertQuantity",
   "getStock", "stockOutlook", "adjustInventory", "checkStockAvailability",
   "listPickLists", "createPickList", "listDeliveries", "listRoutes", "trackDelivery",
@@ -121,7 +121,7 @@ const WAREHOUSE_TOOLS = [
 ]
 
 /** No stock writes, no order creation. */
-const ACCOUNTS_TOOLS = [
+export const ACCOUNTS_TOOLS = [
   "listInvoices", "getInvoice", "agedReceivables", "recordPayment", "setCreditStatus",
   "findCustomers", "getCustomer", "accountTimeline",
   "listOrders", "getOrder",
@@ -145,7 +145,7 @@ Rules:
 - Log every supplier negotiation outcome and price agreement for institutional memory.
 - When a supplier is unreliable, flag it and suggest alternatives.`
 
-const PURCHASING_TOOLS = [
+export const PURCHASING_TOOLS = [
   "listSuppliers", "createSupplier", "updateSupplier",
   "listPurchaseOrders", "getPurchaseOrder", "createPurchaseOrder", "receivePurchaseOrder",
   "reorderSuggestions", "searchProducts", "getStock", "stockOutlook",
@@ -167,7 +167,7 @@ Rules:
 - You cannot modify prices, create orders, or change credit status. If asked, direct to the appropriate team.
 - Document every compliance decision for audit trail.`
 
-const COMPLIANCE_TOOLS = [
+export const COMPLIANCE_TOOLS = [
   "getBatches", "expiringStock", "traceBatch", "quarantineStock", "releaseStock",
   "checkAllergens", "auditAllergenDeclarations", "checkStockAvailability",
   "searchProducts", "getStock",
@@ -189,7 +189,7 @@ Rules:
 - Never make operational changes directly. Use delegateToAgent or spawnAgentTask for execution.
 - Think in terms of trends, not snapshots. Compare periods, identify patterns, project outcomes.`
 
-const EXECUTIVE_TOOLS = [
+export const EXECUTIVE_TOOLS = [
   "businessSnapshot", "salesReport", "customerHealthAudit", "priceMarginOptimizer",
   "draftCommunication", "generateDiagram", "executeCalculation", "runDataAnalysis",
   "findCustomers", "lapsedAccounts", "agedReceivables",
@@ -214,7 +214,7 @@ Rules:
 - Never send a campaign without human approval (sendCampaign always requires approval).
 - Coordinate with sales on lead follow-up — use createTask to assign hot leads.`
 
-const MARKETING_TOOLS = [
+export const MARKETING_TOOLS = [
   "previewAudience", "saveSegment", "writeCampaignMessage", "buildCampaign", "sendCampaign",
   "reviewCampaign", "getCampaignRecipients", "previewCampaignSend", "campaignPerformance",
   "recordConsent", "attributeCampaign",
@@ -238,7 +238,7 @@ Rules:
 - You cannot access financial data, stock levels, or customer accounts directly. If asked, direct to the appropriate team.
 - Maintain confidentiality. Never discuss individual staff matters in group channels.`
 
-const HR_TOOLS = [
+export const HR_TOOLS = [
   "listAgentChannels", "listGroupChannels", "postToGroupChannel",
   "sendMorningGreeting", "generateMorningBriefing",
   "draftCommunication", "sendStaffAlert",
@@ -528,6 +528,93 @@ export async function ensureSystemDefinitions() {
       avatar: "💬",
       instructions: CUSTOMER_INSTRUCTIONS,
       audience: "customer",
+    },
+
+    /**
+     * The specialists.
+     *
+     * Instructions and a scoped tool list were written for each of these and
+     * none were ever installed, so they existed only as a fallback for anyone
+     * who happened to ask for the slug by name. Installing them makes them
+     * real: each can be scheduled, given its own run prompt, and pointed at
+     * the team that owns its work.
+     *
+     * A narrow allowlist is the point, not a limitation. The staff agent
+     * carries 145 tools into every prompt; an accounts agent that sees only
+     * the money tools steers to the right one instead of past sixty
+     * irrelevant ones.
+     */
+    {
+      slug: "sales",
+      name: "Sales",
+      description: "Quotes, pipeline and customer accounts.",
+      avatar: "📈",
+      instructions: SALES_INSTRUCTIONS,
+      toolsJson: JSON.stringify(SALES_TOOLS),
+      audience: "staff",
+    },
+    {
+      slug: "warehouse",
+      name: "Warehouse",
+      description: "Stock, picking, batches and expiry.",
+      avatar: "📦",
+      instructions: WAREHOUSE_INSTRUCTIONS,
+      toolsJson: JSON.stringify(WAREHOUSE_TOOLS),
+      audience: "staff",
+    },
+    {
+      slug: "accounts",
+      name: "Accounts",
+      description: "Invoices, payments, credit and chasing what is owed.",
+      avatar: "💷",
+      instructions: ACCOUNTS_INSTRUCTIONS,
+      toolsJson: JSON.stringify(ACCOUNTS_TOOLS),
+      audience: "staff",
+    },
+    {
+      slug: "purchasing",
+      name: "Purchasing",
+      description: "Suppliers, reordering and inbound stock.",
+      avatar: "🚚",
+      instructions: PURCHASING_INSTRUCTIONS,
+      toolsJson: JSON.stringify(PURCHASING_TOOLS),
+      audience: "staff",
+    },
+    {
+      slug: "compliance",
+      name: "Compliance",
+      description: "HACCP, allergens, traceability and recalls.",
+      avatar: "🧪",
+      instructions: COMPLIANCE_INSTRUCTIONS,
+      toolsJson: JSON.stringify(COMPLIANCE_TOOLS),
+      audience: "staff",
+    },
+    {
+      slug: "executive",
+      name: "Executive",
+      description: "Margins, trends and what the numbers are doing.",
+      avatar: "📊",
+      instructions: EXECUTIVE_INSTRUCTIONS,
+      toolsJson: JSON.stringify(EXECUTIVE_TOOLS),
+      audience: "staff",
+    },
+    {
+      slug: "marketing",
+      name: "Marketing",
+      description: "Campaigns, segments and outbound.",
+      avatar: "📣",
+      instructions: MARKETING_INSTRUCTIONS,
+      toolsJson: JSON.stringify(MARKETING_TOOLS),
+      audience: "staff",
+    },
+    {
+      slug: "hr",
+      name: "People",
+      description: "Team, roles and access.",
+      avatar: "👥",
+      instructions: HR_INSTRUCTIONS,
+      toolsJson: JSON.stringify(HR_TOOLS),
+      audience: "staff",
     },
   ]
 
