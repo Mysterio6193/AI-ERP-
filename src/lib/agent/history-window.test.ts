@@ -124,9 +124,13 @@ describe("dropOrphanedToolCalls", () => {
     const { dropOrphanedToolCalls } = await import("./history-window")
 
     const repaired = dropOrphanedToolCalls([user("hi"), orphanCall()])
-    const parts = repaired.flatMap((m) => (Array.isArray(m.content) ? m.content : []))
+    // Widened deliberately: the union of content part types differs per role,
+    // and this assertion only cares about the discriminator.
+    const parts = repaired.flatMap((m) =>
+      Array.isArray(m.content) ? (m.content as Array<{ type?: string }>) : []
+    )
 
-    expect(parts.some((p) => (p as { type?: string }).type === "tool-call")).toBe(false)
+    expect(parts.some((part) => part.type === "tool-call")).toBe(false)
   })
 
   it("keeps the text the assistant said alongside the broken call", async () => {
