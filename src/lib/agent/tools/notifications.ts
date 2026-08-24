@@ -55,9 +55,16 @@ export function buildNotificationTools(principal: AgentPrincipal) {
             where: { channel: "telegram", userId: staffUser.id, status: "active" },
           })
 
+          // sendTelegramMessage returns nothing — it throws on failure. Reading
+          // its return value as a boolean made every send look like a failure.
           let telegramDelivered = false
           if (telegramIdentity?.externalId && !telegramIdentity.externalId.startsWith("pending:")) {
-            telegramDelivered = await sendTelegramMessage(telegramIdentity.externalId, fullMessage)
+            try {
+              await sendTelegramMessage(telegramIdentity.externalId, fullMessage)
+              telegramDelivered = true
+            } catch (error) {
+              console.error("Direct staff message over Telegram failed:", error)
+            }
           }
 
           // Record communication in CRM log
@@ -67,19 +74,25 @@ export function buildNotificationTools(principal: AgentPrincipal) {
               direction: "outbound",
               recipient: `${staffUser.name} <${staffUser.email}>`,
               message: fullMessage,
-              status: "sent",
+              // Recorded as what actually happened. "sent" regardless of
+              // delivery is the failure that looks like success.
+              status: telegramDelivered ? "sent" : "failed",
             },
           })
 
           // Create an in-app task/alert for the staff member so it appears on their dashboard
-          await db.task.create({
+          await db.crmTask.create({
             data: {
               title: `Direct message: ${message.slice(0, 50)}${message.length > 50 ? "..." : ""}`,
-              description: message,
+              // CrmTask stores the body in `notes`, is due at `dueAt`, requires
+              // a `type`, and assigns by id rather than by name.
+              notes: message,
+              type: "message",
               status: "pending",
               priority: urgent ? "high" : "normal",
-              assignedTo: staffUser.name,
-              dueDate: new Date(Date.now() + 24 * 60 * 60 * 1000),
+              assignedToId: staffUser.id,
+              createdByAgent: true,
+              dueAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
             },
           })
 
