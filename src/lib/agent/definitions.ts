@@ -26,7 +26,8 @@ Hermes Agent Reasoning & Autonomy Philosophy:
 4. Mathematical & Data Precision: Use executeCalculation or runDataAnalysis for all arithmetic, compound margins, tiered pricing, and statistical groupings. Money is in AUD (show GST 10% clearly).
 5. Procedural Self-Learning: Author or improve reusable skills (createSkill/improveSkill) when establishing new workflows, SOPs, or customer preferences.
 6. Multimodal & PDF Generation: Process scanned invoices/documents (scanDocument), dispatch publication-quality PDFs for invoices, orders, statements, supplier lists, inventory audits, or custom tabular reports (sendDocument, generateReportPdf), perform live web research (searchWeb), and broadcast critical operational alerts (sendStaffAlert). NEVER claim "I do not have a tool to directly generate a PDF file for a custom list like this" - use generateReportPdf or sendDocument to deliver the file immediately.
-7. Native Excel (.xlsx) & Spreadsheet Delivery: You have full digital capability to generate and deliver real Excel (.xlsx) workbooks and .csv files using generateSpreadsheet or exportReportToCsv. The platform compiles and delivers the real file attachment directly to Telegram/chat. NEVER claim "While I cannot directly create and send an .xlsx file..." or paste raw tables instead of generating the requested file attachment.`
+7. Native Excel (.xlsx) & Spreadsheet Delivery: You have full digital capability to generate and deliver real Excel (.xlsx) workbooks and .csv files using generateSpreadsheet or exportReportToCsv. The platform compiles and delivers the real file attachment directly to Telegram/chat. NEVER claim "While I cannot directly create and send an .xlsx file..." or paste raw tables instead of generating the requested file attachment.
+8. Direct Staff Messaging & Alerts: You can send private direct messages, directives, and alerts to individual staff members (Antonio Russo, Tony Marchetti, Maria Esposito, Sam Nguyen, Riccardo Moretti) using sendDirectStaffMessage or sendStaffAlert. The system automatically routes to their Telegram DM, email, and dashboard tasks. NEVER claim "I am currently unable to send direct private messages to individual staff members via Telegram".`
 
 export const CUSTOMER_INSTRUCTIONS = `You take orders and answer account questions for customers of a B2B food wholesaler.
 
@@ -259,7 +260,7 @@ export const OPS_TOOLS = [
   "getBatches", "expiringStock", "checkAllergens",
   "listBoms", "createProductionOrder", "listProductionOrders",
   "listDeliveryRoutes", "createDeliveryRoute", "listReturns", "createCustomerReturn", "listPriceLists", "assignCustomerPriceList",
-  "planTask", "scratchpadNote", "scanDocument", "sendDocument", "generateDocumentPdf", "generateReportPdf", "executeCalculation", "runDataAnalysis", "fetchWebPage", "searchWeb", "searchKnowledge", "generateDiagram", "listMcpServers", "callMcpTool", "callGenericApi", "delegateToAgent", "sendStaffAlert",
+  "planTask", "scratchpadNote", "scanDocument", "sendDocument", "generateDocumentPdf", "generateReportPdf", "executeCalculation", "runDataAnalysis", "fetchWebPage", "searchWeb", "searchKnowledge", "generateDiagram", "listMcpServers", "callMcpTool", "callGenericApi", "delegateToAgent", "sendStaffAlert", "sendDirectStaffMessage",
   "listAgentChannels", "generateMorningBriefing", "sendMorningGreeting", "listGroupChannels", "updateGroupChannel", "postToGroupChannel",
   "spawnAgentTask", "agentSwarm", "agentHandoff", "broadcastToAgents", "listAvailableAgents",
   "setReminder", "createRecurringReport", "createWorkflow", "translateText", "generateQrCode", "summarizeThread", "createChecklist",

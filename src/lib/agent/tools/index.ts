@@ -236,6 +236,7 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
   generateDiagram: { risk: "read" },
   delegateToAgent: { risk: "read", roles: ["admin", "sales", "warehouse", "accounts"] },
   sendStaffAlert: { risk: "low", roles: ["admin", "sales", "warehouse", "accounts"] },
+  sendDirectStaffMessage: { risk: "low", roles: ["admin", "sales", "warehouse", "accounts"] },
 
   // Model Context Protocol (MCP) & REST API Gateway
   listMcpServers: { risk: "read" },
