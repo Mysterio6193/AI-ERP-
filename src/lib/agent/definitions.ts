@@ -108,6 +108,7 @@ export const SALES_TOOLS = [
   "listContacts", "logActivity", "createCase",
   "listLeads", "pipelineSummary", "createLead", "updateLead",
   "createOpportunity", "updateOpportunity", "convertLead",
+  "sendDirectStaffMessage", "sendStaffAlert", "sendEmail", "draftEmail",
   "recallMemories", "remember",
 ]
 
@@ -118,6 +119,7 @@ export const WAREHOUSE_TOOLS = [
   "listPickLists", "createPickList", "listDeliveries", "listRoutes", "trackDelivery",
   "getBatches", "expiringStock", "traceBatch", "quarantineStock", "releaseStock",
   "checkAllergens",
+  "sendDirectStaffMessage", "sendStaffAlert",
   "recallMemories", "remember",
 ]
 
@@ -129,6 +131,7 @@ export const ACCOUNTS_TOOLS = [
   "listSuppliers", "listPurchaseOrders", "getPurchaseOrder",
   "businessSnapshot", "salesReport",
   "listTasks", "createTask",
+  "sendDirectStaffMessage", "sendStaffAlert", "sendEmail", "draftEmail",
   "recallMemories", "remember",
 ]
 
@@ -152,6 +155,7 @@ export const PURCHASING_TOOLS = [
   "reorderSuggestions", "searchProducts", "getStock", "stockOutlook",
   "priceMarginOptimizer", "executeCalculation",
   "listTasks", "createTask", "completeTask",
+  "sendDirectStaffMessage", "sendStaffAlert",
   "recallMemories", "remember",
 ]
 
@@ -172,7 +176,7 @@ export const COMPLIANCE_TOOLS = [
   "getBatches", "expiringStock", "traceBatch", "quarantineStock", "releaseStock",
   "checkAllergens", "auditAllergenDeclarations", "checkStockAvailability",
   "searchProducts", "getStock",
-  "sendStaffAlert", "planTask", "scratchpadNote",
+  "sendDirectStaffMessage", "sendStaffAlert", "planTask", "scratchpadNote",
   "listTasks", "createTask", "completeTask",
   "recallMemories", "remember",
 ]
@@ -198,7 +202,7 @@ export const EXECUTIVE_TOOLS = [
   "searchWeb", "searchKnowledge",
   "planTask", "scratchpadNote",
   "delegateToAgent", "spawnAgentTask", "agentSwarm", "broadcastToAgents",
-  "sendStaffAlert", "postToGroupChannel",
+  "sendDirectStaffMessage", "sendStaffAlert", "postToGroupChannel",
   "recallMemories", "remember",
 ]
 
@@ -223,6 +227,7 @@ export const MARKETING_TOOLS = [
   "draftCommunication", "searchKnowledge",
   "listLeads", "createLead", "updateLead",
   "listTasks", "createTask",
+  "sendDirectStaffMessage", "sendStaffAlert",
   "recallMemories", "remember",
 ]
 
@@ -242,7 +247,7 @@ Rules:
 export const HR_TOOLS = [
   "listAgentChannels", "listGroupChannels", "postToGroupChannel",
   "sendMorningGreeting", "generateMorningBriefing",
-  "draftCommunication", "sendStaffAlert",
+  "draftCommunication", "sendDirectStaffMessage", "sendStaffAlert",
   "listTasks", "createTask", "completeTask",
   "planTask", "scratchpadNote",
   "searchKnowledge", "generateDiagram",
@@ -623,8 +628,13 @@ export async function ensureSystemDefinitions() {
     await db.agentDefinition.upsert({
       where: { slug: builtin.slug },
       create: { ...builtin, isSystem: true, trigger: "manual" },
-      // Only backfill presentation - never clobber edited instructions.
-      update: { description: builtin.description, avatar: builtin.avatar, toolsJson: builtin.toolsJson, isSystem: true },
+      update: {
+        description: builtin.description,
+        avatar: builtin.avatar,
+        instructions: builtin.instructions,
+        toolsJson: builtin.toolsJson,
+        isSystem: true,
+      },
     })
   }
 }
