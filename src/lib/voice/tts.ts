@@ -10,6 +10,7 @@ import os from "os"
 import path from "path"
 import crypto from "crypto"
 import { EdgeTTS } from "node-edge-tts"
+import { chooseVoice } from "@/lib/voice/language"
 
 export interface SynthesizeSpeechOptions {
   text: string
@@ -73,13 +74,25 @@ export async function synthesizeSpeech(options: SynthesizeSpeechOptions): Promis
     throw new Error("No readable text provided for speech synthesis.")
   }
 
-  const voiceName = options.voice || process.env.EDGE_TTS_VOICE || "en-AU-NatashaNeural"
+  // Was always en-AU, whatever the reply said. An Italian or Hindi answer read
+  // by an Australian English voice is unintelligible, so the voice follows the
+  // words unless a caller names one.
+  const detected = chooseVoice(textToSpeak)
+
+  // EDGE_TTS_VOICE is the default English voice, not an override of a detected
+  // language — otherwise setting it would silently return every Hindi and
+  // Italian reply to an Australian English voice.
+  const configuredDefault =
+    detected.language === "en-AU" ? process.env.EDGE_TTS_VOICE : undefined
+
+  const voiceName = options.voice || configuredDefault || detected.voice
+  const voiceLanguage = options.language || detected.language
 
   // Method 1: Edge Neural High-Definition Speech (Zero cost, ultra-natural, fast)
   try {
     const tts = new EdgeTTS({
       voice: voiceName,
-      lang: options.language || "en-AU",
+      lang: voiceLanguage,
       outputFormat: "audio-24khz-48kbitrate-mono-mp3",
     })
 
