@@ -67,4 +67,5 @@ local-*
 .pgdata/
 
 # Skills directory
-/skills/
+/skills/*
+!/skills/hermes/

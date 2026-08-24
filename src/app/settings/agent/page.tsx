@@ -79,6 +79,13 @@ export default function AgentSettingsPage() {
   const [code, setCode] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [webhookUrl, setWebhookUrl] = useState("")
+  // Who the next link code is for. Defaults to the signed-in user; an admin
+  // can issue one for anyone on the team.
+  const [linkTarget, setLinkTarget] = useState("")
+  const [staff, setStaff] = useState<Array<{ id: string; name: string; email: string; role: string }>>([])
+  const [codeFor, setCodeFor] = useState<string | null>(null)
+  const [qr, setQr] = useState<string | null>(null)
+  const [deepLink, setDeepLink] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
 
@@ -163,6 +170,22 @@ export default function AgentSettingsPage() {
         fetch("/api/agent/identity").then((response) => response.json()),
       ])
 
+      // Admin-only; a non-admin simply gets no picker and links themselves.
+      const staffResponse = await fetch("/api/users")
+        .then((response) => response.json())
+        .catch(() => ({ success: false }))
+
+      if (staffResponse.success) {
+        const list = (staffResponse.data ?? staffResponse.users ?? []) as Array<{
+          id: string
+          name: string
+          email: string
+          role: string
+          status?: string
+        }>
+        setStaff(list.filter((entry) => (entry.status ?? "active") === "active"))
+      }
+
       if (statusResponse.success) {
         setStatus(statusResponse.data)
       }
@@ -193,13 +216,19 @@ export default function AgentSettingsPage() {
       const response = await fetch("/api/agent/link", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ channel: "telegram" }),
+        body: JSON.stringify({
+          channel: "telegram",
+          ...(linkTarget ? { userId: linkTarget } : {}),
+        }),
       })
 
       const payload = await response.json()
 
       if (payload.success) {
         setCode(payload.data.code)
+        setCodeFor(payload.data.forSelf ? null : (payload.data.forUser?.name ?? null))
+        setQr(payload.data.qr ?? null)
+        setDeepLink(payload.data.deepLink ?? null)
         setCopied(false)
       } else {
         setMessage(payload.error)
@@ -578,6 +607,92 @@ export default function AgentSettingsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
+            {/*
+              There was no way to generate a link code anywhere in the app.
+              `generateCode` existed and nothing called it, so the only people
+              on Telegram were whoever had been linked before the UI lost the
+              button — you could disconnect someone but never add anyone.
+            */}
+            <div className="space-y-3 rounded-lg border border-dashed p-3">
+              {staff.length > 1 ? (
+                <div className="space-y-1.5">
+                  <label htmlFor="link-target" className="text-xs font-medium text-muted-foreground">
+                    Create a code for
+                  </label>
+                  <select
+                    id="link-target"
+                    value={linkTarget}
+                    onChange={(event) => setLinkTarget(event.target.value)}
+                    className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="">Myself</option>
+                    {staff.map((member) => (
+                      <option key={member.id} value={member.id}>
+                        {member.name} · {member.role}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
+
+              <Button onClick={() => void generateCode()} disabled={busy} className="w-full">
+                {busy ? "Creating…" : "Create link code"}
+              </Button>
+
+              {code ? (
+                <div className="rounded-md bg-muted p-3 text-center">
+                  {/*
+                    The QR is the point: retyping a six-character code into
+                    Telegram on someone else's phone is where onboarding
+                    stalls. The typed code stays as the fallback for when the
+                    bot username cannot be read.
+                  */}
+                  {qr ? (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={qr}
+                        alt={`QR code linking ${codeFor ?? "your account"} to Telegram`}
+                        className="mx-auto h-40 w-40 rounded bg-white p-1"
+                      />
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        {codeFor ? `${codeFor} scans this` : "Scan this"} with a phone camera —
+                        Telegram opens and connects on Start.
+                      </p>
+                    </>
+                  ) : null}
+
+                  <p className={qr ? "mt-3 font-mono text-lg font-semibold tracking-[0.2em]" : "font-mono text-xl font-semibold tracking-[0.2em]"}>
+                    {code}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {qr ? "Or send " : codeFor ? `${codeFor} sends ` : "Send "}
+                    <span className="font-mono">/link {code}</span> to the bot within 15 minutes.
+                  </p>
+
+                  <div className="mt-2 flex justify-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        void navigator.clipboard.writeText(deepLink || `/link ${code}`)
+                        setCopied(true)
+                      }}
+                    >
+                      {copied ? "Copied" : deepLink ? "Copy link" : "Copy command"}
+                    </Button>
+                    {deepLink ? (
+                      <Button variant="ghost" size="sm" asChild>
+                        <a href={deepLink} target="_blank" rel="noopener noreferrer">
+                          Open Telegram
+                        </a>
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
             {!status?.connections.length ? (
               <p className="py-6 text-center text-xs text-muted-foreground">
                 {loading ? "Loading connections…" : "No Telegram accounts linked yet. Use QR connect above."}

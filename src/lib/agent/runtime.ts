@@ -21,6 +21,7 @@ import { decide, getThresholds, type AgentThresholds } from "./policy"
 import { buildTools, TOOL_POLICY } from "./tools"
 import { describeSettingProposal } from "./tools/settings"
 import { formatIdentity, getAgentIdentity } from "./identity"
+import { budgetFor, dropOrphanedToolCalls, windowHistory } from "@/lib/agent/history-window"
 
 /**
  * The agent runtime.
@@ -189,10 +190,15 @@ export async function loadThread(input: {
     select: { id: true },
   })
 
+  // Read wider than the window, then trim by conversation rather than by row
+  // count. Eight rows on Telegram meant a thread with sixty-four messages
+  // reached the model as three turns, because tool traffic filled the rest.
+  const budget = budgetFor(input.channel)
+
   const stored = await db.agentMessage.findMany({
     where: { threadId: thread.id, rawJson: { not: null } },
     orderBy: { createdAt: "desc" },
-    take: input.channel === "telegram" ? 8 : 14,
+    take: budget.maxMessages * 2,
     select: { rawJson: true },
   })
 
@@ -209,7 +215,7 @@ export async function loadThread(input: {
     })
     .filter(Boolean) as ModelMessage[]
 
-  return { threadId: thread.id, messages }
+  return { threadId: thread.id, messages: windowHistory(messages, budget) }
 }
 
 export async function persistMessages(threadId: string, runId: string, messages: ModelMessage[], tx: any = db) {
@@ -553,6 +559,10 @@ export async function resolveProposal(input: {
     })
     .filter(Boolean) as ModelMessage[]
 
+  // The resume path loaded the entire thread untouched, so a single orphaned
+  // tool call from an interrupted run made every approval fail too.
+  const repairedMessages = dropOrphanedToolCalls(messages)
+
   const approvalResponse: ToolApprovalResponse = {
     type: "tool-approval-response",
     approvalId: proposal.approvalId,
@@ -577,7 +587,7 @@ export async function resolveProposal(input: {
 
   try {
     const agent = await buildAgent(input.principal, thread.channel, thresholds, definition)
-    const result = await agent.generate({ messages: [...messages, approvalMessage] })
+    const result = await agent.generate({ messages: [...repairedMessages, approvalMessage] })
 
     await db.$transaction(async (tx) => {
       await persistMessages(thread.id, run.id, [approvalMessage, ...result.responseMessages], tx)

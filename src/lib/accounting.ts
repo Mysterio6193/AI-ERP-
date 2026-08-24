@@ -52,8 +52,40 @@ export async function getDefaultCompanyId() {
   return company?.id || null
 }
 
+/**
+ * Resolve the entity a posting belongs to.
+ *
+ * A customer with no company assigned produces an order with no company, which
+ * produces an invoice with no company. Returning an empty chart for that case
+ * made `postJournal` treat every account as missing and throw, which took the
+ * whole order status change down with it — an order for such a customer could
+ * not reach delivered at all.
+ *
+ * The books have to land somewhere, so an unattributed posting goes to the
+ * default entity rather than failing. This is deliberately not how the *acting*
+ * company is resolved for a request — that stays with getActiveCompany, because
+ * picking an entity for a user is a different question from filing a journal
+ * that would otherwise have no home.
+ */
+export async function resolveLedgerCompanyId(companyId?: string | null) {
+  if (companyId) return companyId
+
+  const fallback = await prisma.company.findFirst({
+    orderBy: { createdAt: "asc" },
+    select: { id: true },
+  })
+
+  return fallback?.id ?? null
+}
+
 export async function ensureDefaultChartOfAccounts(companyId?: string | null) {
-  if (!companyId) return []
+  const resolved = await resolveLedgerCompanyId(companyId)
+
+  // No company exists at all: a real misconfiguration, and the caller's throw
+  // is the right outcome rather than silently inventing one.
+  if (!resolved) return []
+
+  companyId = resolved
 
   // Fill gaps rather than seed-once. This used to be "if the company has no
   // accounts at all, create them", which meant adding an account to

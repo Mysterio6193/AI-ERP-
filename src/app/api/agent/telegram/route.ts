@@ -78,7 +78,11 @@ async function autoRegisterGroup(chatId: string, title: string) {
       externalId: chatId,
       name: title,
       purpose: "general",
-      status: "active",
+      // Pending, not active. Anyone can add a bot to a Telegram group, and a
+      // group that works the moment it is added means a stranger's room gets
+      // business answers as soon as one linked staff member speaks there. An
+      // admin in the group approves it with /channel approve.
+      status: "pending",
     },
     update: {
       name: title,
@@ -239,6 +243,51 @@ async function handleMessage(message: NonNullable<TelegramUpdate["message"]>) {
         await sendTelegramMessage(
           chatId,
           `Current purpose: **${activeGroup?.purpose || "general"}**\n\nUsage: /channel <purpose>\nExamples: /channel operations, /channel sales, /channel warehouse`
+        )
+      }
+      return
+    }
+
+    // Approving the group. Only a linked staff admin can do it, and only from
+    // inside the group — which is the proof they are actually in the room.
+    if (text.toLowerCase().startsWith("/channel approve")) {
+      // Resolved by the sender's own id, not the group chat id — the question
+      // is who is asking, not where they are asking from.
+      const approverKey = senderId || chatId
+      const approver = await lookupIdentity({ channel: CHANNEL, externalId: approverKey, displayName })
+
+      const approverIsAdmin =
+        approver.status === "linked" &&
+        approver.identity.principal.kind === "staff" &&
+        approver.identity.principal.role === "admin"
+
+      if (!approverIsAdmin) {
+        await sendTelegramMessage(
+          chatId,
+          "Only a linked admin can approve this group. Link your account in Settings → Agent first."
+        )
+        return
+      }
+
+      await db.agentGroupChannel.updateMany({
+        where: { channel: CHANNEL, externalId: chatId },
+        data: { status: "active" },
+      })
+
+      await sendTelegramMessage(
+        chatId,
+        `✅ Approved by ${approver.identity.principal.name}. I can answer in this group now.\n\nSet what it is for with /channel <purpose> — for example /channel warehouse.`
+      )
+      return
+    }
+
+    // An unapproved group gets no answers at all — not a refusal after the
+    // work is done, but before any tool runs or any data is read.
+    if (activeGroup && activeGroup.status !== "active") {
+      if (isBotMentioned(message) || text.toLowerCase().startsWith("/ask")) {
+        await sendTelegramMessage(
+          chatId,
+          "This group has not been approved yet. An admin who is linked to SupplySure can approve it here with /channel approve."
         )
       }
       return

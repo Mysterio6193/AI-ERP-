@@ -23,15 +23,31 @@ async function main() {
     process.exit(1)
   }
 
-  const me = await getTelegramMe()
+  // Annotated, because `let me = null` infers the type `null` and every
+  // property read on it afterwards is an error.
+  let me: Awaited<ReturnType<typeof getTelegramMe>> = null
+  let attempts = 0
+  while (!me && attempts < 10) {
+    attempts++
+    me = await getTelegramMe()
+    if (!me) {
+      console.log(`⏳ Connecting to Telegram (attempt ${attempts}/10)...`)
+      await new Promise((r) => setTimeout(r, 2000))
+    }
+  }
+
   if (!me) {
-    console.error("❌ Failed to connect to Telegram. Check TELEGRAM_BOT_TOKEN.")
+    console.error("❌ Failed to connect to Telegram after multiple attempts. Check TELEGRAM_BOT_TOKEN and network.")
     process.exit(1)
   }
 
   console.log(`🤖 Connected as @${me.username || me.first_name} (ID: ${me.id})`)
   console.log("Clearing any registered webhook to enable long-polling mode...")
-  await deleteTelegramWebhook()
+  try {
+    await deleteTelegramWebhook()
+  } catch (err) {
+    console.warn("Notice: webhook clear skipped:", err)
+  }
 
   console.log("🟢 Listening for Telegram messages via long-polling (Press Ctrl+C to stop)...")
 

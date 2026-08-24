@@ -343,7 +343,7 @@ export function AgentChat({ threadKey, suggestions, pageContext, compact }: Agen
       recognitionRef.current = recognition
       setListening(true)
       recognition.start()
-    } else if (typeof window !== "undefined" && Boolean(navigator?.mediaDevices?.getUserMedia)) {
+    } else if (typeof navigator !== "undefined" && typeof navigator?.mediaDevices?.getUserMedia === "function") {
       void startAudioRecording()
     }
   }

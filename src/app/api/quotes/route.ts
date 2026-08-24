@@ -113,7 +113,11 @@ export async function POST(request: NextRequest) {
 
     const products = await db.product.findMany({
       where: { id: { in: productIds } },
-      select: { id: true, wholesalePrice: true, retailPrice: true, gstRate: true, gstExempt: true },
+      select: {
+        id: true, wholesalePrice: true, retailPrice: true, gstRate: true, gstExempt: true,
+        // A named rate wins over the bare percentage.
+        taxRate: { select: { rate: true, status: true, taxType: true } },
+      },
     })
     const productMap = new Map(products.map((p) => [p.id, p]))
 
@@ -218,7 +222,7 @@ export async function POST(request: NextRequest) {
         netAmount,
         {
           lineRate: rawLineRate,
-          product: { gstRate: product.gstRate, gstExempt: product.gstExempt },
+          product: { gstRate: product.gstRate, gstExempt: product.gstExempt, taxRate: product.taxRate },
           customer,
           company: quoteCompany,
         },

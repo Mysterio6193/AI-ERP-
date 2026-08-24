@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getAdminUserFromRequest } from "@/lib/admin-auth"
 import { transcribeAudio } from "@/lib/voice/transcribe"
+import { guardRate, RATE_LIMITS } from "@/lib/rate-guard"
 
 export const maxDuration = 60
 
@@ -9,6 +10,15 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 })
   }
+
+  // Each transcription is a longer, dearer request than a chat turn, so this
+  // is tighter.
+  const limited = guardRate(request, {
+    ...RATE_LIMITS.voiceTranscribe,
+    subject: user.id,
+    message: "Too many recordings at once. Wait a moment and try again.",
+  })
+  if (limited) return limited
 
   try {
     const contentType = request.headers.get("content-type") || ""

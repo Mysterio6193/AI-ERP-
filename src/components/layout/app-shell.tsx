@@ -24,7 +24,14 @@ export function AppShell({ children, title, breadcrumbs, user }: AppShellProps) 
       <AppSidebar user={user} />
       <SidebarInset className="bg-background min-h-screen flex flex-col">
         <Header title={title} breadcrumbs={breadcrumbs} />
-        <main className="flex-1 overflow-auto p-4 md:p-6 lg:p-8">
+        {/*
+          The assistant button is fixed at bottom-6 right-6 and is 48px tall,
+          so anything in the last ~96px of a page sat underneath it and could
+          not be clicked — on the dashboard that was the Route board's own
+          "Open delivery" link. The extra bottom padding gives every page room
+          to scroll clear of it.
+        */}
+        <main className="flex-1 overflow-auto px-4 pb-28 pt-4 md:px-6 md:pb-28 md:pt-6 lg:px-8">
           <div className="mx-auto w-full max-w-[1600px] space-y-6">
             {children}
           </div>

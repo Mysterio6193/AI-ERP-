@@ -5,6 +5,7 @@ import {
   isNamespace,
   listNamespaces,
   numberingSchema,
+  opsSchema,
   taxSchema,
 } from "./registry"
 
@@ -158,5 +159,18 @@ describe("registry", () => {
       expect(entry.writeRoles).not.toContain("driver")
       expect(entry.writeRoles).toContain("admin")
     }
+  })
+})
+
+describe("order transition enforcement", () => {
+  it("is off by default, so the map logs before it refuses", () => {
+    // The transition map was derived from reading what the side effects
+    // assume, and a map derived that way will be wrong somewhere. Refusing on
+    // day one would break real flows before anyone had seen what it rejects.
+    expect(opsSchema.parse({}).enforceOrderTransitions).toBe(false)
+  })
+
+  it("can be turned on without a code change", () => {
+    expect(opsSchema.parse({ enforceOrderTransitions: true }).enforceOrderTransitions).toBe(true)
   })
 })

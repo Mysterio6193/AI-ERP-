@@ -118,6 +118,8 @@ export async function sendTelegramVoice(
 ) {
   const formData = new FormData()
   formData.append("chat_id", String(chatId))
+  // Buffer is not a BlobPart under this lib target; the underlying
+  // ArrayBuffer is.
   const blob = new Blob([new Uint8Array(audioBuffer)], { type: "audio/mpeg" })
   formData.append("voice", blob, "voice_reply.mp3")
   if (caption) {
@@ -155,9 +157,21 @@ export async function sendTelegramDocument(
   fileName: string,
   caption?: string
 ) {
+  const mimeType = fileName.endsWith(".csv")
+    ? "text/csv"
+    : fileName.endsWith(".xlsx")
+    ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    : fileName.endsWith(".ics")
+    ? "text/calendar"
+    : fileName.endsWith(".json")
+    ? "application/json"
+    : fileName.endsWith(".txt")
+    ? "text/plain"
+    : "application/pdf"
+
   const formData = new FormData()
   formData.append("chat_id", String(chatId))
-  const blob = new Blob([new Uint8Array(fileBuffer)], { type: "application/pdf" })
+  const blob = new Blob([new Uint8Array(fileBuffer)], { type: mimeType })
   formData.append("document", blob, fileName)
   if (caption) {
     formData.append("caption", caption.slice(0, 1024))

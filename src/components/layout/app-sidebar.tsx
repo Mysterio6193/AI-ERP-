@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import {
+  CalendarDays,
   Contact2,
   Inbox,
   LayoutDashboard,
@@ -265,6 +266,15 @@ const navItems: NavItem[] = [
     href: "/warehouse/picking",
     icon: Warehouse,
     roles: ["admin", "warehouse"],
+    group: "Fulfilment",
+  },
+  {
+    // Reads across every module, so it sits with fulfilment rather than
+    // inside any one of them.
+    label: "Calendar",
+    href: "/calendar",
+    icon: CalendarDays,
+    roles: ["admin", "sales", "warehouse", "driver", "accounts"],
     group: "Fulfilment",
   },
   {

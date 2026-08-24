@@ -5,6 +5,7 @@ import { db } from "@/lib/db"
 import { resolveDefaultWarehouseId } from "@/lib/pick-lists"
 import { ROLE_SETS } from "@/lib/permissions"
 import { nextDocumentNumber } from "@/lib/numbering"
+import { checkCreditForOrder } from "@/lib/credit"
 
 async function generateOrderNumber() {
   const currentYear = new Date().getFullYear()
@@ -58,6 +59,19 @@ export async function PUT(
         return NextResponse.json({ success: true, data: existingOrder })
       }
 
+      // Converting a quote created the order directly, so it never reached
+      // checkCreditForOrder — a customer over their limit or on hold could be
+      // let through simply by having their quote converted. Same gate and same
+      // wording as createSalesOrder, so the two paths agree.
+      const credit = await checkCreditForOrder(quote.customerId, quote.totalAmount)
+
+      if (!credit.ok) {
+        return NextResponse.json(
+          { success: false, error: credit.reason || "Credit check failed", code: "credit_limit" },
+          { status: 409 }
+        )
+      }
+
       const warehouseId = await resolveDefaultWarehouseId(db, quote.customer.companyId || null)
 
       const order = await db.$transaction(async (tx) => {
@@ -90,6 +104,10 @@ export async function PUT(
                 taxRate: item.taxRate,
                 taxAmount: item.taxAmount,
                 total: item.total,
+                // Carried across, or the answer to "why was this line $40.48?"
+                // is lost at exactly the moment the quote becomes an order.
+                priceListItemId: item.priceListItemId,
+                priceSource: item.priceSource,
               })),
             },
             statusLogs: {

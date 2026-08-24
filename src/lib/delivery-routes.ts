@@ -186,7 +186,8 @@ export async function syncRouteMetrics(db: DbClient, routeId: string) {
   })
 }
 
-async function ensureRouteForOrder(
+/** Exported so a route can be opened deliberately, not only as a side effect. */
+export async function ensureRouteForOrder(
   db: DbClient,
   input: {
     routeDate: Date
@@ -371,17 +372,39 @@ export async function ensureDeliveryForOrder(db: DbClient, orderId: string) {
   return delivery
 }
 
+/**
+ * Create the deliveries that historical orders never got.
+ *
+ * This used to run inside `GET /api/routes`, so a read created data: every
+ * page load scanned every packed, dispatched and delivered order in the
+ * business, and a delivery existed only because somebody happened to open the
+ * routes screen. New orders now get theirs on the pack path, so this is a
+ * repair tool for the backlog rather than the mechanism.
+ *
+ * Reports what it did, because a repair that runs silently cannot be checked.
+ */
 export async function backfillDeliveryRoutes(db: DbClient) {
+  // `SalesOrder` has no delivery relation — `Delivery.orderId` points back —
+  // so the ones already covered are excluded explicitly. The old version
+  // re-ensured every order on every request.
+  const covered = await db.delivery.findMany({
+    where: { orderId: { not: null } },
+    select: { orderId: true },
+  })
+
   const orders = await db.salesOrder.findMany({
     where: {
-      status: {
-        in: ["packed", "dispatched", "delivered"],
-      },
+      status: { in: ["packed", "dispatched", "delivered"] },
+      id: { notIn: covered.map((row) => row.orderId!).filter(Boolean) },
     },
     select: { id: true },
   })
 
+  let created = 0
   for (const order of orders) {
-    await ensureDeliveryForOrder(db, order.id)
+    const delivery = await ensureDeliveryForOrder(db, order.id)
+    if (delivery) created += 1
   }
+
+  return { scanned: orders.length, created }
 }

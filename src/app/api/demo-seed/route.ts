@@ -1,8 +1,33 @@
 import { NextRequest, NextResponse } from "next/server"
+import { requireAdminUser } from "@/lib/admin-auth"
 import { db } from "@/lib/db"
 import { hash } from "bcryptjs"
 
+/**
+ * Seeds demonstration data.
+ *
+ * This upserts staff accounts — including an admin — with a known password, so
+ * it needs a guard of its own rather than relying on middleware alone. That
+ * middleware previously accepted any `Authorization` header as proof of
+ * identity, which is exactly why a route like this should not be the only
+ * thing standing between a request and an admin account.
+ *
+ * Refused outright outside development: demo data has no business being
+ * creatable against real records, whoever is asking.
+ */
 export async function POST(request: NextRequest) {
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json(
+      { success: false, error: "Demo seeding is disabled outside development." },
+      { status: 403 }
+    )
+  }
+
+  const auth = await requireAdminUser(request, ["admin"])
+  if (auth.response) {
+    return auth.response
+  }
+
   try {
     const hashedPassword = await hash("password123", 10)
 
@@ -256,10 +281,12 @@ export async function POST(request: NextRequest) {
     }
 
     // 6. Inbound Purchase Orders
-    await db.purchaseOrder.upsert({
-      where: { poNumber: "PO-2026-104" },
-      update: { status: "confirmed" },
-      create: {
+    // Numbers are unique per entity now, so they are not a standalone
+    // unique key and cannot be upserted on directly.
+    const existing_PO_2026_104 = await db.purchaseOrder.findFirst({ where: { poNumber: "PO-2026-104" }, select: { id: true } })
+    existing_PO_2026_104
+      ? await db.purchaseOrder.update({ where: { id: existing_PO_2026_104.id }, data: { status: "confirmed" } })
+      : await db.purchaseOrder.create({ data: {
         poNumber: "PO-2026-104",
         supplierId: supplierMap["Primo Smallgoods & Cheeses"].id,
         warehouseId: warehouse.id,
@@ -296,10 +323,17 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    await db.purchaseOrder.upsert({
-      where: { poNumber: "PO-2026-105" },
-      update: { status: "partial" },
-      create: {
+    // Numbers are unique per entity now, so they are not a standalone
+
+    // unique key and cannot be upserted on directly.
+
+    const existing_PO_2026_105 = await db.purchaseOrder.findFirst({ where: { poNumber: "PO-2026-105" }, select: { id: true } })
+
+    existing_PO_2026_105
+
+      ? await db.purchaseOrder.update({ where: { id: existing_PO_2026_105.id }, data: { status: "partial" } })
+
+      : await db.purchaseOrder.create({ data: {
         poNumber: "PO-2026-105",
         supplierId: supplierMap["Mutti Italian Tomato Imports"].id,
         warehouseId: warehouse.id,
@@ -425,10 +459,12 @@ export async function POST(request: NextRequest) {
     }
 
     // 8. Sales Orders & Pick Lists
-    const so1 = await db.salesOrder.upsert({
-      where: { orderNumber: "SO-1082" },
-      update: { status: "picking" },
-      create: {
+    // Numbers are unique per entity now, so they are not a standalone
+    // unique key and cannot be upserted on directly.
+    const existing_SO_1082 = await db.salesOrder.findFirst({ where: { orderNumber: "SO-1082" }, select: { id: true } })
+    const so1 = existing_SO_1082
+      ? await db.salesOrder.update({ where: { id: existing_SO_1082.id }, data: { status: "picking" } })
+      : await db.salesOrder.create({ data: {
         orderNumber: "SO-1082",
         customerId: customerMap["Bella Italia Pizzeria"].id,
         warehouseId: warehouse.id,
@@ -467,10 +503,17 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    const so2 = await db.salesOrder.upsert({
-      where: { orderNumber: "SO-1089" },
-      update: { status: "approved" },
-      create: {
+    // Numbers are unique per entity now, so they are not a standalone
+
+    // unique key and cannot be upserted on directly.
+
+    const existing_SO_1089 = await db.salesOrder.findFirst({ where: { orderNumber: "SO-1089" }, select: { id: true } })
+
+    const so2 = existing_SO_1089
+
+      ? await db.salesOrder.update({ where: { id: existing_SO_1089.id }, data: { status: "approved" } })
+
+      : await db.salesOrder.create({ data: {
         orderNumber: "SO-1089",
         customerId: customerMap["Criniti's Darling Harbour"].id,
         warehouseId: warehouse.id,
@@ -503,10 +546,12 @@ export async function POST(request: NextRequest) {
     })
 
     // Staged Packed Orders
-    const so3 = await db.salesOrder.upsert({
-      where: { orderNumber: "SO-1094" },
-      update: { status: "packed" },
-      create: {
+    // Numbers are unique per entity now, so they are not a standalone
+    // unique key and cannot be upserted on directly.
+    const existing_SO_1094 = await db.salesOrder.findFirst({ where: { orderNumber: "SO-1094" }, select: { id: true } })
+    const so3 = existing_SO_1094
+      ? await db.salesOrder.update({ where: { id: existing_SO_1094.id }, data: { status: "packed" } })
+      : await db.salesOrder.create({ data: {
         orderNumber: "SO-1094",
         customerId: customerMap["Fratelli Fresh Sydney CBD"].id,
         warehouseId: warehouse.id,
@@ -538,10 +583,17 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    const so4 = await db.salesOrder.upsert({
-      where: { orderNumber: "SO-1098" },
-      update: { status: "packed" },
-      create: {
+    // Numbers are unique per entity now, so they are not a standalone
+
+    // unique key and cannot be upserted on directly.
+
+    const existing_SO_1098 = await db.salesOrder.findFirst({ where: { orderNumber: "SO-1098" }, select: { id: true } })
+
+    const so4 = existing_SO_1098
+
+      ? await db.salesOrder.update({ where: { id: existing_SO_1098.id }, data: { status: "packed" } })
+
+      : await db.salesOrder.create({ data: {
         orderNumber: "SO-1098",
         customerId: customerMap["Totti's Bondi Beach"].id,
         warehouseId: warehouse.id,

@@ -120,6 +120,7 @@ export async function processDocumentOcr(input: {
         content: promptContent,
       },
     ],
+    maxOutputTokens: 2500,
   })
 
   const rawJson = result.text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "")

@@ -1,5 +1,6 @@
 import { generateText } from "ai"
 import { resolveAgentModel, getModelId } from "@/lib/agent/model"
+import { TRANSCRIPTION_PROMPT } from "@/lib/voice/language"
 
 export interface TranscriptionResult {
   text: string
@@ -8,9 +9,10 @@ export interface TranscriptionResult {
   confidence?: number
 }
 
-const VOICE_SYSTEM_PROMPT = `You are an accurate voice transcription system for SupplySure OS.
-Transcribe the spoken audio provided into accurate English text.
-Do not add any preamble, metadata, or commentary. Output ONLY the raw transcript.`
+// Asking for English silently translated whatever was said, so a Hindi or
+// Italian message came back as an English paraphrase and nobody reviewing it
+// could tell it had been reworded.
+const VOICE_SYSTEM_PROMPT = TRANSCRIPTION_PROMPT
 
 export async function transcribeAudio(input: {
   audioBase64?: string
@@ -108,9 +110,10 @@ export async function transcribeAudio(input: {
       messages: [
         {
           role: "user",
-          content: "Transcribe the user voice query faithfully.",
+          content: `Transcribe this audio recording.\nData: data:${mime};base64,${base64.slice(0, 100)}...`,
         },
       ],
+      maxOutputTokens: 1500,
     })
 
     return {

@@ -183,6 +183,9 @@ id: supplier.id,
                   select: {
                     costPrice: true,
                     leadTime: true,
+                    minOrderQty: true,
+                    isPreferred: true,
+                    supplierSku: true,
                     supplier: { select: { id: true, name: true } },
                   },
                 },
@@ -195,9 +198,17 @@ id: supplier.id,
         return rows
           .filter((row) => row.quantity - row.reserved <= row.reorderLevel)
           .map((row) => {
-            const cheapest = [...(row.product?.suppliers || [])].sort(
-              (a, b) => a.costPrice - b.costPrice
-            )[0]
+            // A supplier marked preferred wins even when another is cheaper —
+            // that flag is a deliberate commercial decision (a contract, a
+            // reliability call), and the field this returns is named
+            // `preferredSupplier`, which the old cost-only sort did not honour.
+            const candidates = [...(row.product?.suppliers || [])]
+            const chosen =
+              candidates.filter((s) => s.isPreferred).sort((a, b) => a.costPrice - b.costPrice)[0] ??
+              candidates.sort((a, b) => a.costPrice - b.costPrice)[0]
+
+            // Never suggest less than the supplier will actually ship.
+            const suggestedQty = Math.max(row.reorderQty, chosen?.minOrderQty ?? 0)
 
             return {
               productId: row.product?.id,
@@ -208,11 +219,20 @@ id: supplier.id,
               available: row.quantity - row.reserved,
               onOrder: row.onOrder,
               reorderLevel: row.reorderLevel,
-              suggestedQty: row.reorderQty,
-              preferredSupplier: cheapest?.supplier?.name ?? null,
-              preferredSupplierId: cheapest?.supplier?.id ?? null,
-              unitCost: cheapest ? money(cheapest.costPrice) : money(row.product?.costPrice || 0),
-              leadTimeDays: cheapest?.leadTime ?? null,
+              suggestedQty,
+              // Flagged when the supplier's minimum forced the quantity up, so
+              // nobody wonders why the number differs from the reorder qty.
+              minOrderQty: chosen?.minOrderQty ?? null,
+              raisedToMinimum: suggestedQty > row.reorderQty,
+              preferredSupplier: chosen?.supplier?.name ?? null,
+              preferredSupplierId: chosen?.supplier?.id ?? null,
+              supplierSku: chosen?.supplierSku ?? null,
+              isPreferredSupplier: chosen?.isPreferred ?? false,
+              unitCost: chosen ? money(chosen.costPrice) : money(row.product?.costPrice || 0),
+              leadTimeDays: chosen?.leadTime ?? null,
+              // No link on file: the cost above is the product's own, and
+              // nobody is named to buy from.
+              hasSupplierLink: Boolean(chosen),
             }
           })
       },

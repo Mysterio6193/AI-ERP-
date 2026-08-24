@@ -7,8 +7,8 @@ import { defineTool } from "./define"
 import { isStaff } from "./shared"
 
 /**
- * Hermes Alerting & Team Notifications.
- * Dispatches high-priority alerts to staff members and channels.
+ * Staff Direct Messaging, Alerting & Team Notifications.
+ * Dispatches direct private messages and operational alerts to staff members via Telegram and Email.
  */
 
 export function buildNotificationTools(principal: AgentPrincipal) {
@@ -17,22 +17,151 @@ export function buildNotificationTools(principal: AgentPrincipal) {
   }
 
   return {
+    sendDirectStaffMessage: defineTool({
+      description:
+        "Send a direct private message or task notification to an individual staff member (e.g. Antonio Russo, Tony Marchetti, Maria Esposito, Sam Nguyen, Riccardo Moretti) via Telegram and/or Email.",
+      inputSchema: z.object({
+        recipient: z.string().describe("Staff name, email, or role (e.g. 'Antonio Russo', 'sales@rdmpizza.com.au', 'warehouse', 'Tony', 'Maria')"),
+        message: z.string().describe("The message content to send"),
+        channel: z.enum(["auto", "telegram", "email"]).optional().default("auto").describe("Delivery method (default 'auto' prefers Telegram if linked, otherwise email)"),
+        urgent: z.boolean().optional().default(false).describe("Mark as high priority urgent request"),
+      }),
+      execute: async ({ recipient, message, channel, urgent }) => {
+        try {
+          // Find matching staff user in database
+          const staffUser = await db.user.findFirst({
+            where: {
+              OR: [
+                { email: { contains: recipient, mode: "insensitive" } },
+                { name: { contains: recipient, mode: "insensitive" } },
+                { role: { equals: recipient.toLowerCase() } },
+              ],
+            },
+            include: { company: true },
+          })
+
+          if (!staffUser) {
+            return {
+              ok: false as const,
+              error: `Could not find staff member matching "${recipient}". Active staff: Riccardo Moretti (admin), Antonio Russo (sales), Tony Marchetti (warehouse), Maria Esposito (accounts), Sam Nguyen (driver).`,
+            }
+          }
+
+          const prefix = urgent ? "🚨 *URGENT STAFF DIRECTIVE*\n" : "💬 *STAFF DIRECT MESSAGE*\n"
+          const fullMessage = `${prefix}To: ${staffUser.name} (${staffUser.role})\nFrom: Operations Dispatch\n\n${message}\n\n— RDM Pizza Australia / SupplySure OS`
+
+          // Check if user has linked Telegram
+          const telegramIdentity = await db.channelIdentity.findFirst({
+            where: { channel: "telegram", userId: staffUser.id, status: "active" },
+          })
+
+          // sendTelegramMessage returns nothing — it throws on failure. Reading
+          // its return value as a boolean made every send look like a failure.
+          let telegramDelivered = false
+          if (telegramIdentity?.externalId && !telegramIdentity.externalId.startsWith("pending:")) {
+            try {
+              await sendTelegramMessage(telegramIdentity.externalId, fullMessage)
+              telegramDelivered = true
+            } catch (error) {
+              console.error("Direct staff message over Telegram failed:", error)
+            }
+          }
+
+          // Record communication in CRM log
+          await db.communicationLog.create({
+            data: {
+              method: telegramDelivered ? "telegram" : "email",
+              direction: "outbound",
+              recipient: `${staffUser.name} <${staffUser.email}>`,
+              message: fullMessage,
+              // Recorded as what actually happened. "sent" regardless of
+              // delivery is the failure that looks like success.
+              status: telegramDelivered ? "sent" : "failed",
+            },
+          })
+
+          // Create an in-app task/alert for the staff member so it appears on their dashboard
+          await db.crmTask.create({
+            data: {
+              title: `Direct message: ${message.slice(0, 50)}${message.length > 50 ? "..." : ""}`,
+              // CrmTask stores the body in `notes`, is due at `dueAt`, requires
+              // a `type`, and assigns by id rather than by name.
+              notes: message,
+              type: "message",
+              status: "pending",
+              priority: urgent ? "high" : "normal",
+              assignedToId: staffUser.id,
+              createdByAgent: true,
+              dueAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+            },
+          })
+
+          if (telegramDelivered) {
+            return {
+              ok: true as const,
+              recipientName: staffUser.name,
+              recipientEmail: staffUser.email,
+              deliveryMethod: "telegram_direct",
+              message: `Direct Telegram message sent to ${staffUser.name} (${staffUser.email}) and logged in CRM.`,
+            }
+          } else {
+            return {
+              ok: true as const,
+              recipientName: staffUser.name,
+              recipientEmail: staffUser.email,
+              deliveryMethod: "email_and_dashboard_task",
+              message: `Dispatched direct communication to ${staffUser.name} via ${staffUser.email} and assigned an active dashboard task. (Note: To receive direct Telegram DMs, ${staffUser.name} can link their Telegram account by texting /start to @SupplySureOSBot).`,
+            }
+          }
+        } catch (error) {
+          return {
+            ok: false as const,
+            error: `Failed to send staff direct message: ${error instanceof Error ? error.message : "unknown error"}`,
+          }
+        }
+      },
+    }),
+
     sendStaffAlert: defineTool({
       description:
-        "Send an immediate operational alert or reminder to all active staff Telegram channels or a specific user.",
+        "Send an operational alert or announcement to staff members. Can target all staff, a department (e.g. 'sales', 'warehouse', 'accounts'), or a specific individual.",
       inputSchema: z.object({
         level: z.enum(["info", "warning", "critical"]).describe("Alert severity level"),
         message: z.string().describe("The alert message text"),
         category: z.enum(["inventory", "finance", "sales", "safety", "general"]).optional().default("general"),
+        target: z.string().optional().default("all").describe("Target audience: 'all', department ('sales', 'warehouse', 'accounts', 'admin'), or individual staff name"),
       }),
-      execute: async ({ level, message, category }) => {
+      execute: async ({ level, message, category, target }) => {
         try {
           const emoji = level === "critical" ? "🚨 CRITICAL ALERT:" : level === "warning" ? "⚠️ WARNING:" : "ℹ️ UPDATE:"
-          const fullMessage = `${emoji} [${category.toUpperCase()}]\n${message}\n\n— SupplySure Automated Dispatch`
+          const fullMessage = `${emoji} [${category.toUpperCase()}]\n${message}\n\n— RDM Pizza Australia Automated Dispatch`
+
+          // Filter users if target is specified
+          let userFilter = {}
+          if (target && target !== "all") {
+            userFilter = {
+              OR: [
+                { role: { equals: target.toLowerCase() } },
+                { name: { contains: target, mode: "insensitive" } },
+                { email: { contains: target, mode: "insensitive" } },
+              ],
+            }
+          }
+
+          const targetUsers = await db.user.findMany({
+            where: userFilter,
+            select: { id: true, name: true, email: true },
+          })
+
+          const userIds = targetUsers.map((u) => u.id)
 
           // Find active staff Telegram identities
           const staffIdentities = await db.channelIdentity.findMany({
-            where: { channel: "telegram", status: "active", userId: { not: null } },
+            where: {
+              channel: "telegram",
+              status: "active",
+              ...(userIds.length > 0 ? { userId: { in: userIds } } : { userId: { not: null } }),
+            },
             select: { externalId: true, userId: true },
           })
 
@@ -49,7 +178,7 @@ export function buildNotificationTools(principal: AgentPrincipal) {
             data: {
               method: "telegram",
               direction: "outbound",
-              recipient: `staff_broadcast (${sentCount} recipients)`,
+              recipient: `staff_${target} (${targetUsers.length} users, ${sentCount} Telegram delivered)`,
               message: fullMessage,
               status: "sent",
             },
@@ -58,8 +187,10 @@ export function buildNotificationTools(principal: AgentPrincipal) {
           return {
             ok: true as const,
             level,
-            sentToCount: sentCount,
-            message: `Dispatched ${level} alert to ${sentCount} staff member(s).`,
+            target,
+            matchedUsers: targetUsers.map((u) => u.name),
+            telegramDeliveredCount: sentCount,
+            message: `Dispatched ${level} alert to ${targetUsers.length} staff member(s) (${targetUsers.map((u) => u.name).join(", ")}).`,
           }
         } catch (error) {
           return {

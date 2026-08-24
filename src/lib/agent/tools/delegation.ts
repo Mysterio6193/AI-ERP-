@@ -20,8 +20,8 @@ export function buildDelegationTools(principal: AgentPrincipal) {
         "Delegate a complex sub-task to a specialized domain subagent (e.g. 'sales', 'warehouse', 'accounts', 'purchasing') and receive their detailed analysis.",
       inputSchema: z.object({
         persona: z
-          .enum(["sales", "warehouse", "accounts", "ops"])
-          .describe("The domain agent to delegate to: sales (CRM & quoting), warehouse (stock & logistics), accounts (receivables & payments), ops (general operations)"),
+          .enum(["sales", "warehouse", "accounts", "ops", "purchasing", "compliance", "executive", "marketing", "hr"])
+          .describe("The domain agent to delegate to: sales (CRM & quoting), warehouse (stock & logistics), accounts (receivables & payments), ops (general operations), purchasing (suppliers & procurement), compliance (food safety & regulations), executive (strategy & KPIs), marketing (campaigns & engagement), hr (people & scheduling)"),
         taskPrompt: z
           .string()
           .describe("Detailed instructions and context for the subagent to analyze"),

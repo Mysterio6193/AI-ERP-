@@ -51,9 +51,73 @@ export async function PUT(request: NextRequest) {
         if (!auth.user) return auth.response
 
         const body = await request.json()
-        const existingCompany = await db.company.findFirst()
 
-        const data = {
+        /**
+         * The entity being edited, not whichever row happens to be first.
+         *
+         * This used to resolve with db.company.findFirst(), so an admin acting
+         * as the second entity saved their details onto the first one — RDM's
+         * bank details landing on Fresh Distribution's invoices, and RDM itself
+         * impossible to configure at all.
+         *
+         * An explicit id in the body wins, so the caller can name the entity;
+         * otherwise it is the company the session is acting as.
+         */
+        const active = await getActiveCompany(request)
+        const targetId = body.id ? String(body.id) : (active?.id ?? null)
+
+        const existingCompany = targetId
+            ? await db.company.findUnique({ where: { id: targetId } })
+            : await db.company.findFirst()
+
+        /**
+         * Only what the caller actually sent.
+         *
+         * Every field used to be written on every save, defaulting to null when
+         * absent — so a form that posted a subset silently wiped the ABN, the
+         * bank details and the address off the record it hit.
+         */
+        const present = <T,>(key: string, coerce: (value: unknown) => T) =>
+            key in body ? { [key]: coerce(body[key]) } : {}
+
+        const text = (value: unknown) => (value ? String(value) : null)
+
+        const data = existingCompany
+            ? {
+                  ...present("name", (v) => String(v || "Your Company")),
+                  ...present("tradingName", text),
+                  ...present("country", (v) => String(v || "AU")),
+                  ...present("abn", text),
+                  ...present("acn", text),
+                  ...present("gstin", text),
+                  ...present("pan", text),
+                  ...present("tanNumber", text),
+                  ...present("cinNumber", text),
+                  ...present("phone", text),
+                  ...present("email", text),
+                  ...present("website", text),
+                  ...present("logoUrl", text),
+                  ...present("address", text),
+                  ...present("city", text),
+                  ...present("state", text),
+                  ...present("postcode", text),
+                  ...present("bankName", text),
+                  ...present("bsb", text),
+                  ...present("accountNumber", text),
+                  ...present("accountName", text),
+                  ...present("ifscCode", text),
+                  ...present("upiId", text),
+                  ...present("gstRegistered", (v) => Boolean(v)),
+                  ...present("gstRate", (v) => (typeof v === "number" ? v : 10)),
+                  ...present("abnOnInvoices", (v) => Boolean(v)),
+                  ...present("fiscalYearStart", (v) => (typeof v === "number" ? v : 7)),
+                  ...present("defaultTerms", text),
+                  ...present("invoiceFooter", text),
+                  ...present("baseCurrency", (v) => String(v || "AUD")),
+                  ...present("setupComplete", (v) => Boolean(v)),
+                  ...present("onboardingStep", (v) => (typeof v === "number" ? v : 0)),
+              }
+            : {
             name: body.name || "Your Company",
             tradingName: body.tradingName || null,
             country: body.country || "AU",
@@ -91,10 +155,13 @@ export async function PUT(request: NextRequest) {
         const company = existingCompany
             ? await db.company.update({
                 where: { id: existingCompany.id },
-                data,
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                data: data as any,
             })
             : await db.company.create({
-                data,
+                // First-run creation still needs every field, defaults included.
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                data: data as any,
             })
 
         return NextResponse.json({ success: true, data: company })

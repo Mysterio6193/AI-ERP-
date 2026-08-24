@@ -3,10 +3,9 @@ import { requireAdminUser } from "@/lib/admin-auth"
 import { sendSalesOrderEmail } from "@/lib/communications"
 import { db } from "@/lib/db"
 import { ensurePickListForOrder } from "@/lib/pick-lists"
-import { ensureDeliveryForOrder } from "@/lib/delivery-routes"
-import { commitStockForOrder, ensureInvoiceForOrder } from "@/lib/order-fulfillment"
+import { recordApproval } from "@/lib/approvals"
+import { applyOrderStatus } from "@/lib/order-status"
 import { resolveLinePrice } from "@/lib/pricing"
-import { releaseReservationsForOrder, reserveStockForOrder } from "@/lib/reservations"
 import { getSettings } from "@/lib/settings/service"
 import { computeLineTax } from "@/lib/tax"
 
@@ -44,6 +43,12 @@ export async function GET(
         },
         statusLogs: {
           orderBy: { timestamp: "desc" },
+        },
+        // Who signed this off, and what they said. A status log records that
+        // the order changed; this records who decided and why.
+        approvalActions: {
+          orderBy: { createdAt: "desc" },
+          include: { user: { select: { id: true, name: true, role: true } } },
         },
         invoice: true,
       },
@@ -123,7 +128,10 @@ export async function PUT(
 
     // Update order
     const updateData: Record<string, unknown> = {}
-    if (status) updateData.status = status
+    // Deliberately NOT set here. applyOrderStatus below is what moves the
+    // status, and it compares the order's current status to decide whether the
+    // move is legal. Writing it first made every transition look like a no-op
+    // retry (from === to), which silently disabled the check entirely.
     if (requiredDate !== undefined) updateData.requiredDate = requiredDate ? new Date(requiredDate) : null
     if (deliveryDate !== undefined) updateData.deliveryDate = deliveryDate ? new Date(deliveryDate) : null
     if (notes !== undefined) updateData.customerNotes = notes
@@ -158,6 +166,7 @@ export async function PUT(
           gstExempt: true,
           wholesalePrice: true,
           retailPrice: true,
+          taxRate: { select: { rate: true, status: true, taxType: true } },
         },
       })
 
@@ -255,7 +264,7 @@ export async function PUT(
         const lineTax = computeLineTax(
           lineSubtotal - discountAmount,
           {
-            product: { gstRate: product.gstRate, gstExempt: product.gstExempt },
+            product: { gstRate: product.gstRate, gstExempt: product.gstExempt, taxRate: product.taxRate },
             customer: taxCustomer,
             company: taxCompany,
           },
@@ -374,60 +383,48 @@ export async function PUT(
       })
     }
 
-    // Create status log if status changed
+    // Status changes go through applyOrderStatus, the same path the agent's
+    // updateOrderStatus uses. This block used to be a second, hand-maintained
+    // copy of the side effects, which is how the agent path ended up firing
+    // none of them.
     if (status && status !== existingOrder.status) {
-      await db.salesOrderStatusLog.create({
-        data: {
-          orderId: id,
-          status,
-          userId,
-          notes: `Status changed from ${existingOrder.status} to ${status}`,
-        },
+      const moved = await applyOrderStatus(db, id, status, {
+        userId: userId || auth.user?.id || null,
+        note: `Status changed from ${existingOrder.status} to ${status}`,
       })
 
-      // Goods leave the building at dispatch, so stock comes off there. Also
-      // fires for delivered/invoiced because an order can jump straight to
-      // those; commitStockForOrder is idempotent, so the first one wins.
-      if (["dispatched", "delivered", "invoiced"].includes(status)) {
-        await db.$transaction(async (tx) => {
-          await commitStockForOrder(tx, id, { userId })
+      if (!moved.ok) {
+        return NextResponse.json(
+          { success: false, error: moved.error || "Could not change the status" },
+          { status: 400 }
+        )
+      }
+
+      // Who made the call, from the session rather than the request body —
+      // `userId` above is client-supplied and would be forgeable as an
+      // attribution. ApprovalAction was modelled and never written, so an
+      // order that went out at an unusual discount could be traced to the
+      // moment it changed status and no further.
+      if (status === "approved" && existingOrder.status === "pending_approval") {
+        await recordApproval(db, {
+          entityType: "sales_order",
+          entityId: id,
+          action: "approved",
+          userId: auth.user?.id || "",
+          comments: internalNotes ? String(internalNotes) : null,
         })
       }
 
-      // If status changed to invoiced or delivered, generate an invoice if one doesn't exist
-      if (["invoiced", "delivered"].includes(status)) {
-        await db.$transaction(async (tx) => {
-          await ensureInvoiceForOrder(tx, id)
+      if (status === "cancelled" && existingOrder.status === "pending_approval") {
+        // Cancelling something awaiting sign-off is a rejection, and reads as
+        // one on the document.
+        await recordApproval(db, {
+          entityType: "sales_order",
+          entityId: id,
+          action: "rejected",
+          userId: auth.user?.id || "",
+          comments: internalNotes ? String(internalNotes) : null,
         })
-      }
-
-      if (["approved", "picking", "packed", "dispatched", "delivered", "invoiced"].includes(status)) {
-        await ensurePickListForOrder(db, id)
-
-        // Approval is the promise. Holding the stock here is what stops two
-        // orders being taken for the same last pallet; idempotent, so a
-        // re-sent status does not double-reserve.
-        await reserveStockForOrder(db, id)
-      }
-
-      if (["packed", "dispatched", "delivered"].includes(status)) {
-        await ensureDeliveryForOrder(db, id)
-      }
-
-      if (status === "cancelled") {
-        await db.pickList.updateMany({
-          where: { orderId: id },
-          data: { status: "cancelled" },
-        })
-
-        await db.delivery.updateMany({
-          where: { orderId: id },
-          data: { status: "failed" },
-        })
-
-        // Was a bare status flip, which left Inventory.reserved holding stock
-        // for an order that will never ship.
-        await releaseReservationsForOrder(db, id)
       }
 
       try {

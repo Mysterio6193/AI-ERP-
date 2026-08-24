@@ -18,7 +18,16 @@ import type { CountryCode } from "@/lib/types"
 export interface TaxContext {
   /** An explicit rate on the line, if the user overrode it. */
   lineRate?: number | null
-  product?: { gstRate?: number | null; gstExempt?: boolean | null } | null
+  product?: {
+    gstRate?: number | null
+    gstExempt?: boolean | null
+    /**
+     * A named rate the product is sold under. Wins over the bare `gstRate`,
+     * because it is the one someone deliberately chose — and the one that can
+     * be changed in a single place.
+     */
+    taxRate?: { rate: number; status?: string | null; taxType?: string | null } | null
+  } | null
   customer?: { customerType?: string | null } | null
   company?: { gstRate?: number | null; country?: string | null } | null
 }
@@ -62,11 +71,19 @@ export function resolveLineTaxRate(
       case "line":
         if (isUsable(context.lineRate)) return { rate: context.lineRate, source: "line" }
         break
-      case "product":
+      case "product": {
+        // A named rate first. An archived one is ignored rather than applied,
+        // so retiring a rate does not keep charging it.
+        const named = context.product?.taxRate
+        if (named && named.status !== "archived" && isUsable(named.rate)) {
+          return { rate: named.rate, source: "product" }
+        }
+
         if (isUsable(context.product?.gstRate)) {
           return { rate: context.product.gstRate, source: "product" }
         }
         break
+      }
       case "customer":
         // No customer-level rate column exists yet; customers participate via
         // exemption only. Listed so the ordering stays honest and adding the

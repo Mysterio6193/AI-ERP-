@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAdminUser } from "@/lib/admin-auth"
 import { db } from "@/lib/db"
 import { ROLE_SETS } from "@/lib/permissions"
+import { applyOrderStatus } from "@/lib/order-status"
 
 export async function PATCH(
   request: NextRequest,
@@ -26,6 +27,11 @@ export async function PATCH(
         },
       },
     })
+
+    let nextOrderStatus: string | null = null
+    let pickNumber = ""
+    let orderId: string | null = null
+    let currentOrderStatus = ""
 
     if (!pickList) {
       return NextResponse.json(
@@ -84,27 +90,48 @@ export async function PATCH(
         },
       })
 
-      const nextOrderStatus = allPicked ? "packed" : anyPicked ? "picking" : "approved"
-
-      if (pickList.order.status !== nextOrderStatus) {
-        await tx.salesOrder.update({
-          where: { id: pickList.orderId },
-          data: { status: nextOrderStatus },
-        })
-
-        await tx.salesOrderStatusLog.create({
-          data: {
-            orderId: pickList.orderId,
-            status: nextOrderStatus,
-            notes: allPicked
-              ? `Pick list ${pickList.pickNumber} completed`
-              : `Pick list ${pickList.pickNumber} updated`,
-          },
-        })
-      }
+      nextOrderStatus = allPicked ? "packed" : anyPicked ? "picking" : "approved"
+      pickNumber = pickList.pickNumber
+      orderId = pickList.orderId
+      currentOrderStatus = pickList.order.status
     })
 
-    return NextResponse.json({ success: true })
+    /**
+     * The status change goes through applyOrderStatus, outside the
+     * transaction, exactly as the order route does.
+     *
+     * This used to be a bare `salesOrder.update` inside the transaction, so
+     * finishing a pick moved the order to "packed" and fired none of what a
+     * status carries — no delivery raised, no reservation handled. It is the
+     * same bug the agent's updateOrderStatus had.
+     */
+    let dispatched = false
+
+    if (orderId && nextOrderStatus && currentOrderStatus !== nextOrderStatus) {
+      const moved = await applyOrderStatus(db, orderId, nextOrderStatus, {
+        userId: auth.user.id,
+        note: `Pick list ${pickNumber} ${nextOrderStatus === "packed" ? "completed" : "updated"}`,
+      })
+
+      if (!moved.ok) {
+        return NextResponse.json(
+          { success: false, error: moved.error || "Could not update the order status." },
+          { status: 400 }
+        )
+      }
+
+      dispatched = nextOrderStatus === "packed"
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        orderStatus: nextOrderStatus,
+        // A completed pick packs the order; dispatch is the next step and is
+        // still a person's decision, so the client is told what to offer.
+        readyToDispatch: dispatched,
+      },
+    })
   } catch (error) {
     console.error("Error updating pick list:", error)
     return NextResponse.json(

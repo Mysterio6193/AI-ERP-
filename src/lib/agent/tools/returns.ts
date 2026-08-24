@@ -42,7 +42,7 @@ export function buildReturnTools(principal: AgentPrincipal) {
 id: r.id,
           returnNumber: r.returnNumber,
           customer: r.customer.name,
-          orderNumber: r.order?.orderNumber ?? "N/A",
+          orderNumber: r.order?.orderNumber ?? null,
           status: r.status,
           refundAmount: money(r.refundAmount),
           reason: r.reason,
@@ -50,6 +50,7 @@ id: r.id,
             product: i.product.name,
             sku: i.product.sku,
             quantity: i.quantity,
+            condition: i.condition,
           })),
         }));
         return {
@@ -96,7 +97,9 @@ id: r.id,
             orderId: order.id,
             customerId: order.customerId,
             reason,
-            notes: `Requested action: ${action}`,
+            // Return has no `action` column; the requested action rides in
+            // notes until the model carries one.
+            notes: action ? `Requested action: ${action}` : null,
             status: "pending",
             items: {
               create: items.map((item) => ({

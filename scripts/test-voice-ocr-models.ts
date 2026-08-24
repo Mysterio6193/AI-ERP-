@@ -68,9 +68,13 @@ Payment Terms: Net 30 Days
   const ocrTools = buildOcrTools(principal)
   if (ocrTools.scanDocument) {
     console.log("Executing scanDocument agent tool...")
-    const toolRes = await ocrTools.scanDocument.execute({
-      rawText: sampleInvoiceText,
-    }, { toolCallId: "test-call-1", messages: [], context: {} })
+    // `execute` is optional on the SDK's Tool type and its options carry more
+    // than a probe needs, so this narrows and casts rather than pretending to
+    // supply a full ToolExecutionOptions.
+    const toolRes = await ocrTools.scanDocument.execute!(
+      { rawText: sampleInvoiceText } as never,
+      { toolCallId: "test-call-1", messages: [] } as never
+    )
 
     console.log("✅ Agent Tool scanDocument Output:")
     console.log(JSON.stringify(toolRes, null, 2))

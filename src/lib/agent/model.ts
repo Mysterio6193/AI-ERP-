@@ -147,9 +147,22 @@ export interface ResolveModelOptions {
   tier?: ModelTier
 }
 
+export const HERMES_MODEL_ALIASES: Record<string, string> = {
+  "hermes-3": "nousresearch/hermes-3-llama-3.1-70b",
+  "hermes-3-70b": "nousresearch/hermes-3-llama-3.1-70b",
+  "hermes-3-405b": "nousresearch/hermes-3-llama-3.1-405b",
+  "hermes-2-pro": "nousresearch/hermes-2-pro-llama-3-8b",
+  "deephermes": "nousresearch/deephermes-3-llama-3-8b-preview",
+}
+
 export function getModelId(target?: ModelTier | string | ResolveModelOptions): string {
-  if (typeof target === "string" && target.includes("/")) {
-    return target
+  if (typeof target === "string") {
+    if (HERMES_MODEL_ALIASES[target.toLowerCase()]) {
+      return HERMES_MODEL_ALIASES[target.toLowerCase()]
+    }
+    if (target.includes("/")) {
+      return target
+    }
   }
 
   const options: ResolveModelOptions =
@@ -163,7 +176,11 @@ export function getModelId(target?: ModelTier | string | ResolveModelOptions): s
 
   // 1. Explicit model override (per agent definition or call site)
   if (options.model && options.model.trim()) {
-    return options.model.trim()
+    const trimmed = options.model.trim()
+    if (HERMES_MODEL_ALIASES[trimmed.toLowerCase()]) {
+      return HERMES_MODEL_ALIASES[trimmed.toLowerCase()]
+    }
+    return trimmed
   }
 
   // 2. Purpose-specific environment overrides

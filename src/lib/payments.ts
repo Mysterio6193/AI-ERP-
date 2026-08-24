@@ -2,6 +2,7 @@ import type { Prisma, PrismaClient } from "@prisma/client"
 
 import { db } from "@/lib/db"
 import { postPaymentReceived } from "@/lib/ledger"
+import { logCustomerActivity } from "@/lib/customer-timeline"
 
 type DbClient = PrismaClient | Prisma.TransactionClient
 
@@ -136,6 +137,22 @@ export async function recordPayment(
       referenceId: payment.id,
     },
   })
+
+  await logCustomerActivity(client, {
+    customerId: invoice.customerId,
+    event: "payment_received",
+    detail: `$${applied.toFixed(2)} against ${invoice.invoiceNumber}${input.method ? ` via ${input.method}` : ""}`,
+  })
+
+  if (creditReleased) {
+    // Worth its own entry: someone who called last week about being blocked
+    // should see that it lifted, and when.
+    await logCustomerActivity(client, {
+      customerId: invoice.customerId,
+      event: "credit_released",
+      detail: `Balance back under the limit after ${invoice.invoiceNumber} was paid`,
+    })
+  }
 
   return {
     ok: true,

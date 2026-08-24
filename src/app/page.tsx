@@ -46,6 +46,7 @@ import { PageHeader } from "@/components/ui/page-header"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatCurrency, formatCurrencyShort, formatDate } from "@/lib/types"
+import { truncateLabel } from "@/lib/truncate"
 
 interface OrderItemLite {
   productId: string
@@ -641,6 +642,39 @@ function buildDashboardData({
   }
 }
 
+
+/**
+ * A chart axis tick that stays on one line.
+ *
+ * Recharts' default tick wraps a long label to fit the axis width, so
+ * "Independent Grocers Network" rendered as "Independent" stacked above
+ * "Groce…" — two lines that read as two separate customers. This renders a
+ * single <text> and shortens with an ellipsis instead, and carries the full
+ * name in a <title> so hovering still gives the real one.
+ */
+function SingleLineTick(props: {
+  x?: number
+  y?: number
+  payload?: { value?: unknown }
+  fill?: string
+}) {
+  const full = String(props.payload?.value ?? "")
+
+  return (
+    <text
+      x={props.x}
+      y={props.y}
+      dy={4}
+      textAnchor="end"
+      fill="#64748b"
+      fontSize={11}
+    >
+      <title>{full}</title>
+      {truncateLabel(full, 20)}
+    </text>
+  )
+}
+
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData>(EMPTY_DASHBOARD)
   const [loading, setLoading] = useState(true)
@@ -1040,10 +1074,10 @@ export default function DashboardPage() {
                         <YAxis
                           type="category"
                           dataKey="name"
-                          width={120}
+                          width={150}
                           className="text-xs text-muted-foreground"
                           stroke="currentColor"
-                          tickFormatter={(value) => String(value).slice(0, 16)}
+                          tick={<SingleLineTick />}
                         />
                         <Tooltip
                           formatter={(value: number, name: string) => {

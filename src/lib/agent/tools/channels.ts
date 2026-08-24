@@ -5,6 +5,7 @@ import { sendTelegramMessage } from "../channels/telegram"
 import type { AgentPrincipal } from "../context"
 import { defineTool } from "./define"
 import { isStaff, money } from "./shared"
+import { ensureDefaultTemplates, renderNamedTemplate, templateVariables } from "@/lib/message-templates"
 
 /** Multi-Channel Operations, Agent Routing & Morning Briefings. */
 
@@ -14,6 +15,68 @@ export function buildChannelTools(principal: AgentPrincipal) {
   }
 
   return {
+    listMessageTemplates: defineTool({
+      description:
+        "The reusable message templates — invoice chases, order confirmations, quote follow-ups — with the variables each one needs. Use this before drafting a customer message from scratch, so the wording stays consistent.",
+      inputSchema: z.object({
+        channel: z.string().optional().describe("email, telegram — omit for all"),
+      }),
+      execute: async ({ channel }) => {
+        await ensureDefaultTemplates(db)
+
+        const templates = await db.messageTemplate.findMany({
+          where: {
+            ...(channel ? { channel } : {}),
+            approvalStatus: { not: "rejected" },
+          },
+          orderBy: { name: "asc" },
+          select: { name: true, channel: true, subject: true, body: true },
+        })
+
+        return templates.map((t) => ({
+          name: t.name,
+          channel: t.channel,
+          subject: t.subject,
+          preview: t.body.slice(0, 120),
+          variables: templateVariables(`${t.subject ?? ""} ${t.body}`),
+        }))
+      },
+    }),
+
+    draftFromTemplate: defineTool({
+      description:
+        "Fill a message template with real values and return the drafted text. Does NOT send anything — it returns the message so it can be reviewed or passed to a sending tool.",
+      inputSchema: z.object({
+        name: z.string().describe("Template name, e.g. invoice_overdue_first"),
+        values: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
+          .describe("Values for the template's variables, e.g. { contactName: 'Marco', amount: '$412.50' }"),
+      }),
+      execute: async ({ name, values }) => {
+        const result = await renderNamedTemplate(db, name, values)
+
+        if (!result.ok) {
+          return { ok: false as const, error: result.error }
+        }
+
+        // Reported rather than sent: a message that still contains
+        // "{{amount}}" would tell a customer they owe {{amount}}.
+        if (!result.template.ok) {
+          return {
+            ok: false as const,
+            error: `Missing values for: ${result.template.missing.join(", ")}. Supply them and try again.`,
+            missing: result.template.missing,
+          }
+        }
+
+        return {
+          ok: true as const,
+          subject: result.template.subject,
+          message: result.template.body,
+          channel: result.template.channel,
+        }
+      },
+    }),
+
     listAgentChannels: defineTool({
       description: "List all active communication channels, bots, and linked staff/customer identities.",
       inputSchema: z.object({}),
@@ -22,37 +85,40 @@ export function buildChannelTools(principal: AgentPrincipal) {
           where: { status: "active" },
         })
 
-        const userIds = identities.map((i) => i.userId).filter((id): id is string => Boolean(id))
-        const customerIds = identities.map((i) => i.customerId).filter((id): id is string => Boolean(id))
+        // ChannelIdentity holds `userId` and `customerId` as plain columns with
+        // no relations behind them — deliberately, since exactly one is set —
+        // so the names are resolved in two queries rather than an include.
+        const [users, customers] = await Promise.all([
+          db.user.findMany({
+            where: { id: { in: identities.map((i) => i.userId).filter((id): id is string => Boolean(id)) } },
+            select: { id: true, name: true, role: true },
+          }),
+          db.customer.findMany({
+            where: { id: { in: identities.map((i) => i.customerId).filter((id): id is string => Boolean(id)) } },
+            select: { id: true, name: true },
+          }),
+        ])
 
-        const users = userIds.length
-          ? await db.user.findMany({
-              where: { id: { in: userIds } },
-              select: { id: true, name: true, role: true, email: true },
-            })
-          : []
-
-        const customers = customerIds.length
-          ? await db.customer.findMany({
-              where: { id: { in: customerIds } },
-              select: { id: true, name: true, phone: true },
-            })
-          : []
-
-        const userMap = new Map(users.map((u) => [u.id, u]))
-        const customerMap = new Map(customers.map((c) => [c.id, c]))
+        const userById = new Map(users.map((u) => [u.id, u]))
+        const customerById = new Map(customers.map((c) => [c.id, c]))
 
         return {
           totalConnected: identities.length,
           channels: identities.map((i) => {
-            const user = i.userId ? userMap.get(i.userId) : null
-            const customer = i.customerId ? customerMap.get(i.customerId) : null
+            const user = i.userId ? userById.get(i.userId) : null
+            const customer = i.customerId ? customerById.get(i.customerId) : null
 
             return {
               id: i.id,
               channel: i.channel,
               externalId: i.externalId,
-              linkedTo: user ? `Staff: ${user.name} (${user.role})` : customer ? `Customer: ${customer.name}` : "Unlinked",
+              linkedTo: user
+                ? `Staff: ${user.name} (${user.role})`
+                : customer
+                  ? `Customer: ${customer.name}`
+                  : "Unlinked",
+              // There is no lastSeenAt column; verifiedAt is when the link was
+              // confirmed, which is the closest honest answer.
               verifiedAt: i.verifiedAt,
             }
           }),

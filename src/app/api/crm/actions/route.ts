@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAdminUser } from "@/lib/admin-auth"
 import { db } from "@/lib/db"
 import { nextDocumentNumber } from "@/lib/numbering"
+import { getActiveCompanyId } from "@/lib/active-company"
 
 /**
  * CRM write actions.
@@ -12,9 +13,25 @@ import { nextDocumentNumber } from "@/lib/numbering"
  * in the UI and one resolved by the agent from Telegram produce the same rows.
  */
 
+/**
+ * The acting company travels with every action.
+ *
+ * convertLead used to resolve the owning entity with db.company.findFirst() —
+ * the first row in the table, regardless of who was acting. In a group that
+ * bills from more than one entity that is a coin flip which always lands the
+ * same way: convert a lead while acting as one company and the customer is
+ * filed under another, with the wrong ABN and bank details on everything that
+ * follows.
+ */
+interface ActionContext {
+  userId: string
+  companyId: string | null
+}
+
 type ActionHandler = (
   payload: Record<string, unknown>,
-  userId: string
+  userId: string,
+  context: ActionContext
 ) => Promise<{ ok: boolean; error?: string; data?: unknown }>
 
 const handlers: Record<string, ActionHandler> = {
@@ -321,7 +338,80 @@ const handlers: Record<string, ActionHandler> = {
     return { ok: true, data: lead }
   },
 
-  async convertLead(payload, userId) {
+  /**
+   * Edit a lead's details.
+   *
+   * `updateLeadStatus` moves a lead through the pipeline and nothing else, so
+   * a lead's name, contact, email, phone or owner could not be corrected
+   * anywhere in the platform. With 6,000 imported leads, a mistyped email was
+   * permanent — and the field the whole point of the import is reaching.
+   */
+  async updateLead(payload, userId) {
+    const leadId = String(payload.leadId || "")
+
+    if (!leadId) {
+      return { ok: false, error: "leadId is required" }
+    }
+
+    const existing = await db.lead.findUnique({ where: { id: leadId }, select: { id: true } })
+    if (!existing) {
+      return { ok: false, error: "Lead not found" }
+    }
+
+    const text = (key: string) =>
+      payload[key] === undefined ? undefined : payload[key] ? String(payload[key]) : null
+
+    const businessName =
+      payload.businessName === undefined ? undefined : String(payload.businessName).trim()
+
+    if (businessName !== undefined && !businessName) {
+      // The one field a lead cannot be without: it is how it is identified
+      // everywhere it appears.
+      return { ok: false, error: "A lead needs a business name" }
+    }
+
+    const estimatedValue =
+      payload.estimatedValue === undefined
+        ? undefined
+        : payload.estimatedValue === null
+          ? null
+          : Number(payload.estimatedValue)
+
+    if (estimatedValue !== undefined && estimatedValue !== null && !Number.isFinite(estimatedValue)) {
+      return { ok: false, error: "Estimated value must be a number" }
+    }
+
+    const lead = await db.lead.update({
+      where: { id: leadId },
+      data: {
+        ...(businessName !== undefined ? { businessName } : {}),
+        ...(payload.contactName !== undefined ? { contactName: text("contactName") } : {}),
+        ...(payload.email !== undefined ? { email: text("email") } : {}),
+        ...(payload.phone !== undefined ? { phone: text("phone") } : {}),
+        ...(payload.suburb !== undefined ? { suburb: text("suburb") } : {}),
+        ...(payload.industry !== undefined ? { industry: text("industry") } : {}),
+        ...(payload.notes !== undefined ? { notes: text("notes") } : {}),
+        ...(payload.source !== undefined ? { source: String(payload.source) } : {}),
+        ...(estimatedValue !== undefined ? { estimatedValue } : {}),
+        ...(payload.ownerId !== undefined ? { ownerId: text("ownerId") } : {}),
+      },
+      select: { id: true, businessName: true, email: true, phone: true, ownerId: true },
+    })
+
+    await db.activity.create({
+      data: {
+        type: "note",
+        subject: `Lead details updated: ${lead.businessName}`,
+        userId,
+        // Activity links by relation, not a generic entityType/entityId pair.
+        leadId: lead.id,
+      },
+    })
+
+    return { ok: true, data: lead }
+  },
+
+  async convertLead(payload, userId, context) {
     const leadId = String(payload.leadId || "")
     if (!leadId) {
       return { ok: false, error: "leadId is required" }
@@ -336,7 +426,8 @@ const handlers: Record<string, ActionHandler> = {
       return { ok: false, error: "That lead has already been converted" }
     }
 
-    const company = await db.company.findFirst({ select: { id: true } })
+    // The entity the user is acting as, not whichever row happens to be first.
+    const companyId = context.companyId
 
     const customer = await db.customer.create({
       data: {
@@ -349,7 +440,7 @@ const handlers: Record<string, ActionHandler> = {
         paymentTerms: Number(payload.paymentTerms ?? 30),
         creditLimit: Number(payload.creditLimit ?? 0),
         salesRepId: lead.ownerId,
-        companyId: company?.id,
+        companyId,
       },
       select: { id: true, name: true },
     })
@@ -451,7 +542,10 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await handler(body, auth.user!.id)
+    // Resolved once, from the request, and handed to every handler.
+    const companyId = await getActiveCompanyId(request)
+
+    const result = await handler(body, auth.user!.id, { userId: auth.user!.id, companyId })
 
     if (!result.ok) {
       return NextResponse.json({ success: false, error: result.error }, { status: 400 })

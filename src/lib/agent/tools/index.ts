@@ -24,6 +24,11 @@ import { buildOcrTools } from "./ocr"
 import { buildPriceListTools } from "./pricing-tiers"
 import { buildReturnTools } from "./returns"
 import { buildRouteTools } from "./routes"
+import { buildAutomationTools } from "./automation"
+import { buildCalendarTools } from "./calendar"
+import { buildEmailTools } from "./email"
+import { buildMultiAgentTools } from "./multi-agent"
+import { buildSpreadsheetTools } from "./spreadsheets"
 import { buildSettingsTools } from "./settings"
 import { buildPipelineTools } from "./pipeline"
 import { buildPurchasingTools } from "./purchasing"
@@ -31,6 +36,8 @@ import { buildReportingTools } from "./reporting"
 import { buildSalesTools } from "./sales"
 import { buildSkillTools } from "./skills"
 import { buildUnitTools } from "./units"
+import { buildAnalyticsTools } from "./analytics"
+import { buildDeepOperationsTools } from "./operations-deep"
 import { buildUniversalTools } from "./universal"
 import { buildWebSearchTools } from "./websearch"
 
@@ -48,6 +55,32 @@ import { buildWebSearchTools } from "./websearch"
  */
 
 export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
+  // Automation and multi-agent. These were defined, listed in agent
+  // allowlists, and never spread into buildTools or registered here — so the
+  // ops prompt told the agent to "use spawnAgentTask" for a tool that did not
+  // reach it, and `decide()` would have denied it even if it had.
+  //
+  // Risk is set conservatively: setting another agent running is a write.
+  //
+  // Automation: reads are open, anything that schedules future work or writes
+  // a standing rule stops for a person, because it keeps producing work after
+  // the turn ends.
+  translateText: { risk: "read" },
+  summarizeThread: { risk: "read" },
+  generateQrCode: { risk: "read" },
+  setReminder: { risk: "low" },
+  createChecklist: { risk: "low" },
+  createRecurringReport: { risk: "high", roles: ["admin"], alwaysApprove: true },
+  createWorkflow: { risk: "high", roles: ["admin"], alwaysApprove: true },
+  listAvailableAgents: { risk: "read" },
+  // Standing configuration: these keep producing work after the turn ends, so
+  // a person sees them before they start.
+  // One agent starting others is the one that can run away on its own.
+  spawnAgentTask: { risk: "high", roles: ["admin"], alwaysApprove: true },
+  agentSwarm: { risk: "high", roles: ["admin"], alwaysApprove: true },
+  agentHandoff: { risk: "medium", roles: ["admin"] },
+  broadcastToAgents: { risk: "high", roles: ["admin"], alwaysApprove: true },
+
   // Settings. Reads are open to admins; writes reshape every figure the
   // platform produces, so they always stop for a person regardless of value.
   listSettings: { risk: "read", roles: ["admin"] },
@@ -203,6 +236,7 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
   generateDiagram: { risk: "read" },
   delegateToAgent: { risk: "read", roles: ["admin", "sales", "warehouse", "accounts"] },
   sendStaffAlert: { risk: "low", roles: ["admin", "sales", "warehouse", "accounts"] },
+  sendDirectStaffMessage: { risk: "low", roles: ["admin", "sales", "warehouse", "accounts"] },
 
   // Model Context Protocol (MCP) & REST API Gateway
   listMcpServers: { risk: "read" },
@@ -213,6 +247,7 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
   scanDocument: { risk: "read" },
   sendDocument: { risk: "low" },
   generateDocumentPdf: { risk: "read" },
+  generateReportPdf: { risk: "low" },
 
   // Communication Channels & Morning Briefings
   listAgentChannels: { risk: "read" },
@@ -223,6 +258,11 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
   listGroupChannels: { risk: "read" },
   updateGroupChannel: { risk: "low", roles: ["admin"] },
   postToGroupChannel: { risk: "low", roles: ["admin", "sales", "warehouse", "accounts"] },
+
+  // Message templates. Both are reads: drafting fills a template in and hands
+  // the text back, it does not send anything.
+  listMessageTemplates: { risk: "read" },
+  draftFromTemplate: { risk: "read" },
 
   // Manufacturing & BOM Recipes
   listBoms: { risk: "read" },
@@ -247,6 +287,35 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
   listPriceLists: { risk: "read" },
   assignCustomerPriceList: { risk: "low", roles: ["admin", "sales"] },
 
+  // Spreadsheets & Data Exports
+  generateSpreadsheet: { risk: "read" },
+  exportReportToCsv: { risk: "read" },
+  parseSpreadsheet: { risk: "read" },
+
+  // Email System & CRM Communication
+  sendEmail: { risk: "low", roles: ["admin", "sales", "warehouse", "accounts"] },
+  draftEmail: { risk: "read" },
+  listCommunicationHistory: { risk: "read" },
+
+  // Calendar & Scheduling
+  scheduleMeeting: { risk: "low", roles: ["admin", "sales", "warehouse", "accounts"] },
+  listUpcomingEvents: { risk: "read" },
+
+  // Enterprise Analytics & Cashflow
+  cashflowForecast: { risk: "read" },
+  profitAndLossStatement: { risk: "read" },
+  customerRfmSegmentation: { risk: "read" },
+  supplierPerformanceScorecard: { risk: "read" },
+  taxSummaryGst: { risk: "read" },
+
+  // Deep Operations, Traceability & Supply Chain
+  compareSupplierQuotes: { risk: "read" },
+  recipeCostingAnalysis: { risk: "read" },
+  palletOptimization: { risk: "read" },
+  warehouseSlottingAdvisor: { risk: "read" },
+  mockRecallSimulation: { risk: "read" },
+  creditRiskAssessment: { risk: "read" },
+
   // Freight. Drafting writes a row and contacts nobody; sending commits the
   // business to a third party who acts on it immediately, so it is the gate.
   listCarriers: { risk: "read" },
@@ -262,11 +331,19 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
 }
 
 export function buildTools(principal: AgentPrincipal, channel?: string): ToolSet {
-  // Staff-only domains collapse to {} for customers, so the union needs
-  // widening to ToolSet before the runtime can hand it to the model.
-  const tools: ToolSet = {}
-  Object.assign(
-    tools,
+  // Assembled with Object.assign rather than one big object literal.
+  //
+  // Spreading ~30 builders into a single literal makes TypeScript compute the
+  // union of every possible shape, and staff-only domains collapsing to {} for
+  // customers multiplies it further. At 29 builders that exceeded the compiler's
+  // limit outright — "union type that is too complex to represent" — which made
+  // adding a tool a type-system problem rather than a product decision.
+  //
+  // Each builder still closes over the principal, so customer isolation is
+  // unchanged; only the way the results are merged differs.
+  // Typed as plain records: a staff-only builder returns `{}` for a customer,
+  // and `ToolSet[]` would reject that union rather than widen it.
+  const builders: Array<Record<string, unknown>> = [
     buildGeneralTools(principal),
     buildUniversalTools(principal),
     buildMcpTools(principal),
@@ -291,6 +368,13 @@ export function buildTools(principal: AgentPrincipal, channel?: string): ToolSet
     buildOcrTools(principal),
     buildDocumentTools(principal, channel),
     buildSettingsTools(principal),
+    buildAutomationTools(principal),
+    buildCalendarTools(principal),
+    buildEmailTools(principal),
+    buildMultiAgentTools(principal),
+    buildSpreadsheetTools(principal, channel),
+    buildAnalyticsTools(principal),
+    buildDeepOperationsTools(principal),
     buildSkillTools(principal),
     buildPurchasingTools(principal),
     buildReportingTools(principal),
@@ -298,8 +382,9 @@ export function buildTools(principal: AgentPrincipal, channel?: string): ToolSet
     buildRouteTools(principal),
     buildReturnTools(principal),
     buildPriceListTools(principal),
-  )
-  return tools
+  ]
+
+  return Object.assign({}, ...builders) as ToolSet
 }
 
 /** Every tool the registry can produce, for settings screens and docs. */

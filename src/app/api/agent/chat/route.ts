@@ -5,6 +5,7 @@ import { resolveStaffPrincipal } from "@/lib/agent/context"
 import { getAgentRuntimeInfo } from "@/lib/agent/model"
 import { streamAgentResponse } from "@/lib/agent/stream"
 import { db } from "@/lib/db"
+import { guardRate, RATE_LIMITS } from "@/lib/rate-guard"
 
 // In-app chat surface. Same runtime, tools and policy as Telegram - only the
 // transport differs. Streams UI messages for `useChat`.
@@ -58,6 +59,15 @@ export async function POST(request: NextRequest) {
   if (!principal) {
     return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 })
   }
+
+  // Every call here spends model tokens. Keyed by the signed-in user, so one
+  // runaway client cannot exhaust the budget for everyone.
+  const limited = guardRate(request, {
+    ...RATE_LIMITS.agentChat,
+    subject: user.id,
+    message: "You're sending messages faster than the assistant can answer. Give it a moment.",
+  })
+  if (limited) return limited
 
   const body = await request.json()
   const messages = Array.isArray(body.messages) ? body.messages : []

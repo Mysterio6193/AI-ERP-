@@ -37,6 +37,8 @@ export function buildRouteTools(principal: AgentPrincipal) {
           include: {
             driver: { select: { name: true, phone: true } },
             deliveries: {
+              // Delivery carries `orderId`, not an `order` relation, so the
+              // order number comes off the delivery itself.
               include: {
                 customer: { select: { name: true, phone: true } },
               },
@@ -44,8 +46,25 @@ export function buildRouteTools(principal: AgentPrincipal) {
           },
         })
 
+        // Delivery carries `locationId` with no relation behind it, so the
+        // stop addresses are resolved in one extra query rather than N.
+        const locationIds = routes
+          .flatMap((r) => r.deliveries.map((d) => d.locationId))
+          .filter((id): id is string => Boolean(id))
+
+        const locations = locationIds.length
+          ? await db.customerLocation.findMany({
+              where: { id: { in: locationIds } },
+              select: { id: true, address: true, city: true, postcode: true },
+            })
+          : []
+
+        const addressById = new Map(
+          locations.map((l) => [l.id, [l.address, l.city, l.postcode].filter(Boolean).join(", ")])
+        )
+
         const items = routes.map((r) => ({
-id: r.id,
+          id: r.id,
           routeNumber: r.routeNumber,
           name: r.name,
           routeDate: r.routeDate,
@@ -57,11 +76,13 @@ id: r.id,
             deliveryId: d.id,
             sequence: d.sequenceNo,
             orderId: d.orderId,
+            orderNumber: d.deliveryNumber,
             customer: d.customer.name,
             phone: d.customer.phone || "N/A",
+            address: (d.locationId && addressById.get(d.locationId)) || "Address pending",
             status: d.status,
           })),
-        }));
+        }))
         return {
           items,
           nextCursor: routes.length === _limit ? routes[routes.length - 1].id : undefined

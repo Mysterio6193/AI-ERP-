@@ -74,7 +74,10 @@ export default function AdminSigninPage() {
       router.refresh()
     } catch (requestError) {
       console.error("Admin sign-in error", requestError)
-      setError("Failed to sign in.")
+      // A network failure and a wrong password are different problems, and
+      // telling someone their details are wrong when the server is
+      // unreachable sends them looking in the wrong place.
+      setError("Could not reach the server. Check your connection and try again.")
     } finally {
       setLoading(false)
     }
@@ -92,7 +95,6 @@ export default function AdminSigninPage() {
             <p className="text-xs text-muted-foreground mt-0.5">Enterprise Operations & Autonomous ERP</p>
           </div>
         </div>
-
         <Card className="border border-border bg-card shadow-lg">
           <CardHeader className="space-y-1 pb-4">
             <CardTitle className="text-xl font-semibold tracking-tight">Sign in to your account</CardTitle>
@@ -139,7 +141,11 @@ export default function AdminSigninPage() {
               </div>
 
               {error ? (
-                <div className="rounded-lg border border-destructive/20 bg-destructive/10 px-3.5 py-2.5 text-xs text-destructive flex items-center gap-2">
+                <div
+                  role="alert"
+                  aria-live="assertive"
+                  className="rounded-lg border border-destructive/20 bg-destructive/10 px-3.5 py-2.5 text-xs text-destructive flex items-center gap-2"
+                >
                   <ShieldCheck className="h-4 w-4 shrink-0" />
                   <span>{error}</span>
                 </div>

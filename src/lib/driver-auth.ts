@@ -14,8 +14,34 @@ type DriverSessionPayload = {
   exp: number
 }
 
+/** The literal the secret used to silently fall back to. */
+export const INSECURE_DRIVER_SECRET = "driver-session-dev-secret"
+
+/**
+ * The key driver session tokens are signed with.
+ *
+ * This fell back to a hardcoded string when neither secret was set, so a
+ * deployment that forgot to configure one signed real driver sessions with a
+ * value printed in the public source — anyone could mint a token for any
+ * driver. It stays as a development convenience and is refused outright in
+ * production, where dying at boot is much better than serving forgeable
+ * sessions that look valid.
+ */
 function getSecret() {
-  return process.env.DRIVER_SESSION_SECRET || process.env.NEXTAUTH_SECRET || "driver-session-dev-secret"
+  const configured = process.env.DRIVER_SESSION_SECRET || process.env.NEXTAUTH_SECRET
+
+  if (configured) {
+    return configured
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "DRIVER_SESSION_SECRET (or NEXTAUTH_SECRET) must be set in production. " +
+        "Without one, driver sessions would be signed with a value published in the source."
+    )
+  }
+
+  return INSECURE_DRIVER_SECRET
 }
 
 function encode(value: string) {

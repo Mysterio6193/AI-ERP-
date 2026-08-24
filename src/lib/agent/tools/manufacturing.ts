@@ -38,8 +38,8 @@ export function buildManufacturingTools(principal: AgentPrincipal) {
           name: bom.name,
           product: bom.product.name,
           sku: bom.product.sku,
-          batchSize: bom.yieldQty,
-          batchUnit: bom.yieldUnit,
+          yieldQty: bom.yieldQty,
+          yieldUnit: bom.yieldUnit,
           componentsCount: bom.lines.length,
           components: bom.lines.map((l) => ({
             component: l.component.name,

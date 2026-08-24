@@ -5,6 +5,7 @@ import { db } from "@/lib/db"
 import InvoicePDF from "@/components/documents/InvoicePDF"
 import SalesOrderPDF from "@/components/documents/SalesOrderPDF"
 import CustomerStatementPDF from "@/components/documents/CustomerStatementPDF"
+import { buildCustomerStatement } from "@/lib/customer-statements"
 
 export async function renderInvoicePdfBuffer(invoiceIdOrNumber: string): Promise<{ buffer: Buffer; fileName: string } | null> {
   const [invoice, company] = await Promise.all([
@@ -23,6 +24,8 @@ export async function renderInvoicePdfBuffer(invoiceIdOrNumber: string): Promise
             },
           },
         },
+        // Invoice has no `items` relation: the lines live on the order it
+        // bills, which is already included above.
         payments: true,
       },
     }),
@@ -109,9 +112,11 @@ export async function renderCustomerStatementPdfBuffer(customerIdOrName: string)
           orderBy: { invoiceDate: "desc" },
           take: 30,
         },
-        payments: {
-          orderBy: { paidAt: "desc" },
-          take: 20,
+        // buildCustomerStatement derives the ledger from these, so the two
+        // statement paths — screen and PDF — produce the same figures.
+        creditTransactions: {
+          orderBy: { createdAt: "desc" },
+          take: 50,
         },
       },
     }),
@@ -122,13 +127,13 @@ export async function renderCustomerStatementPdfBuffer(customerIdOrName: string)
     return null
   }
 
+  // The component takes a built statement, not raw rows. Building it here
+  // rather than passing loose arrays means the PDF, the screen and the API all
+  // age receivables the same way — which was the point of one bucketise().
+  const statement = buildCustomerStatement(customer as never)
+
   const docElement = React.createElement(CustomerStatementPDF, {
-    statement: {
-      customer,
-      invoices: customer.invoices || [],
-      payments: customer.payments || [],
-      statementDate: new Date(),
-    },
+    statement,
     company: company || {},
   })
 
@@ -138,5 +143,37 @@ export async function renderCustomerStatementPdfBuffer(customerIdOrName: string)
   return {
     buffer: Buffer.from(arrayBuffer),
     fileName: `statement-${customer.name.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`,
+  }
+}
+
+export async function renderCustomReportPdfBuffer(options: {
+  title: string
+  subtitle?: string
+  headers: string[]
+  rows: Array<Array<string | number | boolean | null>>
+  summaryCards?: Array<{ label: string; value: string | number }>
+  fileName?: string
+}): Promise<{ buffer: Buffer; fileName: string }> {
+  const company = await db.company.findFirst()
+  const CustomReportPDF = (await import("@/components/documents/CustomReportPDF")).default
+
+  const docElement = React.createElement(CustomReportPDF, {
+    title: options.title,
+    subtitle: options.subtitle,
+    headers: options.headers,
+    rows: options.rows,
+    summaryCards: options.summaryCards,
+    companyName: company?.name || "SupplySure OS Wholesale Distribution",
+  })
+
+  const blob = await pdf(docElement as any).toBlob()
+  const arrayBuffer = await blob.arrayBuffer()
+  const cleanFileName = options.fileName
+    ? (options.fileName.endsWith(".pdf") ? options.fileName : `${options.fileName}.pdf`)
+    : `${options.title.toLowerCase().replace(/[^a-z0-9]+/g, "_")}.pdf`
+
+  return {
+    buffer: Buffer.from(arrayBuffer),
+    fileName: cleanFileName,
   }
 }
