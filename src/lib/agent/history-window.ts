@@ -32,6 +32,65 @@ export function countConversationTurns(messages: ModelMessage[]): number {
   return messages.filter((message) => !isToolTraffic(message)).length
 }
 
+
+/**
+ * Remove tool calls whose result was never stored, and results with no call.
+ *
+ * A run that dies between making a tool call and persisting its result leaves
+ * the assistant's call in the thread forever. Every later turn then replays it,
+ * and the model API refuses the whole request with "Tool result is missing for
+ * tool call ..." — so one interrupted turn bricks the conversation permanently,
+ * and no amount of windowing fixes it because the damage is in the stored rows.
+ *
+ * Dropping only the broken part rather than the whole message matters: an
+ * assistant turn often carries text alongside its tool call, and throwing that
+ * away loses what the agent actually said.
+ */
+export function dropOrphanedToolCalls(messages: ModelMessage[]): ModelMessage[] {
+  const calls = new Set<string>()
+  const results = new Set<string>()
+
+  const collect = (message: ModelMessage) => {
+    if (!Array.isArray(message.content)) return
+    for (const part of message.content as Array<{ type?: string; toolCallId?: string }>) {
+      if (part?.type === "tool-call" && part.toolCallId) calls.add(part.toolCallId)
+      if (part?.type === "tool-result" && part.toolCallId) results.add(part.toolCallId)
+    }
+  }
+
+  messages.forEach(collect)
+
+  const orphanedCalls = new Set([...calls].filter((id) => !results.has(id)))
+  const orphanedResults = new Set([...results].filter((id) => !calls.has(id)))
+
+  if (orphanedCalls.size === 0 && orphanedResults.size === 0) {
+    return messages
+  }
+
+  const repaired: ModelMessage[] = []
+
+  for (const message of messages) {
+    if (!Array.isArray(message.content)) {
+      repaired.push(message)
+      continue
+    }
+
+    const kept = (message.content as Array<{ type?: string; toolCallId?: string }>).filter((part) => {
+      if (part?.type === "tool-call" && part.toolCallId) return !orphanedCalls.has(part.toolCallId)
+      if (part?.type === "tool-result" && part.toolCallId) return !orphanedResults.has(part.toolCallId)
+      return true
+    })
+
+    // A message left with nothing in it is dropped; one that still has text or
+    // an intact pair is kept with the broken part removed.
+    if (kept.length > 0) {
+      repaired.push({ ...message, content: kept } as ModelMessage)
+    }
+  }
+
+  return repaired
+}
+
 export interface WindowOptions {
   /** Hard ceiling on messages handed to the model. */
   maxMessages: number
@@ -50,10 +109,14 @@ export interface WindowOptions {
  * call and its result.
  */
 export function windowHistory(
-  messages: ModelMessage[],
+  rawMessages: ModelMessage[],
   options: WindowOptions
 ): ModelMessage[] {
   const { maxMessages, minConversationTurns } = options
+
+  // Repair before trimming: a stored orphan breaks the request regardless of
+  // how much of the thread is kept.
+  const messages = dropOrphanedToolCalls(rawMessages)
 
   if (messages.length <= maxMessages) {
     return messages

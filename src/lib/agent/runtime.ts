@@ -21,7 +21,7 @@ import { decide, getThresholds, type AgentThresholds } from "./policy"
 import { buildTools, TOOL_POLICY } from "./tools"
 import { describeSettingProposal } from "./tools/settings"
 import { formatIdentity, getAgentIdentity } from "./identity"
-import { budgetFor, windowHistory } from "@/lib/agent/history-window"
+import { budgetFor, dropOrphanedToolCalls, windowHistory } from "@/lib/agent/history-window"
 
 /**
  * The agent runtime.
@@ -547,6 +547,10 @@ export async function resolveProposal(input: {
     })
     .filter(Boolean) as ModelMessage[]
 
+  // The resume path loaded the entire thread untouched, so a single orphaned
+  // tool call from an interrupted run made every approval fail too.
+  const repairedMessages = dropOrphanedToolCalls(messages)
+
   const approvalResponse: ToolApprovalResponse = {
     type: "tool-approval-response",
     approvalId: proposal.approvalId,
@@ -571,7 +575,7 @@ export async function resolveProposal(input: {
 
   try {
     const agent = await buildAgent(input.principal, thread.channel, thresholds, definition)
-    const result = await agent.generate({ messages: [...messages, approvalMessage] })
+    const result = await agent.generate({ messages: [...repairedMessages, approvalMessage] })
 
     await persistMessages(thread.id, run.id, [approvalMessage, ...result.responseMessages])
 

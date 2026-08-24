@@ -107,3 +107,67 @@ describe("budgetFor", () => {
     expect(budgetFor(undefined)).toEqual(budgetFor("anything-else"))
   })
 })
+
+describe("dropOrphanedToolCalls", () => {
+  const orphanCall = (): ModelMessage => ({
+    role: "assistant",
+    content: [
+      { type: "text", text: "Let me check that." },
+      { type: "tool-call", toolCallId: "dead", toolName: "findCustomers", input: {} },
+    ],
+  } as ModelMessage)
+
+  it("removes a tool call whose result was never stored", async () => {
+    // A run that dies between calling a tool and saving its result leaves this
+    // in the thread forever, and the model API then refuses every later turn
+    // with "Tool result is missing for tool call ...".
+    const { dropOrphanedToolCalls } = await import("./history-window")
+
+    const repaired = dropOrphanedToolCalls([user("hi"), orphanCall()])
+    const parts = repaired.flatMap((m) => (Array.isArray(m.content) ? m.content : []))
+
+    expect(parts.some((p) => (p as { type?: string }).type === "tool-call")).toBe(false)
+  })
+
+  it("keeps the text the assistant said alongside the broken call", async () => {
+    // Dropping the whole message would lose what the agent actually replied.
+    const { dropOrphanedToolCalls } = await import("./history-window")
+
+    const repaired = dropOrphanedToolCalls([user("hi"), orphanCall()])
+    expect(JSON.stringify(repaired)).toContain("Let me check that.")
+  })
+
+  it("leaves an intact call and result alone", async () => {
+    const { dropOrphanedToolCalls } = await import("./history-window")
+    const messages = exchange(1)
+
+    expect(dropOrphanedToolCalls(messages)).toEqual(messages)
+  })
+
+  it("removes a result whose call is missing", async () => {
+    const { dropOrphanedToolCalls } = await import("./history-window")
+
+    const repaired = dropOrphanedToolCalls([user("hi"), toolResult()])
+    expect(repaired.some((m) => m.role === "tool")).toBe(false)
+  })
+
+  it("drops a message left with nothing in it", async () => {
+    const { dropOrphanedToolCalls } = await import("./history-window")
+
+    const bare: ModelMessage = {
+      role: "assistant",
+      content: [{ type: "tool-call", toolCallId: "dead", toolName: "x", input: {} }],
+    } as ModelMessage
+
+    expect(dropOrphanedToolCalls([user("hi"), bare])).toHaveLength(1)
+  })
+
+  it("is applied by windowHistory, so every caller is protected", async () => {
+    const { windowHistory } = await import("./history-window")
+
+    const messages = [user("hi"), orphanCall()]
+    const kept = windowHistory(messages, { maxMessages: 60, minConversationTurns: 10 })
+
+    expect(JSON.stringify(kept)).not.toContain("tool-call")
+  })
+})
