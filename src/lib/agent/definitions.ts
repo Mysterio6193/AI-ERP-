@@ -215,6 +215,7 @@ export const EXECUTIVE_TOOLS = [
   "autonomousGoalDecomposer", "detectOperationalAnomalies", "proactiveInsightGenerator",
   "simulateWhatIfScenario",
   "autonomousInventoryAllocationEngine", "operationsAutoPilotSweep",
+  "grokDeepReasoner", "chiefOfStaffOrchestrator", "xaiMarketTrendRadar",
   "listOrders", "listPurchaseOrders", "listLeads", "pipelineSummary",
   "searchWeb", "searchKnowledge",
   "planTask", "scratchpadNote",
@@ -299,6 +300,7 @@ export const OPS_TOOLS = [
   "autonomousGoalDecomposer", "detectOperationalAnomalies", "proactiveInsightGenerator",
   "simulateWhatIfScenario", "autonomousSelfHealingRoutine",
   "autonomousInventoryAllocationEngine", "operationsAutoPilotSweep", "synthesizeOperationalPlaybook",
+  "grokDeepReasoner", "chiefOfStaffOrchestrator", "xaiMarketTrendRadar", "demonstrateWorkflowMacro",
   "listSkills", "readSkill", "createSkill", "improveSkill", "recordSkillOutcome", "recallMemories", "remember",
 ]
 

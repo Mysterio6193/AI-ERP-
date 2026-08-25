@@ -48,6 +48,7 @@ import { buildWebhookTools } from "./webhooks-tools"
 import { buildAutonomousAiTools } from "./autonomous-ai"
 import { buildSimulationAiTools } from "./simulation-ai"
 import { buildAutonomousDecisionTools } from "./autonomous-decision"
+import { buildXaiBotTools } from "./xai-bot-tools"
 import { TOOL_NAMES } from "./define"
 
 /**
@@ -245,6 +246,7 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
   searchWeb: { risk: "read" },
 
   // The agent's view of its own tools. Reads only.
+  learnAboutTheBusiness: { risk: "low", roles: ["admin", "sales", "accounts"] },
   pendingDecisions: { risk: "read" },
   checkToolHealth: { risk: "read" },
   acknowledgeToolFault: { risk: "low", roles: ["admin"] },
@@ -369,6 +371,12 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
   operationsAutoPilotSweep: { risk: "read" },
   synthesizeOperationalPlaybook: { risk: "low", roles: ["admin", "sales", "warehouse"] },
 
+  // xAI Grok Bot & Chief of Staff Suite
+  grokDeepReasoner: { risk: "read" },
+  chiefOfStaffOrchestrator: { risk: "low", roles: ["admin", "sales", "warehouse", "accounts"] },
+  xaiMarketTrendRadar: { risk: "read" },
+  demonstrateWorkflowMacro: { risk: "low", roles: ["admin", "sales", "warehouse"] },
+
   // Freight. Drafting writes a row and contacts nobody; sending commits the
   // business to a third party who acts on it immediately, so it is the gate.
   listCarriers: { risk: "read" },
@@ -443,6 +451,7 @@ export function buildTools(principal: AgentPrincipal, channel?: string): ToolSet
     buildAutonomousAiTools(principal),
     buildSimulationAiTools(principal),
     buildAutonomousDecisionTools(principal),
+    buildXaiBotTools(principal),
   ]
 
   const assembled = Object.assign({}, ...builders) as ToolSet
