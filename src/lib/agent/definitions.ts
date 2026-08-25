@@ -212,6 +212,7 @@ export const EXECUTIVE_TOOLS = [
   "salesforceCustomer360", "salesforceOpportunityPipeline", "xeroSyncInvoice", "xeroReconcileBankFeed",
   "mfgOeeAndMachinePerformance", "mfgBatchYieldAndWastage",
   "ecommerceChannelPerformance", "listIntegrationConnectors",
+  "autonomousGoalDecomposer", "detectOperationalAnomalies", "proactiveInsightGenerator",
   "listOrders", "listPurchaseOrders", "listLeads", "pipelineSummary",
   "searchWeb", "searchKnowledge",
   "planTask", "scratchpadNote",
@@ -293,6 +294,7 @@ export const OPS_TOOLS = [
   "ecommerceSyncInventory", "ecommerceIngestOrder", "ecommerceChannelPerformance",
   "calculateLandedCost", "automatedReplenishmentPlanner",
   "triggerWebhook", "listIntegrationConnectors",
+  "autonomousGoalDecomposer", "detectOperationalAnomalies", "proactiveInsightGenerator",
   "listSkills", "readSkill", "createSkill", "improveSkill", "recordSkillOutcome", "recallMemories", "remember",
 ]
 

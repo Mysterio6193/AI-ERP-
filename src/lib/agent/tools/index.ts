@@ -45,6 +45,7 @@ import { buildSalesforceTools } from "./salesforce-tools"
 import { buildEcommerceTools } from "./ecommerce-tools"
 import { buildAdvancedInventoryTools } from "./inventory-advanced"
 import { buildWebhookTools } from "./webhooks-tools"
+import { buildAutonomousAiTools } from "./autonomous-ai"
 import { TOOL_NAMES } from "./define"
 
 /**
@@ -350,6 +351,11 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
   triggerWebhook: { risk: "low", roles: ["admin", "sales", "warehouse", "accounts"] },
   listIntegrationConnectors: { risk: "read" },
 
+  // Autonomous Intelligence & Goal Reasoning
+  autonomousGoalDecomposer: { risk: "read" },
+  detectOperationalAnomalies: { risk: "read" },
+  proactiveInsightGenerator: { risk: "read" },
+
   // Freight. Drafting writes a row and contacts nobody; sending commits the
   // business to a third party who acts on it immediately, so it is the gate.
   listCarriers: { risk: "read" },
@@ -421,6 +427,7 @@ export function buildTools(principal: AgentPrincipal, channel?: string): ToolSet
     buildEcommerceTools(principal),
     buildAdvancedInventoryTools(principal),
     buildWebhookTools(principal),
+    buildAutonomousAiTools(principal),
   ]
 
   const assembled = Object.assign({}, ...builders) as ToolSet
