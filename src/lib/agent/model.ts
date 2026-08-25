@@ -64,8 +64,27 @@ export function getProviderMode(): AgentProviderMode {
 }
 
 function googleProvider() {
+  const apiKey = env("GEMINI_API_KEY") || env("GOOGLE_GENERATIVE_AI_API_KEY") || ""
   return createGoogleGenerativeAI({
-    apiKey: env("GEMINI_API_KEY") || env("GOOGLE_GENERATIVE_AI_API_KEY") || "",
+    apiKey,
+    fetch: async (url, options) => {
+      const response = await fetch(url, options)
+      if (response.ok) return response
+
+      const body = await response.clone().text().catch(() => "")
+      if (response.status === 429 || body.includes("Quota exceeded") || body.includes("RESOURCE_EXHAUSTED")) {
+        console.warn(`[agent] Google Gemini model quota exhausted; engaging resilient fallback model`)
+        const fallbackUrl = String(url)
+          .replace("gemini-3.6-flash", "gemini-3.5-flash")
+          .replace("gemini-3.1-flash-lite", "gemini-3.5-flash")
+
+        if (fallbackUrl !== String(url)) {
+          const fallbackRes = await fetch(fallbackUrl, options)
+          if (fallbackRes.ok) return fallbackRes
+        }
+      }
+      return response
+    },
   })
 }
 
