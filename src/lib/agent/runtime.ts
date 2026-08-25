@@ -238,20 +238,42 @@ export async function persistMessages(threadId: string, runId: string, messages:
   })
 }
 
+export function stripThinkingTrace(text: string): string {
+  if (!text) return ""
+  let cleaned = text
+  cleaned = cleaned.replace(/<think>[\s\S]*?<\/think>/gi, "")
+  if (/^(?:Here'?s a thinking process:|Thinking Process:)/i.test(cleaned.trim())) {
+    const paragraphs = cleaned.split(/\n\s*\n/)
+    const withoutThinking = paragraphs.filter((p) => {
+      const trimmed = p.trim()
+      return !/^(?:Here'?s a thinking process|Thinking Process|\d+\.\s+\*\*)/i.test(trimmed)
+    })
+    if (withoutThinking.length > 0) {
+      cleaned = withoutThinking.join("\n\n")
+    }
+  }
+  return cleaned.trim()
+}
+
 function textFrom(result: { text?: string; steps?: any[]; content?: any[] }) {
   if (result.text && result.text.trim()) {
-    return result.text.trim()
+    return stripThinkingTrace(result.text.trim())
   }
 
-  if (Array.isArray(result.steps)) {
-    for (const step of result.steps) {
+  if (Array.isArray(result.steps) && result.steps.length > 0) {
+    for (let i = result.steps.length - 1; i >= 0; i--) {
+      const step = result.steps[i]
       if (step.text && step.text.trim()) {
-        return step.text.trim()
+        return stripThinkingTrace(step.text.trim())
       }
+    }
+    for (let i = result.steps.length - 1; i >= 0; i--) {
+      const step = result.steps[i]
       if (Array.isArray(step.toolResults)) {
         for (const tr of step.toolResults) {
-          if (tr.result && typeof tr.result === "object" && (tr.result as any).message) {
-            return (tr.result as any).message
+          if (tr.result && typeof tr.result === "object") {
+            const msg = (tr.result as any).message || (tr.result as any).summary || (tr.result as any).text
+            if (msg) return String(msg)
           }
         }
       }

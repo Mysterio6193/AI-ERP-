@@ -125,7 +125,16 @@ function openrouterProvider() {
           continue
         }
 
-        if (response.ok) return response
+        if (response.ok) {
+          const body = await response.clone().text().catch(() => "")
+          if (body.includes('"error"') && (body.includes('"code":502') || body.includes('"code":429') || body.includes("overloaded") || body.includes("rate-limited"))) {
+            const verdict = classifyResponse(502, body)
+            lastReason = verdict.reason
+            await sleep(computeBackoff(attempt))
+            continue
+          }
+          return response
+        }
 
         // Reading the body consumes it, so it is only read on the failure
         // path where the response is not being returned to the caller.
@@ -133,14 +142,15 @@ function openrouterProvider() {
         const verdict = classifyResponse(response.status, body)
         lastReason = verdict.reason
 
-        if (!verdict.transient || attempt === MAX_ATTEMPTS - 1) {
-          if (!verdict.transient) {
-            console.error(`[agent] ${describeFailure(verdict.reason, model)}`)
-          }
-          return response
+        if (!verdict.transient) {
+          console.error(`[agent] ${describeFailure(verdict.reason, model)}`)
+          break
         }
 
-        // The provider saying when to come back beats guessing.
+        if (attempt === MAX_ATTEMPTS - 1) {
+          break
+        }
+
         const wait = retryAfterMs(response.headers.get("retry-after")) ?? computeBackoff(attempt)
         console.warn(
           `[agent] ${model} ${verdict.reason} (HTTP ${response.status}), retrying in ${wait}ms ` +
@@ -150,29 +160,21 @@ function openrouterProvider() {
       }
 
       /**
-       * Every retry on the primary model is spent, and the failure was the
-       * transient kind. A second model is the only move left.
-       *
-       * Opt-in, and named in the environment. What was here before did this
-       * implicitly: it stripped `:free` off the model id and then reached for
-       * google/gemini-2.5-flash, so a rate limit on the free tier silently
-       * became a billable request nobody had agreed to. An operator running on
-       * the free tier deliberately should get an error, not an invoice.
+       * Primary model is exhausted or rate-limited. Engage fallback immediately.
        */
-      const fallback = env("AGENT_FALLBACK_MODEL")
+      const fallback = env("AGENT_FALLBACK_MODEL") || "nvidia/nemotron-3-ultra-550b-a55b:free"
 
-      if (fallback && fallback !== model && options?.body && typeof options.body === "string") {
+      if (fallback && fallback !== model && customOptions?.body && typeof customOptions.body === "string") {
         try {
-          const parsed = JSON.parse(options.body)
+          const parsed = JSON.parse(customOptions.body)
           parsed.model = fallback
 
-          console.warn(`[agent] ${model} unavailable (${lastReason}); trying ${fallback}`)
+          console.warn(`[agent] ${model} unavailable (${lastReason}); engaging fallback ${fallback}`)
 
-          const response = await fetch(url, { ...options, body: JSON.stringify(parsed) })
+          const response = await fetch(url, { ...customOptions, body: JSON.stringify(parsed) })
           if (response.ok) return response
-        } catch {
-          // Fall through to the error below; the primary failure is the one
-          // worth reporting, not whatever the fallback did.
+        } catch (fbErr) {
+          console.warn(`[agent] Fallback ${fallback} failed:`, fbErr)
         }
       }
 
