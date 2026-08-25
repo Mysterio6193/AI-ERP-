@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
@@ -114,6 +115,44 @@ interface Account {
     contact: { name: string } | null
     user: { name: string } | null
   }>
+  channelRole: string
+  suppliedBy: { id: string; name: string } | null
+  usage: Array<{
+    id: string
+    product: string
+    productId: string | null
+    sku: string | null
+    status: string
+    statusLabel: string
+    quantity: number | null
+    period: string
+    unit: string | null
+    via: string | null
+    switchedTo: string | null
+    notes: string | null
+    confidence: "confirmed" | "ageing" | "stale" | "unconfirmed"
+    confidenceLabel: string
+  }>
+}
+
+/**
+ * How sure we are of a usage figure, shown as colour.
+ *
+ * Amber and rose are not decoration here: an unchecked figure quoted to a
+ * customer as current is the failure this whole card exists to prevent.
+ */
+const CONFIDENCE_TONE: Record<string, string> = {
+  confirmed: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200",
+  ageing: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200",
+  stale: "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-200",
+  unconfirmed: "bg-muted text-muted-foreground",
+}
+
+const USAGE_TONE: Record<string, string> = {
+  using: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200",
+  trialling: "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-200",
+  lapsed: "bg-muted text-muted-foreground",
+  lost_to_competitor: "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-200",
 }
 
 function money(value: number) {
@@ -143,6 +182,17 @@ export default function AccountPage({ params }: { params: Promise<{ id: string }
   const [caseSubject, setCaseSubject] = useState("")
   const [taskTitle, setTaskTitle] = useState("")
 
+  // Recording what a venue uses needs a product and, usually, the distributor
+  // it comes through — neither is on the account payload.
+  const [products, setProducts] = useState<Array<{ id: string; name: string; sku: string | null }>>([])
+  const [distributors, setDistributors] = useState<Array<{ id: string; name: string }>>([])
+  const [usageProduct, setUsageProduct] = useState("")
+  const [usageQty, setUsageQty] = useState("")
+  const [usagePeriod, setUsagePeriod] = useState("week")
+  const [usageUnit, setUsageUnit] = useState("")
+  const [usageVia, setUsageVia] = useState("")
+  const [usageStatus, setUsageStatus] = useState("using")
+
   const load = useCallback(async () => {
     setLoading(true)
 
@@ -161,6 +211,22 @@ export default function AccountPage({ params }: { params: Promise<{ id: string }
   useEffect(() => {
     void load()
   }, [load])
+
+  useEffect(() => {
+    void (async () => {
+      const [productRes, accountRes] = await Promise.all([
+        fetch("/api/products?pageSize=500").then((r) => r.json()).catch(() => null),
+        fetch("/api/crm?view=accounts&pageSize=200").then((r) => r.json()).catch(() => null),
+      ])
+
+      if (productRes?.success) {
+        const list = Array.isArray(productRes.data) ? productRes.data : productRes.data?.products ?? []
+        setProducts(list.map((p: { id: string; name: string; sku?: string | null }) => ({ id: p.id, name: p.name, sku: p.sku ?? null })))
+      }
+
+      if (accountRes?.success) setDistributors(accountRes.data.distributors ?? [])
+    })()
+  }, [])
 
   const act = useCallback(
     async (action: string, payload: Record<string, unknown>) => {
@@ -580,6 +646,172 @@ export default function AccountPage({ params }: { params: Promise<{ id: string }
             </TabsContent>
 
             <TabsContent value="trade" className="mt-4 space-y-4">
+              {/*
+                For a venue that buys through a distributor this card is the
+                whole trade record — the order book has nothing, because the
+                order was never placed with us.
+              */}
+              {account.channelRole === "end_user" ? (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-sm">
+                      <Package className="h-3.5 w-3.5" />
+                      What they use
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                      {account.suppliedBy
+                        ? `Bought through ${account.suppliedBy.name}, so none of it appears in our orders.`
+                        : "No distributor recorded yet — set one on the Accounts page."}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {!account.usage.length ? (
+                      <p className="text-xs text-muted-foreground">
+                        Nothing recorded. Add what they cook with after the next visit — it is the only
+                        way this venue&apos;s demand shows up anywhere.
+                      </p>
+                    ) : (
+                      account.usage.map((row) => (
+                        <div key={row.id} className="rounded-lg border p-2.5 text-xs">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-medium">{row.product}</span>
+                            <Badge className={USAGE_TONE[row.status] ?? "bg-muted"} variant="secondary">
+                              {row.statusLabel}
+                            </Badge>
+                            <Badge className={CONFIDENCE_TONE[row.confidence]} variant="secondary">
+                              {row.confidenceLabel}
+                            </Badge>
+                          </div>
+
+                          <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
+                            <span>
+                              {row.quantity !== null
+                                ? `About ${row.quantity} ${row.unit ?? ""} a ${row.period}`.replace(/\s+/g, " ")
+                                : "No quantity recorded"}
+                            </span>
+                            {row.via ? <span>via {row.via}</span> : null}
+                            {row.switchedTo ? <span>Switched to {row.switchedTo}</span> : null}
+                          </div>
+
+                          {row.notes ? <p className="mt-1.5 text-muted-foreground">{row.notes}</p> : null}
+
+                          <div className="mt-2 flex gap-2">
+                            {/* Confirming changes nothing but the age, which is the point. */}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6 px-2 text-[11px]"
+                              disabled={busy}
+                              onClick={() => void act("confirmEndUserUsage", { usageId: row.id })}
+                            >
+                              <Check className="mr-1 h-3 w-3" />
+                              Still right
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 px-2 text-[11px] text-muted-foreground"
+                              disabled={busy}
+                              onClick={() => void act("removeEndUserUsage", { usageId: row.id })}
+                            >
+                              Remove
+                            </Button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+
+                    <div className="space-y-2 rounded-lg border border-dashed p-2.5">
+                      <p className="text-xs font-medium">Record what they use</p>
+
+                      <Select value={usageProduct} onValueChange={setUsageProduct}>
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue placeholder="Which product" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {products.map((product) => (
+                            <SelectItem key={product.id} value={product.id}>
+                              {product.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+
+                      <div className="flex gap-2">
+                        <Input
+                          className="h-8 text-xs"
+                          placeholder="How much"
+                          value={usageQty}
+                          onChange={(event) => setUsageQty(event.target.value)}
+                        />
+                        <Input
+                          className="h-8 text-xs"
+                          placeholder="Boxes"
+                          value={usageUnit}
+                          onChange={(event) => setUsageUnit(event.target.value)}
+                        />
+                        <Select value={usagePeriod} onValueChange={setUsagePeriod}>
+                          <SelectTrigger className="h-8 w-28 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="week">a week</SelectItem>
+                            <SelectItem value="month">a month</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <Select value={usageVia} onValueChange={setUsageVia}>
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue placeholder="Through which distributor" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {distributors.map((distributor) => (
+                              <SelectItem key={distributor.id} value={distributor.id}>
+                                {distributor.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Select value={usageStatus} onValueChange={setUsageStatus}>
+                          <SelectTrigger className="h-8 w-40 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="using">Using</SelectItem>
+                            <SelectItem value="trialling">Trialling</SelectItem>
+                            <SelectItem value="lapsed">Stopped using</SelectItem>
+                            <SelectItem value="lost_to_competitor">Lost to a competitor</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <Button
+                        size="sm"
+                        className="h-8 w-full text-xs"
+                        disabled={busy || !usageProduct}
+                        onClick={async () => {
+                          const saved = await act("recordEndUserUsage", {
+                            productId: usageProduct,
+                            estimatedQty: usageQty,
+                            period: usagePeriod,
+                            unit: usageUnit,
+                            viaDistributorId: usageVia || null,
+                            status: usageStatus,
+                          })
+
+                          if (saved) {
+                            setUsageProduct("")
+                            setUsageQty("")
+                            setUsageUnit("")
+                          }
+                        }}
+                      >
+                        <Plus className="mr-1 h-3 w-3" />
+                        Record
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : null}
+
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm">Orders</CardTitle>

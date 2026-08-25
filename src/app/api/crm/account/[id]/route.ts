@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAdminUser } from "@/lib/admin-auth"
 import { analyseCadence, daysBetween } from "@/lib/crm"
 import { db } from "@/lib/db"
+import { USAGE_STATUS_LABEL, confidenceOf, describeConfidence } from "@/lib/end-user-usage"
 
 /**
  * The account 360.
@@ -98,6 +99,10 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
       paymentTerms: true,
       salesRepId: true,
       createdAt: true,
+      // Where this account sits in the channel, and who supplies it if it is
+      // a venue that never orders from us directly.
+      channelRole: true,
+      suppliedBy: { select: { id: true, name: true } },
       locations: {
         select: { id: true, address: true, city: true, state: true, postcode: true },
       },
@@ -108,7 +113,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
     return NextResponse.json({ success: false, error: "Customer not found" }, { status: 404 })
   }
 
-  const [contacts, orders, invoices, cases, opportunities, tasks, activities, comms, rep] =
+  const [contacts, orders, invoices, cases, opportunities, tasks, activities, comms, rep, usage] =
     await Promise.all([
       db.contact.findMany({
         where: { customerId: id, status: "active" },
@@ -226,6 +231,27 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
               })
             : null
         ),
+      /**
+       * What this venue uses, for an end user. Never appears in the order book
+       * because the order goes through their distributor, so without this the
+       * account has nothing on it but a phone number.
+       */
+      db.endUserProduct.findMany({
+        where: { customerId: id },
+        orderBy: [{ status: "asc" }, { updatedAt: "desc" }],
+        select: {
+          id: true,
+          estimatedQty: true,
+          period: true,
+          unit: true,
+          status: true,
+          competitorProduct: true,
+          notes: true,
+          lastConfirmedAt: true,
+          product: { select: { id: true, name: true, sku: true } },
+          viaDistributor: { select: { id: true, name: true } },
+        },
+      }),
     ])
 
   const activeOrders = orders.filter((order) => order.status !== "cancelled")
@@ -318,6 +344,26 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
       tasks,
       activities,
       communications: comms,
+      channelRole: customer.channelRole,
+      suppliedBy: customer.suppliedBy,
+      // Each figure carries its age, because a usage number nobody has checked
+      // in a year is a rumour and must not read like a current fact.
+      usage: usage.map((row) => ({
+        id: row.id,
+        product: row.product?.name ?? "Unknown product",
+        productId: row.product?.id ?? null,
+        sku: row.product?.sku ?? null,
+        status: row.status,
+        statusLabel: USAGE_STATUS_LABEL[row.status as keyof typeof USAGE_STATUS_LABEL] ?? row.status,
+        quantity: row.estimatedQty,
+        period: row.period,
+        unit: row.unit,
+        via: row.viaDistributor?.name ?? null,
+        switchedTo: row.competitorProduct,
+        notes: row.notes,
+        confidence: confidenceOf(row.lastConfirmedAt),
+        confidenceLabel: describeConfidence(row.lastConfirmedAt),
+      })),
     },
   })
 }

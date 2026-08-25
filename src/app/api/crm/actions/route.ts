@@ -552,6 +552,107 @@ const handlers: Record<string, ActionHandler> = {
     return { ok: true, data: updated }
   },
 
+  /**
+   * What a venue uses, recorded from a visit. Mirrors the recordEndUserUsage
+   * agent tool, including the refusal on a direct buyer — recorded there it
+   * would duplicate the order book and then disagree with it.
+   */
+  async recordEndUserUsage(payload, _userId, context) {
+    const customerId = String(payload.customerId || "")
+    const productId = String(payload.productId || "")
+
+    if (!customerId || !productId) {
+      return { ok: false, error: "customerId and productId are required" }
+    }
+
+    const [customer, product] = await Promise.all([
+      db.customer.findUnique({ where: { id: customerId }, select: { name: true, channelRole: true } }),
+      db.product.findUnique({ where: { id: productId }, select: { name: true, baseUnit: true } }),
+    ])
+
+    if (!customer) return { ok: false, error: "No such customer" }
+    if (!product) return { ok: false, error: "No such product" }
+
+    if (customer.channelRole !== "end_user") {
+      return {
+        ok: false,
+        error: `${customer.name} buys from us directly, so their usage is already in the order history. Mark them as an end user first.`,
+      }
+    }
+
+    const qty =
+      payload.estimatedQty === "" || payload.estimatedQty === undefined || payload.estimatedQty === null
+        ? null
+        : Number(payload.estimatedQty)
+
+    if (qty !== null && !Number.isFinite(qty)) {
+      return { ok: false, error: "Quantity must be a number" }
+    }
+
+    const status = payload.status ? String(payload.status) : "using"
+    const period = payload.period === "month" ? "month" : "week"
+
+    const usage = await db.endUserProduct.upsert({
+      where: { customerId_productId: { customerId, productId } },
+      create: {
+        customerId,
+        productId,
+        estimatedQty: qty,
+        period,
+        unit: payload.unit ? String(payload.unit) : product.baseUnit ?? null,
+        viaDistributorId: payload.viaDistributorId ? String(payload.viaDistributorId) : null,
+        status,
+        competitorProduct: payload.competitorProduct ? String(payload.competitorProduct) : null,
+        notes: payload.notes ? String(payload.notes) : null,
+        // Recording it is confirming it; that is what makes the row ageable.
+        lastConfirmedAt: new Date(),
+        confirmedById: context.userId,
+        source: "rep_visit",
+      },
+      update: {
+        estimatedQty: qty,
+        period,
+        ...(payload.unit ? { unit: String(payload.unit) } : {}),
+        ...(payload.viaDistributorId !== undefined
+          ? { viaDistributorId: payload.viaDistributorId ? String(payload.viaDistributorId) : null }
+          : {}),
+        status,
+        competitorProduct: payload.competitorProduct ? String(payload.competitorProduct) : null,
+        ...(payload.notes !== undefined ? { notes: payload.notes ? String(payload.notes) : null } : {}),
+        lastConfirmedAt: new Date(),
+        confirmedById: context.userId,
+      },
+      select: { id: true, status: true },
+    })
+
+    return { ok: true, data: usage }
+  },
+
+  /** Someone rang and confirmed the figure is still right; only the age changes. */
+  async confirmEndUserUsage(payload, _userId, context) {
+    const usageId = String(payload.usageId || "")
+    if (!usageId) return { ok: false, error: "usageId is required" }
+
+    const existing = await db.endUserProduct.findUnique({ where: { id: usageId }, select: { id: true } })
+    if (!existing) return { ok: false, error: "No such usage record" }
+
+    const updated = await db.endUserProduct.update({
+      where: { id: usageId },
+      data: { lastConfirmedAt: new Date(), confirmedById: context.userId },
+      select: { id: true, lastConfirmedAt: true },
+    })
+
+    return { ok: true, data: updated }
+  },
+
+  async removeEndUserUsage(payload) {
+    const usageId = String(payload.usageId || "")
+    if (!usageId) return { ok: false, error: "usageId is required" }
+
+    await db.endUserProduct.deleteMany({ where: { id: usageId } })
+    return { ok: true, data: { id: usageId } }
+  },
+
   async assignRep(payload) {
     const customerId = String(payload.customerId || "")
     const userId = String(payload.userId || "")
