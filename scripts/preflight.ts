@@ -16,6 +16,8 @@ import { checkEnvironment } from "../src/lib/env-guard"
 import { db } from "../src/lib/db"
 import { looksLikeFillerText, looksLikePlaceholder } from "../src/lib/placeholder-detect"
 import { brokenTools } from "../src/lib/agent/tool-health"
+import { reviewTiers } from "../src/lib/agent/model-tiers"
+import { getModelId } from "../src/lib/agent/model"
 import { STALE_AFTER_HOURS } from "../src/lib/agent/proposal-summary"
 
 type Level = "fatal" | "warn" | "ok"
@@ -145,6 +147,23 @@ async function main() {
       "agent tools",
       `${tool.toolName} ${tool.neverWorked ? "has never succeeded" : `failed its last ${tool.consecutiveFailures} calls`}: ${tool.lastError ?? "unknown error"}`
     )
+  }
+
+  // --- Which model does the thinking ---------------------------------------
+  // A model too small for the job does not fail, it answers worse — which reads
+  // as the assistant being unreliable rather than as a setting nobody revisited.
+  const resolved: Record<string, string> = {}
+
+  for (const purpose of ["chat", "fast", "telegram", "finance", "replenishment", "email", "ocr", "voice", "summarise", "triage"]) {
+    try {
+      resolved[purpose] = getModelId({ purpose } as never)
+    } catch {
+      // A purpose that cannot resolve is model.ts's problem, not this check's.
+    }
+  }
+
+  for (const finding of reviewTiers(resolved)) {
+    add(finding.level === "ok" ? "ok" : "warn", "agent model", finding.message)
   }
 
   // --- Waiting on a person --------------------------------------------------
