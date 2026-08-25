@@ -140,6 +140,7 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
   createSupplier: { risk: "low", roles: ["admin", "warehouse", "accounts"] },
   updateSupplier: { risk: "low", roles: ["admin", "warehouse", "accounts"] },
   reorderSuggestions: { risk: "read" },
+  replenishmentPlan: { risk: "read" },
   listPurchaseOrders: { risk: "read" },
   getPurchaseOrder: { risk: "read" },
   createPurchaseOrder: {
