@@ -33,6 +33,9 @@ import {
 
 const DEFAULT_OPENROUTER_MODEL = "minimax/minimax-m3"
 const DEFAULT_OPENROUTER_FAST_MODEL = "minimax/minimax-m3"
+/** Longest we will sit on a request waiting for Google's window to roll over. */
+const GOOGLE_RETRY_CEILING_MS = 8000
+
 const DEFAULT_GOOGLE_MODEL = "gemini-3.5-flash"
 const DEFAULT_GOOGLE_FAST_MODEL = "gemini-3.5-flash"
 
@@ -136,6 +139,7 @@ function openrouterProvider() {
 
       const model = readModelId(customOptions)
       let lastReason: Classification["reason"] = "unknown"
+      let lastBody = ""
 
       for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
         let response: Response
@@ -172,6 +176,7 @@ function openrouterProvider() {
         const body = await response.clone().text().catch(() => "")
         const verdict = classifyResponse(response.status, body)
         lastReason = verdict.reason
+        lastBody = body
 
         if (!verdict.transient) {
           console.error(`[agent] ${describeFailure(verdict.reason, model)}`)
@@ -208,6 +213,70 @@ function openrouterProvider() {
           if (response.ok) return response
         } catch (fbErr) {
           console.warn(`[agent] Fallback ${fallback} failed:`, fbErr)
+        }
+      }
+
+      /**
+       * The whole free tier is capped, not just this model.
+       *
+       * OpenRouter counts free-model requests per account per day, so once that
+       * is spent every ":free" id returns 429 and swapping between them cannot
+       * help — the fallback above is trying doors in a building that is shut.
+       * Google bills separately and has its own key, so when one is configured
+       * it is the only thing that keeps the agent answering until the daily
+       * window rolls over.
+       */
+      const freeTierSpent =
+        lastBody.includes("free-models-per-day") || lastBody.includes("openrouter_free_tier_daily")
+      const googleKey = env("GEMINI_API_KEY") || env("GOOGLE_GENERATIVE_AI_API_KEY")
+
+      if (freeTierSpent && googleKey && customOptions?.body && typeof customOptions.body === "string") {
+        const crossProvider = env("AGENT_CROSS_PROVIDER_MODEL") || "gemini-3.5-flash"
+
+        try {
+          const parsed = JSON.parse(customOptions.body)
+          parsed.model = crossProvider
+
+          console.warn(
+            `[agent] OpenRouter free-model daily limit reached; falling back to Google (${crossProvider})`
+          )
+
+          /**
+           * Google's free quota is a short rolling window, not a daily one, and
+           * it says how long to wait — usually a few seconds. One attempt lands
+           * in that window often enough to look broken, so the hint is read and
+           * honoured. Capped tightly: someone is waiting on this reply.
+           */
+          let response: Response | null = null
+
+          for (let attempt = 0; attempt < 3; attempt++) {
+            response = await fetch(
+              "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+              {
+                ...customOptions,
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${googleKey}`,
+                },
+                body: JSON.stringify(parsed),
+              }
+            )
+
+            if (response.ok) return response
+
+            const retryBody = await response.clone().text().catch(() => "")
+            const hinted = retryBody.match(/retry in ([\d.]+)s/i)
+            const waitMs = hinted ? Math.ceil(Number(hinted[1]) * 1000) : 1500
+
+            if (response.status !== 429 || waitMs > GOOGLE_RETRY_CEILING_MS || attempt === 2) break
+
+            console.warn(`[agent] Google busy, retrying in ${waitMs}ms (${attempt + 1}/3)`)
+            await sleep(waitMs)
+          }
+
+          console.warn(`[agent] Google cross-provider fallback returned HTTP ${response?.status}`)
+        } catch (crossErr) {
+          console.warn(`[agent] Google cross-provider fallback failed:`, crossErr)
         }
       }
 
