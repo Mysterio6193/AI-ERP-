@@ -11,7 +11,8 @@ than the benefit of copying.
 | Hermes skill definitions (485 files) | `skills/hermes/` | [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) | MIT | Keep the copyright and permission notice — now in `skills/hermes/NOTICE.md` |
 | Assorted skill packs | `skills/*/LICENSE.txt` | various | MIT | Notices already present upstream |
 | npm dependencies | `node_modules/` | many | mostly MIT / Apache-2.0 | Nothing while used as dependencies |
-| Retry classification approach | `src/lib/agent/retry.ts` | [milind-soni/OpenMausBot](https://github.com/milind-soni/OpenMausBot) | Apache-2.0 | Credited in the file header; own implementation, not a copy |
+| Retry classification approach | `src/lib/agent/retry.ts` | [milind-soni/OpenMausBot](https://github.com/milind-soni/OpenMausBot) | Apache-2.0 | Notice in `docs/licences/openmausbot-Apache-2.0.txt`; own implementation |
+| Turn watchdog clock | `src/lib/agent/watchdog.ts` | [CopilotKit/OpenBot](https://github.com/CopilotKit/OpenBot) | MIT | Notice in `docs/licences/openbot-MIT.txt`; adapted, not copied wholesale |
 
 ## The rule of thumb
 
@@ -49,6 +50,13 @@ more. `src/lib/agent/retry.ts` came out of reading OpenMausBot's driver retry
 and taking the *idea* — that the useful question is "would trying again help",
 not "did it fail" — then writing our own against our own provider. The header
 credits it because the debt is real even though no lines were taken.
+
+The same is true of `src/lib/agent/watchdog.ts`: OpenBot's version watches a
+third-party AG-UI endpoint's HTTP stream, which is not our architecture at all,
+but the clock inside it — and specifically its insistence that time spent
+waiting on the *consumer* must not count against the *producer* — is the part
+that makes a watchdog correct instead of merely present, and it transfers
+whole. Apache-2.0 asks that changes be stated, which the notice files do.
 
 That reading also found two bugs in our code that no amount of staring at our
 own code had surfaced: every OpenRouter reply was truncated at 256 tokens, and

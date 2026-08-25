@@ -23,6 +23,7 @@ import { describeSettingProposal } from "./tools/settings"
 import { formatIdentity, getAgentIdentity } from "./identity"
 import { budgetFor, dropOrphanedToolCalls, windowHistory } from "@/lib/agent/history-window"
 import { describeGenericProposal } from "@/lib/agent/proposal-summary"
+import { turnTimeoutMs, withDeadline } from "@/lib/agent/watchdog"
 
 /**
  * The agent runtime.
@@ -406,7 +407,20 @@ export async function runAgentTurn(input: {
     
     let result
     try {
-      result = await agent.generate({ messages: conversation })
+      /**
+       * A deadline, because nothing else here has one.
+       *
+       * Without it a provider that accepts the request and never answers
+       * leaves this await pending forever. On the chat path someone closes the
+       * tab; on the unattended paths — Telegram, the scheduler, the proactive
+       * loop — nothing does, so the run stays `running`, the scheduler's claim
+       * guard refuses to start the next one, and the routine quietly stops
+       * happening with nobody told.
+       */
+      result = await withDeadline(agent.generate({ messages: conversation }), {
+        ms: turnTimeoutMs(),
+        label: `${persona} turn`,
+      })
     } catch (generateError: any) {
       if (
         generateError?.name === "AI_MissingToolResultsError" ||
@@ -416,7 +430,10 @@ export async function runAgentTurn(input: {
         const simplifiedMessages = messages
           .filter((m) => typeof m.content === "string")
           .map((m) => ({ role: m.role, content: m.content })) as ModelMessage[]
-        result = await agent.generate({ messages: [...simplifiedMessages, userMessage] })
+        result = await withDeadline(
+          agent.generate({ messages: [...simplifiedMessages, userMessage] }),
+          { ms: turnTimeoutMs(), label: `${persona} retry` }
+        )
       } else {
         throw generateError
       }
@@ -578,7 +595,10 @@ export async function resolveProposal(input: {
 
   try {
     const agent = await buildAgent(input.principal, thread.channel, thresholds, definition)
-    const result = await agent.generate({ messages: [...repairedMessages, approvalMessage] })
+    const result = await withDeadline(
+      agent.generate({ messages: [...repairedMessages, approvalMessage] }),
+      { ms: turnTimeoutMs(), label: "approved action" }
+    )
 
     await persistMessages(thread.id, run.id, [approvalMessage, ...result.responseMessages])
 
