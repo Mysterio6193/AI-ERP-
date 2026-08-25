@@ -32,7 +32,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="bg-background text-foreground antialiased dark">
+      <body className="bg-background text-foreground antialiased">
         {/*
           THESIS: An Autonomous Operations Command Terminal that replaces generic SaaS cards with high-craft, luminous glass telemetry and live event pipelines.
           OWN-WORLD: Obsidian canvas (#070a12), deep frosted cards (#0b101d), luminous status pulses, precision metric widgets, and electric blue/emerald telemetry accents.
@@ -41,7 +41,7 @@ export default function RootLayout({
           FORM: Autonomous Command Terminal (Candidate 4, Seed 1af67f24).
           FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance.
         */}
-        <ThemeProvider defaultTheme="dark" forcedTheme="dark">
+        <ThemeProvider defaultTheme="dark">
           {children}
           <Toaster />
         </ThemeProvider>
