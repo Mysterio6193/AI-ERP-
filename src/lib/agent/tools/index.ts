@@ -46,6 +46,7 @@ import { buildEcommerceTools } from "./ecommerce-tools"
 import { buildAdvancedInventoryTools } from "./inventory-advanced"
 import { buildWebhookTools } from "./webhooks-tools"
 import { buildAutonomousAiTools } from "./autonomous-ai"
+import { buildSimulationAiTools } from "./simulation-ai"
 import { TOOL_NAMES } from "./define"
 
 /**
@@ -356,6 +357,10 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
   detectOperationalAnomalies: { risk: "read" },
   proactiveInsightGenerator: { risk: "read" },
 
+  // Digital Twin Simulation & Self-Healing
+  simulateWhatIfScenario: { risk: "read" },
+  autonomousSelfHealingRoutine: { risk: "low", roles: ["admin", "warehouse", "accounts"] },
+
   // Freight. Drafting writes a row and contacts nobody; sending commits the
   // business to a third party who acts on it immediately, so it is the gate.
   listCarriers: { risk: "read" },
@@ -428,6 +433,7 @@ export function buildTools(principal: AgentPrincipal, channel?: string): ToolSet
     buildAdvancedInventoryTools(principal),
     buildWebhookTools(principal),
     buildAutonomousAiTools(principal),
+    buildSimulationAiTools(principal),
   ]
 
   const assembled = Object.assign({}, ...builders) as ToolSet

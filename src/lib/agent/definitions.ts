@@ -213,6 +213,7 @@ export const EXECUTIVE_TOOLS = [
   "mfgOeeAndMachinePerformance", "mfgBatchYieldAndWastage",
   "ecommerceChannelPerformance", "listIntegrationConnectors",
   "autonomousGoalDecomposer", "detectOperationalAnomalies", "proactiveInsightGenerator",
+  "simulateWhatIfScenario",
   "listOrders", "listPurchaseOrders", "listLeads", "pipelineSummary",
   "searchWeb", "searchKnowledge",
   "planTask", "scratchpadNote",
@@ -295,6 +296,7 @@ export const OPS_TOOLS = [
   "calculateLandedCost", "automatedReplenishmentPlanner",
   "triggerWebhook", "listIntegrationConnectors",
   "autonomousGoalDecomposer", "detectOperationalAnomalies", "proactiveInsightGenerator",
+  "simulateWhatIfScenario", "autonomousSelfHealingRoutine",
   "listSkills", "readSkill", "createSkill", "improveSkill", "recordSkillOutcome", "recallMemories", "remember",
 ]
 
