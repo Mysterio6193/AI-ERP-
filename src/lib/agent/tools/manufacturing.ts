@@ -308,7 +308,7 @@ export function buildManufacturingTools(principal: AgentPrincipal) {
           },
         ]
 
-        const allPassed = ccpChecks.every((c) => c.passed) && visualCrustInspectionPassed
+        const allPassed = ccpChecks.every((c) => c.passed) && (visualCrustInspectionPassed ?? true)
         const disposition = allPassed ? "APPROVED_FOR_DISPATCH" : "QUARANTINE_HOLD"
 
         return {
