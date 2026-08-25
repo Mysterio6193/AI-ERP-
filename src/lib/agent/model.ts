@@ -150,6 +150,33 @@ function openrouterProvider() {
         await sleep(wait)
       }
 
+      /**
+       * Every retry on the primary model is spent, and the failure was the
+       * transient kind. A second model is the only move left.
+       *
+       * Opt-in, and named in the environment. What was here before did this
+       * implicitly: it stripped `:free` off the model id and then reached for
+       * google/gemini-2.5-flash, so a rate limit on the free tier silently
+       * became a billable request nobody had agreed to. An operator running on
+       * the free tier deliberately should get an error, not an invoice.
+       */
+      const fallback = env("AGENT_FALLBACK_MODEL")
+
+      if (fallback && fallback !== model && options?.body && typeof options.body === "string") {
+        try {
+          const parsed = JSON.parse(options.body)
+          parsed.model = fallback
+
+          console.warn(`[agent] ${model} unavailable (${lastReason}); trying ${fallback}`)
+
+          const response = await fetch(url, { ...options, body: JSON.stringify(parsed) })
+          if (response.ok) return response
+        } catch {
+          // Fall through to the error below; the primary failure is the one
+          // worth reporting, not whatever the fallback did.
+        }
+      }
+
       throw new Error(describeFailure(lastReason, model))
     },
   })
