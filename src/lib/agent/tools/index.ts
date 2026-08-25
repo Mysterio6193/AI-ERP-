@@ -247,6 +247,11 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
 
   // The agent's view of its own tools. Reads only.
   learnAboutTheBusiness: { risk: "low", roles: ["admin", "sales", "accounts"] },
+
+  // Routines schedule recurring model spend, so creating one is a decision.
+  createRoutine: { risk: "medium", roles: ["admin", "sales", "warehouse", "accounts"] },
+  listRoutines: { risk: "read" },
+  stopRoutine: { risk: "medium", roles: ["admin"] },
   pendingDecisions: { risk: "read" },
   checkToolHealth: { risk: "read" },
   acknowledgeToolFault: { risk: "low", roles: ["admin"] },

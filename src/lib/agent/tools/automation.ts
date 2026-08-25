@@ -4,6 +4,7 @@ import { db } from "@/lib/db"
 import type { AgentPrincipal } from "../context"
 import { defineTool } from "./define"
 import { isStaff } from "./shared"
+import { createRoutine, listRoutines, stopRoutine } from "@/lib/agent/routines"
 
 /**
  * Automation, Productivity & Workflow Tools.
@@ -20,6 +21,68 @@ export function buildAutomationTools(principal: AgentPrincipal) {
   const userId = principal.kind === "staff" ? principal.userId : null
 
   return {
+    createRoutine: defineTool({
+      description:
+        "Turn an instruction into something that runs on its own — 'do this every Monday', 'check that every morning'. Creates a scheduled agent that reports back. Use this whenever someone asks for something recurring.",
+      inputSchema: z.object({
+        name: z.string().describe("Short name, e.g. 'Overnight stock check'"),
+        instruction: z.string().describe("What to do each time it runs, in plain words"),
+        schedule: z.string().describe("hourly, daily, weekdays, weekly, fortnightly, monthly, end_of_month, or a cron expression"),
+        persona: z.string().optional().describe("Which agent it behaves as: ops, warehouse, accounts, sales, purchasing"),
+      }),
+      execute: async ({ name, instruction, schedule, persona }) => {
+        if (principal.kind !== "staff") {
+          return { ok: false as const, error: "Only staff can create routines." }
+        }
+
+        const result = await createRoutine({
+          name, instruction, schedule, persona,
+          runAsUserId: principal.userId,
+        })
+
+        if (!result.ok) return result
+
+        return {
+          ...result,
+          nextRunAt: result.nextRunAt?.toISOString() ?? null,
+          message:
+            `${result.created ? "Created" : "Updated"} the routine "${result.name}". It runs ${result.describes}` +
+            `${result.nextRunAt ? `, next on ${result.nextRunAt.toISOString().slice(0, 16).replace("T", " ")}` : ""}. ` +
+            `It will say nothing on a quiet run.`,
+        }
+      },
+    }),
+
+    listRoutines: defineTool({
+      description: "Everything that runs on a schedule, when it next runs, and how the last run went.",
+      inputSchema: z.object({}),
+      execute: async () => {
+        const routines = await listRoutines()
+
+        return {
+          ok: true as const,
+          count: routines.length,
+          routines: routines.map((r) => ({
+            ...r,
+            nextRunAt: r.nextRunAt?.toISOString() ?? null,
+            lastRunAt: r.lastRunAt?.toISOString() ?? null,
+          })),
+        }
+      },
+    }),
+
+    stopRoutine: defineTool({
+      description:
+        "Stop a routine from running. Disables it rather than deleting it, so it can be turned back on without describing it again.",
+      inputSchema: z.object({ slug: z.string().describe("The routine's slug, from listRoutines") }),
+      execute: async ({ slug }) => {
+        const result = await stopRoutine(slug)
+        return result.ok
+          ? { ok: true as const, message: `Stopped "${slug}". Turn it back on in Settings → Agents.` }
+          : result
+      },
+    }),
+
     setReminder: defineTool({
       description:
         "Set a reminder for yourself or a team member. Creates a task with a due date that will surface in morning briefings and task lists.",
@@ -76,7 +139,7 @@ export function buildAutomationTools(principal: AgentPrincipal) {
 
     createRecurringReport: defineTool({
       description:
-        "Set up a recurring report that will be generated and can be dispatched on a schedule. Stores the report configuration as an agent skill for future automation.",
+        "Save a report's shape as a reusable skill. This does NOT schedule anything — use createRoutine for something that runs on its own.",
       inputSchema: z.object({
         reportName: z.string().describe("Human-friendly name for this report"),
         reportType: z.enum([
