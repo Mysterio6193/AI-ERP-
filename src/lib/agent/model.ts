@@ -130,8 +130,8 @@ function openrouterProvider() {
       if (options?.body && typeof options.body === "string") {
         try {
           const parsed = JSON.parse(options.body)
-          if (!parsed.max_tokens || parsed.max_tokens > 500) {
-            parsed.max_tokens = 500
+          if (!parsed.max_tokens || parsed.max_tokens < 1500) {
+            parsed.max_tokens = 2048
             customOptions = { ...options, body: JSON.stringify(parsed) }
           }
         } catch {}
