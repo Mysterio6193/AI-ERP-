@@ -172,6 +172,26 @@ function Preview({ namespace, settings }: { namespace: string; settings: Record<
                 : `Net ${settings.defaultPaymentTerms}`
           }.`,
           `Amounts shown with ${settings.currencyDisplay === "code" ? "currency code (AUD 1,000.00)" : `symbol (${money(1000)})`}.`,
+          // The browser carries real logins, so the preview says exactly what
+          // is switched on rather than leaving it to be inferred from a toggle.
+          (() => {
+            if (!settings.enableAgentBrowser) {
+              return "Agent browser: off. The assistant cannot open web pages."
+            }
+
+            const sites = String(settings.agentBrowserSites || "")
+              .split(/[\n,]/)
+              .map((site: string) => site.trim())
+              .filter((site: string) => site && !site.startsWith("#"))
+
+            if (sites.length === 0) {
+              return "Agent browser: on, but no sites approved yet — so it still cannot open anything. Add hosts below, one per line."
+            }
+
+            return `Agent browser: on, limited to ${sites.length} site${sites.length === 1 ? "" : "s"} (${sites
+              .slice(0, 3)
+              .join(", ")}${sites.length > 3 ? ", …" : ""}). It uses sessions you have already signed into, and asks before clicking.`
+          })(),
         ]
       }
 
