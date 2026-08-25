@@ -23,7 +23,9 @@
     "pg:stop": "node scripts/pg.mjs stop",
     "pg:status": "node scripts/pg.mjs status",
     "telegram:poll": "npx tsx --env-file=.env scripts/telegram-poll.ts",
-    "morning:briefing": "npx tsx --env-file=.env scripts/morning-briefing.ts"
+    "morning:briefing": "npx tsx --env-file=.env scripts/morning-briefing.ts",
+    "backup": "npx tsx scripts/backup.ts",
+    "backup:verify": "npx tsx scripts/verify-backup.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "^4.0.50",
