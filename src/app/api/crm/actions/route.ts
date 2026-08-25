@@ -4,6 +4,7 @@ import { requireAdminUser } from "@/lib/admin-auth"
 import { db } from "@/lib/db"
 import { nextDocumentNumber } from "@/lib/numbering"
 import { getActiveCompanyId } from "@/lib/active-company"
+import { checkSupplyLink, isChannelRole } from "@/lib/channel"
 
 /**
  * CRM write actions.
@@ -475,6 +476,181 @@ const handlers: Record<string, ActionHandler> = {
     ])
 
     return { ok: true, data: { customerId: customer.id, customer: customer.name } }
+  },
+
+  /**
+   * Where an account sits in the channel.
+   *
+   * Mirrors the setChannelRole agent tool, including the refusal to demote a
+   * distributor that still supplies venues — otherwise those venues keep
+   * pointing at an account that is no longer allowed to supply, which reads as
+   * a valid link and is not.
+   */
+  async setChannelRole(payload) {
+    const customerId = String(payload.customerId || "")
+    const role = String(payload.role || "")
+
+    if (!customerId || !isChannelRole(role)) {
+      return { ok: false, error: "customerId and a valid role are required" }
+    }
+
+    const customer = await db.customer.findUnique({
+      where: { id: customerId },
+      select: { name: true, _count: { select: { supplies: true } } },
+    })
+
+    if (!customer) return { ok: false, error: "No such customer" }
+
+    if (role !== "distributor" && customer._count.supplies > 0) {
+      return {
+        ok: false,
+        error: `${customer.name} supplies ${customer._count.supplies} venue(s). Move those to another distributor first.`,
+      }
+    }
+
+    const updated = await db.customer.update({
+      where: { id: customerId },
+      data: { channelRole: role, ...(role === "distributor" ? { suppliedById: null } : {}) },
+      select: { id: true, name: true, channelRole: true },
+    })
+
+    return { ok: true, data: updated }
+  },
+
+  /** Which distributor supplies this venue. Mirrors setSupplyingDistributor. */
+  async setSupplyingDistributor(payload) {
+    const customerId = String(payload.customerId || "")
+    const distributorId = payload.distributorId ? String(payload.distributorId) : null
+
+    if (!customerId) return { ok: false, error: "customerId is required" }
+
+    const [customer, distributor] = await Promise.all([
+      db.customer.findUnique({ where: { id: customerId }, select: { name: true, channelRole: true } }),
+      distributorId
+        ? db.customer.findUnique({ where: { id: distributorId }, select: { name: true, channelRole: true } })
+        : Promise.resolve(null),
+    ])
+
+    if (!customer) return { ok: false, error: "No such customer" }
+    if (distributorId && !distributor) return { ok: false, error: "No such distributor" }
+
+    const verdict = checkSupplyLink({
+      customerId,
+      customerRole: customer.channelRole,
+      supplierId: distributorId,
+      supplierRole: distributor?.channelRole,
+    })
+
+    if (!verdict.ok) return { ok: false, error: verdict.reason as string }
+
+    const updated = await db.customer.update({
+      where: { id: customerId },
+      data: { suppliedById: distributorId },
+      select: { id: true, name: true, suppliedBy: { select: { id: true, name: true } } },
+    })
+
+    return { ok: true, data: updated }
+  },
+
+  /**
+   * What a venue uses, recorded from a visit. Mirrors the recordEndUserUsage
+   * agent tool, including the refusal on a direct buyer — recorded there it
+   * would duplicate the order book and then disagree with it.
+   */
+  async recordEndUserUsage(payload, _userId, context) {
+    const customerId = String(payload.customerId || "")
+    const productId = String(payload.productId || "")
+
+    if (!customerId || !productId) {
+      return { ok: false, error: "customerId and productId are required" }
+    }
+
+    const [customer, product] = await Promise.all([
+      db.customer.findUnique({ where: { id: customerId }, select: { name: true, channelRole: true } }),
+      db.product.findUnique({ where: { id: productId }, select: { name: true, baseUnit: true } }),
+    ])
+
+    if (!customer) return { ok: false, error: "No such customer" }
+    if (!product) return { ok: false, error: "No such product" }
+
+    if (customer.channelRole !== "end_user") {
+      return {
+        ok: false,
+        error: `${customer.name} buys from us directly, so their usage is already in the order history. Mark them as an end user first.`,
+      }
+    }
+
+    const qty =
+      payload.estimatedQty === "" || payload.estimatedQty === undefined || payload.estimatedQty === null
+        ? null
+        : Number(payload.estimatedQty)
+
+    if (qty !== null && !Number.isFinite(qty)) {
+      return { ok: false, error: "Quantity must be a number" }
+    }
+
+    const status = payload.status ? String(payload.status) : "using"
+    const period = payload.period === "month" ? "month" : "week"
+
+    const usage = await db.endUserProduct.upsert({
+      where: { customerId_productId: { customerId, productId } },
+      create: {
+        customerId,
+        productId,
+        estimatedQty: qty,
+        period,
+        unit: payload.unit ? String(payload.unit) : product.baseUnit ?? null,
+        viaDistributorId: payload.viaDistributorId ? String(payload.viaDistributorId) : null,
+        status,
+        competitorProduct: payload.competitorProduct ? String(payload.competitorProduct) : null,
+        notes: payload.notes ? String(payload.notes) : null,
+        // Recording it is confirming it; that is what makes the row ageable.
+        lastConfirmedAt: new Date(),
+        confirmedById: context.userId,
+        source: "rep_visit",
+      },
+      update: {
+        estimatedQty: qty,
+        period,
+        ...(payload.unit ? { unit: String(payload.unit) } : {}),
+        ...(payload.viaDistributorId !== undefined
+          ? { viaDistributorId: payload.viaDistributorId ? String(payload.viaDistributorId) : null }
+          : {}),
+        status,
+        competitorProduct: payload.competitorProduct ? String(payload.competitorProduct) : null,
+        ...(payload.notes !== undefined ? { notes: payload.notes ? String(payload.notes) : null } : {}),
+        lastConfirmedAt: new Date(),
+        confirmedById: context.userId,
+      },
+      select: { id: true, status: true },
+    })
+
+    return { ok: true, data: usage }
+  },
+
+  /** Someone rang and confirmed the figure is still right; only the age changes. */
+  async confirmEndUserUsage(payload, _userId, context) {
+    const usageId = String(payload.usageId || "")
+    if (!usageId) return { ok: false, error: "usageId is required" }
+
+    const existing = await db.endUserProduct.findUnique({ where: { id: usageId }, select: { id: true } })
+    if (!existing) return { ok: false, error: "No such usage record" }
+
+    const updated = await db.endUserProduct.update({
+      where: { id: usageId },
+      data: { lastConfirmedAt: new Date(), confirmedById: context.userId },
+      select: { id: true, lastConfirmedAt: true },
+    })
+
+    return { ok: true, data: updated }
+  },
+
+  async removeEndUserUsage(payload) {
+    const usageId = String(payload.usageId || "")
+    if (!usageId) return { ok: false, error: "usageId is required" }
+
+    await db.endUserProduct.deleteMany({ where: { id: usageId } })
+    return { ok: true, data: { id: usageId } }
   },
 
   async assignRep(payload) {

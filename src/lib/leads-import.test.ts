@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest"
 
-import { inferColumnMapping, parseCsv } from "./leads-import"
+import {
+  classifyDuplicate,
+  columnLooksCategorical,
+  detectDelimiter,
+  findHeaderRow,
+  inferColumnMapping,
+  parseCsv,
+  pickNameColumn,
+  preferFilledColumns,
+  parseGrid,
+  type KeyIndex,
+} from "./leads-import"
 
 /**
  * A prospect list is someone's spreadsheet, so the parser meets quoted commas,
@@ -109,5 +120,318 @@ describe("inferColumnMapping", () => {
     expect(mapping.businessName).toBe("Business Name")
     expect(mapping.phone).toBeNull()
     expect(mapping.email).toBeNull()
+  })
+})
+
+const index = (over: Partial<Record<"email" | "phone" | "name", string[]>> = {}): KeyIndex => ({
+  email: new Set(over.email ?? []),
+  phone: new Set(over.phone ?? []),
+  name: new Set(over.name ?? []),
+})
+
+const keys = (over: Partial<{ email: string; phoneKey: string; nameKey: string }> = {}) => ({
+  email: "",
+  phoneKey: "",
+  nameKey: "bellanapoli",
+  ...over,
+})
+
+describe("classifyDuplicate", () => {
+  it("lets a genuinely new row through", () => {
+    expect(classifyDuplicate(keys(), index(), index())).toBeNull()
+  })
+
+  it("catches someone we already have", () => {
+    expect(classifyDuplicate(keys(), index({ name: ["bellanapoli"] }), index())).toBe("already-on-file")
+  })
+
+  it("catches a row the sheet lists twice", () => {
+    expect(classifyDuplicate(keys(), index(), index({ name: ["bellanapoli"] }))).toBe("repeated-in-file")
+  })
+
+  it("calls a row that is both 'already on file' — the more useful answer", () => {
+    // Otherwise a sheet full of existing customers reads as a problem with the
+    // sheet, and someone goes looking for a mistake that is not there.
+    const both = classifyDuplicate(keys(), index({ name: ["bellanapoli"] }), index({ name: ["bellanapoli"] }))
+    expect(both).toBe("already-on-file")
+  })
+
+  it("matches on email as well as name", () => {
+    const k = keys({ email: "marco@bella.com.au", nameKey: "somethingelse" })
+    expect(classifyDuplicate(k, index({ email: ["marco@bella.com.au"] }), index())).toBe("already-on-file")
+  })
+
+  it("matches on phone as well as name", () => {
+    const k = keys({ phoneKey: "0391234567", nameKey: "somethingelse" })
+    expect(classifyDuplicate(k, index({ phone: ["0391234567"] }), index())).toBe("already-on-file")
+  })
+
+  it("does not treat two blank emails as the same person", () => {
+    // Half a trade-show list has no email; matching on empty would collapse it
+    // into one lead and silently bin the rest.
+    const k = keys({ email: "", nameKey: "uniquevenue" })
+    expect(classifyDuplicate(k, index({ email: [""] }), index())).toBeNull()
+  })
+
+  it("does not treat two blank phones as the same person", () => {
+    const k = keys({ phoneKey: "", nameKey: "uniquevenue" })
+    expect(classifyDuplicate(k, index({ phone: [""] }), index())).toBeNull()
+  })
+})
+
+describe("detectDelimiter", () => {
+  it("finds commas", () => {
+    expect(detectDelimiter("a,b,c\n1,2,3")).toBe(",")
+  })
+
+  it("finds semicolons, which Excel writes in much of Europe", () => {
+    expect(detectDelimiter("a;b;c\n1;2;3")).toBe(";")
+  })
+
+  it("finds tabs, which is what a sheet pasted out of Excel looks like", () => {
+    expect(detectDelimiter("a\tb\tc\n1\t2\t3")).toBe("\t")
+  })
+
+  it("is not fooled by a comma inside a quoted header", () => {
+    expect(detectDelimiter('"Name, trading";Email\nBella;a@b.com')).toBe(";")
+  })
+
+  it("falls back to a comma for a single-column file", () => {
+    expect(detectDelimiter("Business Name\nBella")).toBe(",")
+  })
+})
+
+describe("parseCsv delimiters", () => {
+  it("reads a semicolon file", () => {
+    const rows = parseCsv("Business Name;Email\nBella;a@b.com")
+    expect(rows[0]).toEqual({ "Business Name": "Bella", Email: "a@b.com" })
+  })
+
+  it("reads a tab file", () => {
+    const rows = parseCsv("Business Name\tEmail\nBella\ta@b.com")
+    expect(rows[0]).toEqual({ "Business Name": "Bella", Email: "a@b.com" })
+  })
+
+  it("still protects a comma inside quotes when commas separate", () => {
+    const rows = parseCsv('Business Name,Address\nBella,"Shop 3, Village Precinct"')
+    expect(rows[0].Address).toBe("Shop 3, Village Precinct")
+  })
+})
+
+describe("inferColumnMapping — describing columns vs naming ones", () => {
+  it("does not mistake a category column for the business name", () => {
+    // "Business Type" holds "Restaurant / Commercial Foodservice". Taking it as
+    // the name imports every row with a category where its name should be, and
+    // the file looks like it worked.
+    const mapping = inferColumnMapping(["Business Type", "Company Name", "First Name", "Email"])
+    expect(mapping.businessName).toBe("Company Name")
+    expect(mapping.industry).toBe("Business Type")
+  })
+
+  it("returns nothing rather than guessing when no column names the business", () => {
+    const mapping = inferColumnMapping(["Business Type", "First Name", "Email"])
+    expect(mapping.businessName).toBeNull()
+  })
+
+  it("still treats a column headed exactly 'Business' as the name", () => {
+    expect(inferColumnMapping(["Business", "Contact"]).businessName).toBe("Business")
+  })
+
+  it("handles the words a hospitality list actually uses", () => {
+    const mapping = inferColumnMapping(["Restaurant Name", "Contact Person", "Phone Number"])
+    expect(mapping.businessName).toBe("Restaurant Name")
+    expect(mapping.contactName).toBe("Contact Person")
+    expect(mapping.phone).toBe("Phone Number")
+  })
+
+  it("separates a venue from its venue type", () => {
+    const mapping = inferColumnMapping(["Venue Name", "Venue Type", "Contact Name"])
+    expect(mapping.businessName).toBe("Venue Name")
+    expect(mapping.industry).toBe("Venue Type")
+  })
+
+  it("does not let 'name' steal the contact column", () => {
+    const mapping = inferColumnMapping(["Name", "Contact Name"])
+    expect(mapping.businessName).toBe("Name")
+    expect(mapping.contactName).toBe("Contact Name")
+  })
+
+  it("copes with underscores and other punctuation", () => {
+    const mapping = inferColumnMapping(["business_name", "email_address"])
+    expect(mapping.businessName).toBe("business_name")
+    expect(mapping.email).toBe("email_address")
+  })
+})
+
+describe("columnLooksCategorical", () => {
+  it("recognises the column that caused a real bad import", () => {
+    // These are the exact values that imported as nine business names.
+    const values = [
+      "Restaurant / Commercial Foodservice (e.g. QSR, Fine Dining, Cafe, Pub)",
+      "Catering / Contract Foodservice",
+      "Institutional Foodservice (e.g. Aged Care, Government, Workplace)",
+      "Supplier",
+      "Affiliated Segments (e.g. Consultant, Services, Student, etc.)",
+      "Distributor / Wholesaler",
+      "Accommodation (e.g. Hotel, Casino, Cruise)",
+      "Retail (e.g. Grocery, Convenience, Speciality)",
+    ]
+
+    expect(columnLooksCategorical(values)).toBe(true)
+  })
+
+  it("leaves a column of real business names alone", () => {
+    const values = [
+      "Bella Napoli Pizzeria",
+      "Coastal Hotels Group",
+      "Coles Local",
+      "Tony's Trattoria",
+      "The Woodfire Co",
+      "Pizza Luna",
+    ]
+
+    expect(columnLooksCategorical(values)).toBe(false)
+  })
+
+  it("spots a repeating category even when the words are short", () => {
+    expect(columnLooksCategorical(["Cafe", "Cafe", "Pub", "Cafe", "Pub", "Cafe"])).toBe(true)
+  })
+
+  it("says nothing about a list too short to judge", () => {
+    // Three venues that happen to repeat is not evidence of anything.
+    expect(columnLooksCategorical(["Bella", "Bella", "Luna"])).toBe(false)
+  })
+
+  it("ignores blanks rather than counting them as repeats", () => {
+    const values = ["Bella Napoli", "", "Coastal Hotels", "", "Coles Local", "", "Tony's", ""]
+    expect(columnLooksCategorical(values)).toBe(false)
+  })
+
+  it("is not fooled by a long name that merely contains a slash", () => {
+    const values = [
+      "Smith & Sons Pty Ltd",
+      "Jones / Baker Holdings Group Limited",
+      "Coastal Hotels Group",
+      "Bella Napoli Pizzeria",
+      "The Woodfire Company",
+      "Luna Restaurants Australia",
+    ]
+
+    expect(columnLooksCategorical(values)).toBe(false)
+  })
+})
+
+describe("findHeaderRow", () => {
+  it("skips the title and date lines an export puts on top", () => {
+    const grid = parseGrid(`RDM Pizza — Prospect Export
+Generated on 24/08/2026
+
+Business Name,Email
+Bella,a@b.com`)
+
+    expect(grid[findHeaderRow(grid)]).toEqual(["Business Name", "Email"])
+  })
+
+  it("uses the first row when the file is tidy", () => {
+    expect(findHeaderRow(parseGrid("Business Name,Email\nBella,a@b.com"))).toBe(0)
+  })
+
+  it("does not choose a row of numbers as the header", () => {
+    const grid = parseGrid(`Business Name,Orders,Value
+Bella,12,4500
+Luna,8,3200`)
+
+    expect(findHeaderRow(grid)).toBe(0)
+  })
+
+  it("reads the rows under a preamble correctly", () => {
+    const rows = parseCsv(`Export
+Generated today
+
+Business Name,Email
+Bella,a@b.com`)
+
+    expect(rows).toEqual([{ "Business Name": "Bella", Email: "a@b.com" }])
+  })
+})
+
+const rowsFrom = (columns: Record<string, string[]>) => {
+  const length = Math.max(...Object.values(columns).map((values) => values.length))
+  return Array.from({ length }, (_, index) =>
+    Object.fromEntries(Object.entries(columns).map(([column, values]) => [column, values[index] ?? ""]))
+  )
+}
+
+describe("pickNameColumn", () => {
+  it("finds the company column in a wide export", () => {
+    // The real failure: "Organization" is the obvious name for a business name
+    // column, and in this export it holds the survey answer instead.
+    const rows = rowsFrom({
+      Organization: Array(8).fill("Restaurant / Commercial Foodservice (e.g. QSR, Fine Dining)"),
+      "*Company Name": ["The View", "Gema Group", "Lutheran Services", "Bidfood", "Roma Bar", "TAFE Qld", "Luna", "Sorella"],
+      Email: Array(8).fill("a@b.com"),
+    })
+
+    expect(pickNameColumn(["Organization", "*Company Name", "Email"], rows)).toBe("*Company Name")
+  })
+
+  it("does not mistake a person's surname for a business", () => {
+    const rows = rowsFrom({
+      "Last Name": ["Haire", "Morrison", "Sitapara", "Shaikh", "Bose", "Marra"],
+      "Company Name": ["The View", "Gema", "Lutheran", "Autosports", "TAFE", "Global Food"],
+    })
+
+    expect(pickNameColumn(["Last Name", "Company Name"], rows)).toBe("Company Name")
+  })
+
+  it("never returns an email or phone column", () => {
+    const rows = rowsFrom({
+      Email: ["a@b.com", "c@d.com", "e@f.com", "g@h.com", "i@j.com", "k@l.com"],
+      Phone: ["0412345678", "0423456789", "0434567890", "0445678901", "0456789012", "0467890123"],
+    })
+
+    expect(pickNameColumn(["Email", "Phone"], rows)).toBeNull()
+  })
+
+  it("ignores a column almost nobody filled in", () => {
+    const rows = rowsFrom({
+      "Venue Name": ["Bella", "", "", "", "", ""],
+      "Company Name": ["The View", "Gema", "Lutheran", "Autosports", "TAFE", "Global"],
+    })
+
+    expect(pickNameColumn(["Venue Name", "Company Name"], rows)).toBe("Company Name")
+  })
+})
+
+describe("preferFilledColumns", () => {
+  it("moves off an empty column onto the one holding the data", () => {
+    // This export has "*Lead Notes" (empty) and "*Expo Notes" (filled).
+    const rows = rowsFrom({ "*Lead Notes": ["", "", ""], "*Expo Notes": ["met at stand", "keen", "follow up"] })
+    const mapping = { notes: "*Lead Notes" }
+
+    expect(preferFilledColumns(mapping, ["*Lead Notes", "*Expo Notes"], rows).notes).toBe("*Expo Notes")
+  })
+
+  it("drops the field when every matching column is empty", () => {
+    // Both "*City" and "*Suburb" were empty in the real file. Claiming a suburb
+    // was captured when none was is worse than saying nothing.
+    const rows = rowsFrom({ "*City": ["", "", ""], "*Suburb": ["", "", ""] })
+    const mapping = { suburb: "*City" }
+
+    expect(preferFilledColumns(mapping, ["*City", "*Suburb"], rows).suburb).toBeNull()
+  })
+
+  it("leaves a column that has data alone", () => {
+    const rows = rowsFrom({ Suburb: ["Carlton", "Fitzroy", "Richmond"] })
+    expect(preferFilledColumns({ suburb: "Suburb" }, ["Suburb"], rows).suburb).toBe("Suburb")
+  })
+
+  it("will not steal a column another field is already using", () => {
+    const rows = rowsFrom({ "Contact Name": ["", "", ""], Name: ["Bella", "Luna", "Sorella"] })
+    const mapping = { businessName: "Name", contactName: "Contact Name" }
+    const corrected = preferFilledColumns(mapping, ["Contact Name", "Name"], rows)
+
+    expect(corrected.businessName).toBe("Name")
+    expect(corrected.contactName).toBeNull()
   })
 })

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 
 import { requireAdminUser } from "@/lib/admin-auth"
-import { importLeads, inferColumnMapping, parseCsv } from "@/lib/leads-import"
+import { columnLooksCategorical, importLeads, parseCsv } from "@/lib/leads-import"
+import { resolveColumnMapping } from "@/lib/leads-import-ai"
 
 /**
  * Bulk lead import.
@@ -39,20 +40,39 @@ export async function POST(request: NextRequest) {
     }
 
     const headers = Object.keys(rows[0])
-    const mapping = body.mapping && typeof body.mapping === "object"
-      ? (body.mapping as Record<string, string | null>)
-      : inferColumnMapping(headers)
+
+    /**
+     * A mapping the caller chose by hand always wins. Otherwise alias matching
+     * runs first because it is free, and a model is asked only when that could
+     * not find the one column the import cannot proceed without.
+     */
+    const chosen = body.mapping && typeof body.mapping === "object"
+      ? { mapping: body.mapping as Record<string, string | null>, method: "manual" as const }
+      : await resolveColumnMapping({ headers, rows, useAi: body.useAi !== false })
+
+    const mapping = chosen.mapping
 
     if (!mapping.businessName) {
       return NextResponse.json(
         {
           success: false,
-          error: "Could not find a business name column. Map one before importing.",
-          data: { headers, mapping },
+          error:
+            "I could not work out which column holds the business name, even after reading the sample rows. Pick it below.",
+          data: { headers, mapping, method: chosen.method },
         },
         { status: 400 }
       )
     }
+
+    /**
+     * A last look at the column before it becomes six thousand business names.
+     * The mapping can be wrong for reasons this code cannot see — a stale page,
+     * a hand-picked column, a model that read the sample rows badly — and the
+     * values themselves are the one thing that tells on all of them.
+     */
+    const nameColumn = mapping.businessName as string
+    const nameValues = rows.map((row) => row[nameColumn] ?? "")
+    const suspectNameColumn = columnLooksCategorical(nameValues)
 
     const summary = await importLeads({
       rows,
@@ -68,6 +88,11 @@ export async function POST(request: NextRequest) {
         mode,
         headers,
         mapping,
+        // Said out loud so the page can show whether this was matched or read.
+        method: chosen.method,
+        warning: suspectNameColumn
+          ? `"${nameColumn}" repeats the same few values, so it looks like a category rather than a business name. Check the mapping before importing.`
+          : null,
         summary,
         // A small preview so the mapping can be eyeballed against real values.
         preview: rows.slice(0, 5),

@@ -23,6 +23,7 @@ import { describeSettingProposal } from "./tools/settings"
 import { formatIdentity, getAgentIdentity } from "./identity"
 import { budgetFor, dropOrphanedToolCalls, windowHistory } from "@/lib/agent/history-window"
 import { describeGenericProposal } from "@/lib/agent/proposal-summary"
+import { turnTimeoutMs, withDeadline } from "@/lib/agent/watchdog"
 
 /**
  * The agent runtime.
@@ -237,20 +238,42 @@ export async function persistMessages(threadId: string, runId: string, messages:
   })
 }
 
+export function stripThinkingTrace(text: string): string {
+  if (!text) return ""
+  let cleaned = text
+  cleaned = cleaned.replace(/<think>[\s\S]*?<\/think>/gi, "")
+  if (/^(?:Here'?s a thinking process:|Thinking Process:)/i.test(cleaned.trim())) {
+    const paragraphs = cleaned.split(/\n\s*\n/)
+    const withoutThinking = paragraphs.filter((p) => {
+      const trimmed = p.trim()
+      return !/^(?:Here'?s a thinking process|Thinking Process|\d+\.\s+\*\*)/i.test(trimmed)
+    })
+    if (withoutThinking.length > 0) {
+      cleaned = withoutThinking.join("\n\n")
+    }
+  }
+  return cleaned.trim()
+}
+
 function textFrom(result: { text?: string; steps?: any[]; content?: any[] }) {
   if (result.text && result.text.trim()) {
-    return result.text.trim()
+    return stripThinkingTrace(result.text.trim())
   }
 
-  if (Array.isArray(result.steps)) {
-    for (const step of result.steps) {
+  if (Array.isArray(result.steps) && result.steps.length > 0) {
+    for (let i = result.steps.length - 1; i >= 0; i--) {
+      const step = result.steps[i]
       if (step.text && step.text.trim()) {
-        return step.text.trim()
+        return stripThinkingTrace(step.text.trim())
       }
+    }
+    for (let i = result.steps.length - 1; i >= 0; i--) {
+      const step = result.steps[i]
       if (Array.isArray(step.toolResults)) {
         for (const tr of step.toolResults) {
-          if (tr.result && typeof tr.result === "object" && (tr.result as any).message) {
-            return (tr.result as any).message
+          if (tr.result && typeof tr.result === "object") {
+            const msg = (tr.result as any).message || (tr.result as any).summary || (tr.result as any).text
+            if (msg) return String(msg)
           }
         }
       }
@@ -406,7 +429,20 @@ export async function runAgentTurn(input: {
     
     let result
     try {
-      result = await agent.generate({ messages: conversation })
+      /**
+       * A deadline, because nothing else here has one.
+       *
+       * Without it a provider that accepts the request and never answers
+       * leaves this await pending forever. On the chat path someone closes the
+       * tab; on the unattended paths — Telegram, the scheduler, the proactive
+       * loop — nothing does, so the run stays `running`, the scheduler's claim
+       * guard refuses to start the next one, and the routine quietly stops
+       * happening with nobody told.
+       */
+      result = await withDeadline(agent.generate({ messages: conversation }), {
+        ms: turnTimeoutMs(),
+        label: `${persona} turn`,
+      })
     } catch (generateError: any) {
       if (
         generateError?.name === "AI_MissingToolResultsError" ||
@@ -416,7 +452,10 @@ export async function runAgentTurn(input: {
         const simplifiedMessages = messages
           .filter((m) => typeof m.content === "string")
           .map((m) => ({ role: m.role, content: m.content })) as ModelMessage[]
-        result = await agent.generate({ messages: [...simplifiedMessages, userMessage] })
+        result = await withDeadline(
+          agent.generate({ messages: [...simplifiedMessages, userMessage] }),
+          { ms: turnTimeoutMs(), label: `${persona} retry` }
+        )
       } else {
         throw generateError
       }
@@ -590,7 +629,10 @@ export async function resolveProposal(input: {
 
   try {
     const agent = await buildAgent(input.principal, thread.channel, thresholds, definition)
-    const result = await agent.generate({ messages: [...repairedMessages, approvalMessage] })
+    const result = await withDeadline(
+      agent.generate({ messages: [...repairedMessages, approvalMessage] }),
+      { ms: turnTimeoutMs(), label: "approved action" }
+    )
 
     await db.$transaction(async (tx) => {
       await persistMessages(thread.id, run.id, [approvalMessage, ...result.responseMessages], tx)

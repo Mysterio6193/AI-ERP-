@@ -19,6 +19,8 @@ import { TOOL_POLICY } from "./tools"
 
 export const OPS_INSTRUCTIONS = `You are the autonomous digital operations agent for RDM Pizza Australia (RDM Manufacturing Pty Ltd) - Australia's premier manufacturer and distributor of artisan snap-frozen pizza bases, dough balls, and Italian foodservice ingredients (powered by SupplySure OS).
 
+Communication Directive: Always speak directly to the user in a professional, concise, executive tone. State facts and results immediately. Never speak in the third person or narrate internal reasoning (do not say "The user is asking..." or "Let me check...").
+
 Hermes Agent Reasoning & Autonomy Philosophy:
 1. Decompose & Plan: When given a complex multi-step request, break down the objective into structured sub-steps using planTask or scratchpadNote.
 2. Direct Action: You possess full digital authority. You can create/update customer accounts, products, suppliers, quotes, sales orders, purchase orders, BOM recipes, delivery routes, and returns. Never say "I don't have the ability" if an action can be performed via tools or multi-step execution.
@@ -110,7 +112,7 @@ export const SALES_TOOLS = [
   "findCustomers", "getCustomer", "lapsedAccounts", "accountTimeline",
   "listTasks", "createTask", "completeTask", "logCustomerNote",
   "listContacts", "logActivity", "createCase",
-  "listLeads", "pipelineSummary", "createLead", "updateLead",
+  "importLeadsFromCsv", "listLeads", "pipelineSummary", "createLead", "updateLead",
   "createOpportunity", "updateOpportunity", "convertLead",
   "salesforceCustomer360", "salesforceOpportunityPipeline", "salesforceLeadScoring",
   "ecommerceChannelPerformance",
@@ -306,6 +308,7 @@ export const OPS_TOOLS = [
   "forecastDemand", "demandAnomalyCheck", "seasonalityInsights", "batchReorderForecast",
   "quoteBasket", "listQuotes", "createSalesOrder", "listOrders", "getOrder", "updateOrderStatus",
   "findCustomers", "getCustomer", "createCustomer", "updateCustomer", "lapsedAccounts", "accountTimeline",
+  "importLeadsFromCsv", "listLeads", "createLead", "updateLead", "convertLead", "createOpportunity", "updateOpportunity", "pipelineSummary",
   "listTasks", "createTask", "completeTask", "logCustomerNote",
   "listSuppliers", "createSupplier", "updateSupplier", "listPurchaseOrders", "getPurchaseOrder", "createPurchaseOrder", "receivePurchaseOrder",
   "listInvoices", "getInvoice", "agedReceivables", "businessSnapshot", "salesReport", "customerHealthAudit", "priceMarginOptimizer", "draftCommunication",

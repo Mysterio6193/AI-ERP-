@@ -134,6 +134,21 @@ export const opsSchema = z.object({
    */
   enforceOrderTransitions: z.boolean().default(false),
   lowStockReorderQty: z.number().int().min(0).default(50),
+
+  /**
+   * The agent's browser, and where it may go.
+   *
+   * Off by default, and the site list empty by default, because an empty list
+   * means closed rather than open. Turning this on gives the agent a browser
+   * carrying whatever sessions a person has signed into on this machine, which
+   * is a different order of trust from every other tool it has — so it is two
+   * deliberate acts to enable, not one.
+   */
+  enableAgentBrowser: z.boolean().default(false),
+  agentBrowserSites: z
+    .string()
+    .default("")
+    .describe("Hosts the agent's browser may visit, one per line. A host also covers its subdomains."),
 })
 
 export const brandingSchema = z.object({

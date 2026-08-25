@@ -355,16 +355,53 @@ export function buildCrmTools(principal: AgentPrincipal) {
 
     logCustomerNote: defineTool({
       description:
-        "Record what happened on an account - a call, a complaint, a commitment made. Keeps the account history complete without anyone filling in a form.",
+        "Record what happened on an account or prospect lead - a visit, a call, product interest, or a commitment made. Keeps history complete without anyone filling in a form.",
       inputSchema: z.object({
-        customerId: z.string(),
-        note: z.string(),
-        subject: z.string().optional(),
+        customerId: z.string().describe("Customer ID, lead ID, or company/venue name"),
+        note: z.string().describe("The note or visit summary to record"),
+        subject: z.string().optional().describe("Short subject or topic"),
       }),
-      execute: async ({ customerId, note, subject }) =>  safeDb(async () => {
+      execute: async ({ customerId, note, subject }) => safeDb(async () => {
+        let validCustomerId: string | null = null
+        const customer = await db.customer.findFirst({
+          where: {
+            OR: [
+              { id: customerId },
+              { name: { contains: customerId, mode: "insensitive" } },
+            ],
+          },
+          select: { id: true, name: true },
+        })
+
+        if (customer) {
+          validCustomerId = customer.id
+        } else {
+          // Check if it is a lead
+          const lead = await db.lead.findFirst({
+            where: {
+              OR: [
+                { id: customerId },
+                { businessName: { contains: customerId, mode: "insensitive" } },
+              ],
+            },
+          })
+          if (lead) {
+            const updatedNotes = lead.notes ? `${lead.notes}\n[${new Date().toLocaleDateString("en-AU")}] ${note}` : note
+            await db.lead.update({
+              where: { id: lead.id },
+              data: { notes: updatedNotes },
+            })
+            return { ok: true as const, message: `Note successfully logged to prospect lead "${lead.businessName}".` }
+          }
+        }
+
+        if (!validCustomerId) {
+          return { ok: false as const, error: `Could not find an active customer or lead matching "${customerId}".` }
+        }
+
         const log = await db.communicationLog.create({
           data: {
-            customerId,
+            customerId: validCustomerId,
             method: "note",
             direction: "inbound",
             recipient: principal.email,
@@ -376,7 +413,7 @@ export function buildCrmTools(principal: AgentPrincipal) {
           select: { id: true },
         })
 
-        return { ok: true as const, logId: log.id }
+        return { ok: true as const, logId: log.id, message: `Note logged on customer account "${customer?.name}".` }
       }),
     }),
 

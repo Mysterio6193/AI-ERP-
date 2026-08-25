@@ -16,6 +16,10 @@ import { checkEnvironment } from "../src/lib/env-guard"
 import { db } from "../src/lib/db"
 import { looksLikeFillerText, looksLikePlaceholder } from "../src/lib/placeholder-detect"
 import { brokenTools } from "../src/lib/agent/tool-health"
+import { reviewTiers } from "../src/lib/agent/model-tiers"
+import { describeDuplicate, findDuplicateAccounts } from "../src/lib/duplicate-accounts"
+import { summariseChannel } from "../src/lib/channel"
+import { getModelId } from "../src/lib/agent/model"
 import { STALE_AFTER_HOURS } from "../src/lib/agent/proposal-summary"
 
 type Level = "fatal" | "warn" | "ok"
@@ -145,6 +149,48 @@ async function main() {
       "agent tools",
       `${tool.toolName} ${tool.neverWorked ? "has never succeeded" : `failed its last ${tool.consecutiveFailures} calls`}: ${tool.lastError ?? "unknown error"}`
     )
+  }
+
+  // --- CRM data quality -----------------------------------------------------
+  // Two rows for one venue splits its history, and every judgement built on
+  // history is then made on half the evidence.
+  const accounts = await db.customer.findMany({
+    select: { id: true, name: true, channelRole: true, suppliedById: true, _count: { select: { orders: true, invoices: true } } },
+  })
+
+  for (const group of findDuplicateAccounts(
+    accounts.map((a) => ({ id: a.id, name: a.name, orderCount: a._count.orders, invoiceCount: a._count.invoices }))
+  )) {
+    add(group.hiddenFromLapseDetection ? "warn" : "warn", "crm duplicates", describeDuplicate(group))
+  }
+
+  // A venue with no distributor recorded cannot be told where to buy, which is
+  // usually the one thing they rang to find out.
+  const channel = summariseChannel(accounts)
+
+  if (channel.unlinkedEndUsers > 0) {
+    add(
+      "warn",
+      "crm channel",
+      `${channel.unlinkedEndUsers} end-user venue(s) have no supplying distributor recorded, so nobody can tell them where to buy.`
+    )
+  }
+
+  // --- Which model does the thinking ---------------------------------------
+  // A model too small for the job does not fail, it answers worse — which reads
+  // as the assistant being unreliable rather than as a setting nobody revisited.
+  const resolved: Record<string, string> = {}
+
+  for (const purpose of ["chat", "fast", "telegram", "finance", "replenishment", "email", "ocr", "voice", "summarise", "triage"]) {
+    try {
+      resolved[purpose] = getModelId({ purpose } as never)
+    } catch {
+      // A purpose that cannot resolve is model.ts's problem, not this check's.
+    }
+  }
+
+  for (const finding of reviewTiers(resolved)) {
+    add(finding.level === "ok" ? "ok" : "warn", "agent model", finding.message)
   }
 
   // --- Waiting on a person --------------------------------------------------

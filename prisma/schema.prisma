@@ -134,6 +134,8 @@ model User {
   ownedOpportunities Opportunity[]    @relation("OpportunityOwner")
   activities         Activity[]       @relation("ActivityUser")
   assignedCases      Case[]           @relation("CaseAssignee")
+
+  confirmedEndUserProducts EndUserProduct[] @relation("EndUserProductConfirmedBy")
 }
 
 // ============================================
@@ -253,6 +255,8 @@ model Product {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  endUserUsage EndUserProduct[]
 }
 
 // ============================================
@@ -796,6 +800,28 @@ model Customer {
 
   // Classification
   customerType String  @default("wholesale") // business, retail, wholesale
+
+  /// Where this account sits in the channel.
+  ///
+  /// RDM sells to distributors, and the venues that actually cook with the
+  /// product buy it from those distributors rather than from RDM. An end user
+  /// therefore places no orders here, which is a fact about the channel and not
+  /// a sign the relationship has gone quiet — so lapse detection has to be able
+  /// to tell them apart. Leads met at a trade show are almost always end users.
+  channelRole String @default("direct") // direct, distributor, end_user
+
+  /// For an end user, the distributor that supplies them.
+  ///
+  /// The question RDM actually needs answered — a venue asks for product and
+  /// somebody has to know who they order from — and the one that says whether a
+  /// distributor is pulling the product through.
+  suppliedById String?
+  suppliedBy   Customer?  @relation("ChannelSupply", fields: [suppliedById], references: [id])
+  supplies     Customer[] @relation("ChannelSupply")
+
+  /// What this venue uses, for an end user; and what it supplies, for a distributor.
+  usesProducts    EndUserProduct[]
+  suppliesProducts EndUserProduct[] @relation("EndUserSupply")
   industry     String?
   salesRepId   String?
   salesRep     User?   @relation("CustomerSalesRep", fields: [salesRepId], references: [id])
@@ -2657,6 +2683,61 @@ model AgentProposal {
 
   @@index([status, createdAt])
   @@index([entityType, entityId])
+}
+
+/// What a venue actually uses, when RDM never sees the order.
+///
+/// This is the hole a two-tier channel leaves. RDM sells to a distributor and
+/// the venue buys from that distributor, so the venue's product relationship —
+/// the thing the whole business depends on — appears nowhere in RDM's data. An
+/// end-user account without this is a name, a phone number and no substance.
+///
+/// It is knowledge rather than transaction: a rep is told on a visit, or a
+/// distributor reports it, or it comes off a trade-show conversation. So every
+/// row records when it was last confirmed and by whom, because a usage figure
+/// nobody has checked in a year is a rumour and should read as one.
+///
+/// `lost_to_competitor` with a named product is the only competitive intel a
+/// manufacturer in this position ever gets, and it currently has nowhere to go.
+model EndUserProduct {
+  id String @id @default(cuid())
+
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  /// Roughly how much they get through. Approximate by nature — it is someone's
+  /// recollection, not a shipment.
+  estimatedQty Float?
+  period       String  @default("week") // week, month
+  unit         String?
+
+  /// Which distributor they buy this through. May differ per product, so it
+  /// lives here rather than only on the customer.
+  viaDistributorId String?
+  viaDistributor   Customer? @relation("EndUserSupply", fields: [viaDistributorId], references: [id])
+
+  status            String  @default("using") // using, trialling, lapsed, lost_to_competitor
+  competitorProduct String?
+
+  /// When somebody last checked, and who. Without these the row cannot be aged.
+  lastConfirmedAt DateTime?
+  confirmedById   String?
+  confirmedBy     User?     @relation("EndUserProductConfirmedBy", fields: [confirmedById], references: [id])
+
+  /// Where this came from: a visit, a distributor report, a trade show.
+  source String  @default("rep_visit")
+  notes  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// One row per venue per product; re-recording corrects rather than duplicates.
+  @@unique([customerId, productId])
+  @@index([productId, status])
+  @@index([viaDistributorId])
 }
 
 model CrmTask {

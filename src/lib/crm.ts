@@ -106,6 +106,16 @@ export async function findLapsedAccounts(options?: {
   const customers = await db.customer.findMany({
     where: {
       status: "active",
+      /**
+       * End users are excluded, not filtered out later.
+       *
+       * A venue buys RDM product from its distributor, so it places no orders
+       * here by design. Measured against RDM's own order book every one of them
+       * looks permanently lapsed, and a lapse report that opens with accounts
+       * that were never direct buyers stops being read — which loses the true
+       * alarms along with the false ones.
+       */
+      channelRole: { not: "end_user" },
       ...(options?.salesRepId ? { salesRepId: options.salesRepId } : {}),
     },
     select: {

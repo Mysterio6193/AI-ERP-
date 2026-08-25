@@ -16,6 +16,29 @@ import { processTelegramUpdate } from "../src/app/api/agent/telegram/route"
  *   npx tsx --env-file=.env scripts/telegram-poll.ts
  */
 
+
+/** What arrived, in one line, so an ignored message is visible as ignored. */
+function describeUpdate(update: any): string {
+  if (update.callback_query) return "callback_query (button press)"
+
+  const message = update.message
+  if (!message) return `no message on update (keys: ${Object.keys(update).join(", ")})`
+
+  const chatType = message.chat?.type ?? "?"
+  const from = message.from?.first_name || message.from?.username || "?"
+  const text = (message.text || message.caption || "").trim()
+
+  const kind = text
+    ? `text ${JSON.stringify(text.slice(0, 60))}`
+    : message.voice ? "voice note"
+    : message.photo ? "photo"
+    : message.sticker ? "sticker"
+    : message.document ? "document"
+    : `no text (keys: ${Object.keys(message).filter((k) => !["message_id", "from", "chat", "date"].includes(k)).join(", ") || "none"})`
+
+  return `${chatType} from ${from} (chat ${message.chat?.id}) — ${kind}`
+}
+
 async function main() {
   if (!isTelegramConfigured()) {
     console.error("❌ TELEGRAM_BOT_TOKEN is not configured in .env")
@@ -70,7 +93,12 @@ async function main() {
             offset = Math.max(offset, updateId + 1)
           }
 
-          console.log(`[Telegram Update #${updateId}] Received! Processing immediately...`)
+          // A summary of what actually arrived. "Completed successfully" only
+          // means the handler returned, and it returns early for a message with
+          // no text, an unlinked chat, or a group it was not addressed in — so
+          // without this line a silently-ignored message is indistinguishable
+          // from an answered one.
+          console.log(`[Telegram Update #${updateId}] ${describeUpdate(update)}`)
           // Process in background so subsequent updates are not blocked
           processTelegramUpdate(update as any).then(() => {
             console.log(`[Telegram Update #${updateId}] Completed successfully.`)

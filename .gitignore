@@ -68,3 +68,7 @@ local-*
 # Skills directory
 /skills/*
 !/skills/hermes/
+.browser-profiles/
+
+# Backups contain every customer record. Never commit them.
+backups/

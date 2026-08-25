@@ -2,8 +2,10 @@ import type { ToolSet } from "ai"
 
 import type { AgentPrincipal } from "../context"
 import type { ToolPolicyMeta } from "../policy"
+import { buildBrowserTools } from "./browser"
 import { buildCatalogTools } from "./catalog"
 import { buildChannelTools } from "./channels"
+import { buildSalesChannelTools } from "./sales-channel"
 import { buildContactTools } from "./contacts"
 import { buildCrmTools } from "./crm"
 import { buildDelegationTools } from "./delegation"
@@ -98,6 +100,27 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
   listSettings: { risk: "read", roles: ["admin"] },
   getSetting: { risk: "read", roles: ["admin"] },
   proposeSettingChange: { risk: "high", roles: ["admin"], alwaysApprove: true },
+
+  /**
+   * The browser. Reading is low risk; acting on a page is not.
+   *
+   * A click on a page we did not write can submit an order, accept terms or
+   * move money, and nothing in the page's own text can be trusted to say
+   * which — so it always asks. Typing is gated for the same reason: filling a
+   * form is how you get to the button.
+   */
+  setChannelRole: { risk: "medium", roles: ["admin", "sales"] },
+  recordEndUserUsage: { risk: "low", roles: ["admin", "sales"] },
+  productPullThrough: { risk: "low" },
+  venueUsage: { risk: "low" },
+  setSupplyingDistributor: { risk: "low", roles: ["admin", "sales"] },
+  listVenuesForDistributor: { risk: "low" },
+  channelOverview: { risk: "low" },
+
+  openPage: { risk: "low" },
+  readCurrentPage: { risk: "low" },
+  clickOnPage: { risk: "high", alwaysApprove: true },
+  typeIntoPage: { risk: "medium", alwaysApprove: true },
   resetSetting: { risk: "high", roles: ["admin"], alwaysApprove: true },
 
   // Catalog
@@ -176,6 +199,8 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
   listLeads: { risk: "read" },
   pipelineSummary: { risk: "read" },
   createLead: { risk: "low", roles: ["admin", "sales"] },
+  // Writes many rows at once, so it sits a step above createLead.
+  importLeadsFromCsv: { risk: "medium", roles: ["admin", "sales"] },
   updateLead: { risk: "low", roles: ["admin", "sales"] },
   createOpportunity: { risk: "low", roles: ["admin", "sales"] },
   updateOpportunity: { risk: "low", roles: ["admin", "sales"] },
@@ -249,6 +274,13 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
 
   // The agent's view of its own tools. Reads only.
   learnAboutTheBusiness: { risk: "low", roles: ["admin", "sales", "accounts"] },
+
+  // Routines schedule recurring model spend, so creating one is a decision.
+  createBot: { risk: "medium", roles: ["admin", "sales", "warehouse", "accounts"] },
+  listBots: { risk: "read" },
+  createRoutine: { risk: "medium", roles: ["admin", "sales", "warehouse", "accounts"] },
+  listRoutines: { risk: "read" },
+  stopRoutine: { risk: "medium", roles: ["admin"] },
   pendingDecisions: { risk: "read" },
   checkToolHealth: { risk: "read" },
   acknowledgeToolFault: { risk: "low", roles: ["admin"] },
@@ -449,6 +481,8 @@ export function buildTools(principal: AgentPrincipal, channel?: string): ToolSet
     buildOcrTools(principal),
     buildDocumentTools(principal, channel),
     buildSettingsTools(principal),
+    buildBrowserTools(principal),
+    buildSalesChannelTools(principal),
     buildAutomationTools(principal),
     buildCalendarTools(principal),
     buildEmailTools(principal),

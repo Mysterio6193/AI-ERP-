@@ -31,10 +31,27 @@ export function defineTool<S extends z.ZodType, R>(config: {
   const watched = async (input: z.infer<S>, options: ToolExecutionOptions<never>) => {
     const toolName = toolNameFor(config.description)
 
+    /**
+     * Only count what the model actually did.
+     *
+     * The SDK supplies a `toolCallId` when a tool is invoked as part of a turn.
+     * A script calling `execute(input, {})` directly has none — and such a call
+     * also bypasses the Zod validation the SDK would have run first, so it can
+     * fail in ways the agent never could.
+     *
+     * That is not hypothetical. Two verification scripts in this repo called
+     * tools directly with partial arguments, and both tools were recorded as
+     * broken and then reported as broken to the agent, which was told to avoid
+     * two tools that work. Health tracking that cannot tell a probe from a
+     * turn produces exactly the wrong answer with total confidence.
+     */
+    const fromModel = Boolean((options as { toolCallId?: string } | undefined)?.toolCallId)
+    const track = !skipHealthTracking && fromModel
+
     try {
       const result = await config.execute(input, options)
 
-      if (!skipHealthTracking) {
+      if (track) {
         const failed =
           typeof result === "object" && result !== null && "ok" in result && (result as { ok: unknown }).ok === false
 
@@ -47,7 +64,7 @@ export function defineTool<S extends z.ZodType, R>(config: {
 
       return result
     } catch (error) {
-      if (!skipHealthTracking) {
+      if (track) {
         void recordToolOutcome({
           toolName,
           ok: false,

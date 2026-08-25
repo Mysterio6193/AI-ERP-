@@ -1,6 +1,8 @@
 import { z } from "zod"
 
 import { summarisePipeline } from "@/lib/crm"
+import { importLeads, parseCsv } from "@/lib/leads-import"
+import { resolveColumnMapping } from "@/lib/leads-import-ai"
 import { db } from "@/lib/db"
 
 import type { AgentPrincipal } from "../context"
@@ -8,6 +10,10 @@ import { defineTool } from "./define"
 import { isStaff } from "./shared"
 
 /** Leads, opportunities and the pipeline built on top of them. */
+
+function refuse(reason: string) {
+  return { ok: false as const, error: reason }
+}
 
 const STAGES = ["prospect", "qualified", "proposal", "negotiation", "won", "lost"] as const
 
@@ -17,6 +23,66 @@ export function buildPipelineTools(principal: AgentPrincipal) {
   }
 
   return {
+    /**
+     * A whole list at once, which is how prospects actually arrive — a trade
+     * show exports one CSV, not fifty conversations. Calling createLead per row
+     * would burn fifty tool calls and half the context.
+     */
+    importLeadsFromCsv: defineTool({
+      description:
+        "Import many leads at once from CSV text, such as a file someone attached. Runs a dry run by default and reports what it found, including duplicates, so the numbers can be read before anything is written. Call it again with confirm: true to actually save them.",
+      inputSchema: z.object({
+        csv: z.string().describe("The raw CSV text, including its header row"),
+        source: z.string().optional().describe("Where the list came from, e.g. trade_show"),
+        confirm: z
+          .boolean()
+          .optional()
+          .describe("false or omitted reports what would happen; true writes the leads"),
+      }),
+      execute: async ({ csv, source, confirm }) => {
+        const rows = parseCsv(csv)
+
+        if (!rows.length) {
+          return refuse("No data rows in that CSV. It needs a header row and at least one record below it.")
+        }
+
+        const headers = Object.keys(rows[0])
+
+        // Header names first because it is free; the sample rows are read only
+        // when that leaves the one column the import cannot do without.
+        const chosen = await resolveColumnMapping({ headers, rows })
+        const mapping = chosen.mapping
+
+        if (!mapping.businessName) {
+          return refuse(
+            `I can't tell which column holds the business name, even after reading the values. The columns are: ${headers.join(", ")}.`
+          )
+        }
+
+        const summary = await importLeads({
+          rows,
+          mapping,
+          defaultSource: source,
+          ownerId: principal.userId ?? null,
+          dryRun: !confirm,
+        })
+
+        return {
+          ok: true as const,
+          // Said explicitly, because "imported 40" reads the same either way and
+          // the difference between a dry run and a write is the whole point.
+          committed: Boolean(confirm),
+          mappedBy: chosen.method,
+          columnsUsed: Object.fromEntries(Object.entries(mapping).filter(([, column]) => column)),
+          totalRows: summary.totalRows,
+          wouldImport: summary.imported,
+          duplicatesInFile: summary.duplicatesInFile,
+          alreadyOnFile: summary.duplicatesExisting,
+          skipped: summary.skipped.slice(0, 10),
+        }
+      },
+    }),
+
     createLead: defineTool({
       description:
         "Capture a new prospect - a venue that called, a referral, someone met at a trade show. Cheap to create; qualify later.",

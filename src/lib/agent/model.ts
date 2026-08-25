@@ -2,6 +2,16 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google"
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible"
 import { gateway, type LanguageModel } from "ai"
 
+import {
+  MAX_ATTEMPTS,
+  classifyMessage,
+  classifyResponse,
+  computeBackoff,
+  describeFailure,
+  retryAfterMs,
+  type Classification,
+} from "@/lib/agent/retry"
+
 /**
  * Provider-agnostic model resolution.
  *
@@ -82,49 +92,110 @@ function openrouterProvider() {
       "X-Title": "SupplySure OS",
     },
     fetch: async (url, options) => {
-      let originalModel = ""
+      let customOptions = options
       if (options?.body && typeof options.body === "string") {
         try {
           const parsed = JSON.parse(options.body)
-          originalModel = parsed.model || ""
-        } catch {
-          // ignore JSON parse errors
-        }
+          if (!parsed.max_tokens || parsed.max_tokens > 500) {
+            parsed.max_tokens = 500
+            customOptions = { ...options, body: JSON.stringify(parsed) }
+          }
+        } catch {}
       }
 
-      let response = await fetch(url, options)
+      const model = readModelId(customOptions)
+      let lastReason: Classification["reason"] = "unknown"
 
-      // Graceful fallback if a :free model hits upstream rate-limits or errors
-      if ((response.status === 429 || response.status >= 500) && originalModel.includes(":free") && options?.body && typeof options.body === "string") {
+      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        let response: Response
+
         try {
-          const parsed = JSON.parse(options.body)
-          // 1. First try stripping :free tag
-          parsed.model = originalModel.replace(":free", "")
-          let fallbackResponse = await fetch(url, {
-            ...options,
-            body: JSON.stringify(parsed),
-          })
-          if (fallbackResponse.ok) {
-            return fallbackResponse
-          }
+          response = await fetch(url, customOptions)
+        } catch (error) {
+          const text = error instanceof Error ? error.message : String(error)
+          const verdict = classifyMessage(text)
+          lastReason = verdict.reason
 
-          // 2. Fallback to ultra-fast resilient model
-          parsed.model = "google/gemini-2.5-flash"
-          fallbackResponse = await fetch(url, {
-            ...options,
-            body: JSON.stringify(parsed),
-          })
-          if (fallbackResponse.ok) {
-            return fallbackResponse
+          // A thrown fetch has no response to hand back, so a terminal one has
+          // to keep throwing rather than returning something the SDK will
+          // misread as a reply.
+          if (!verdict.transient || attempt === MAX_ATTEMPTS - 1) throw error
+
+          await sleep(computeBackoff(attempt))
+          continue
+        }
+
+        if (response.ok) {
+          const body = await response.clone().text().catch(() => "")
+          if (body.includes('"error"') && (body.includes('"code":502') || body.includes('"code":429') || body.includes("overloaded") || body.includes("rate-limited"))) {
+            const verdict = classifyResponse(502, body)
+            lastReason = verdict.reason
+            await sleep(computeBackoff(attempt))
+            continue
           }
-        } catch {
-          // keep original response
+          return response
+        }
+
+        // Reading the body consumes it, so it is only read on the failure
+        // path where the response is not being returned to the caller.
+        const body = await response.clone().text().catch(() => "")
+        const verdict = classifyResponse(response.status, body)
+        lastReason = verdict.reason
+
+        if (!verdict.transient) {
+          console.error(`[agent] ${describeFailure(verdict.reason, model)}`)
+          break
+        }
+
+        if (attempt === MAX_ATTEMPTS - 1) {
+          break
+        }
+
+        const wait = retryAfterMs(response.headers.get("retry-after")) ?? computeBackoff(attempt)
+        console.warn(
+          `[agent] ${model} ${verdict.reason} (HTTP ${response.status}), retrying in ${wait}ms ` +
+            `(attempt ${attempt + 1}/${MAX_ATTEMPTS})`
+        )
+        await sleep(wait)
+      }
+
+      /**
+       * Primary model is exhausted or rate-limited. Engage fallback immediately.
+       */
+      const fallback = env("AGENT_FALLBACK_MODEL") || "nvidia/nemotron-3-ultra-550b-a55b:free"
+
+      if (fallback && fallback !== model && customOptions?.body && typeof customOptions.body === "string") {
+        try {
+          const parsed = JSON.parse(customOptions.body)
+          parsed.model = fallback
+
+          console.warn(`[agent] ${model} unavailable (${lastReason}); engaging fallback ${fallback}`)
+
+          const response = await fetch(url, { ...customOptions, body: JSON.stringify(parsed) })
+          if (response.ok) return response
+        } catch (fbErr) {
+          console.warn(`[agent] Fallback ${fallback} failed:`, fbErr)
         }
       }
 
-      return response
+      throw new Error(describeFailure(lastReason, model))
     },
   })
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/** The model id out of the request body, for logs that name what failed. */
+function readModelId(options: RequestInit | undefined): string {
+  if (!options?.body || typeof options.body !== "string") return "the model"
+
+  try {
+    return JSON.parse(options.body).model || "the model"
+  } catch {
+    return "the model"
+  }
 }
 
 export type AgentPurpose =

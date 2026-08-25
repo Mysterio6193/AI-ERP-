@@ -32,7 +32,9 @@
     "docker:sh": "docker compose exec web sh",
     "docker:restart": "docker compose restart web",
     "docker:stop": "docker compose down",
-    "docker:reset": "docker compose down -v --remove-orphans"
+    "docker:reset": "docker compose down -v --remove-orphans",
+    "backup": "npx tsx scripts/backup.ts",
+    "backup:verify": "npx tsx scripts/verify-backup.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "^4.0.50",
@@ -92,6 +94,7 @@
     "next-themes": "^0.4.6",
     "node-edge-tts": "^1.2.10",
     "nodemailer": "^7.0.13",
+    "playwright": "^1.62.1",
     "prisma": "^6.11.1",
     "qrcode": "^1.5.4",
     "react": "^19.0.0",
