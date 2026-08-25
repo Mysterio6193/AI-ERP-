@@ -92,7 +92,18 @@ export function buildManufacturingTools(principal: AgentPrincipal) {
         const bom = product.billsOfMaterial[0]
         const multiplier = targetQuantityCartons / bom.yieldQty
 
-        const ingredientRequirements = []
+        // Annotated for the same reason: an untyped [] is never[].
+        const ingredientRequirements: Array<{
+          componentSku: string
+          componentName: string
+          recipeQtyPerBatch: number
+          totalRequired: number
+          unit: string
+          warehouseOnHand: number
+          stockStatus: string
+          shortageDelta: number
+          estimatedCost: number
+        }> = []
         let hasShortage = false
 
         for (const line of bom.lines) {

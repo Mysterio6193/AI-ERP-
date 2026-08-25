@@ -94,7 +94,15 @@ export function buildEcommerceTools(principal: AgentPrincipal) {
 
         // Validate products and compute totals
         let subtotal = 0
-        const orderLineData = []
+        // Annotated: `const x = []` infers never[] and rejects every push.
+        const orderLineData: Array<{
+          productId: string
+          quantity: number
+          unitPrice: number
+          taxRate: number
+          taxAmount: number
+          total: number
+        }> = []
 
         for (const item of items) {
           const product = await db.product.findUnique({ where: { sku: item.sku } })
@@ -128,7 +136,7 @@ export function buildEcommerceTools(principal: AgentPrincipal) {
             subtotal,
             taxAmount,
             totalAmount,
-            notes: `Ingested from Shopify Webhook (Ref: ${externalOrderId}). Delivery to: ${shippingAddress || "Registered Address"}`,
+            internalNotes: `Ingested from Shopify Webhook (Ref: ${externalOrderId}). Delivery to: ${shippingAddress || "Registered Address"}`,
             items: { create: orderLineData },
           },
         })
@@ -162,7 +170,7 @@ export function buildEcommerceTools(principal: AgentPrincipal) {
         let onlineShopify = 0
 
         for (const order of orders) {
-          const notes = (order.notes || "").toLowerCase()
+          const notes = (order.internalNotes || "").toLowerCase()
           if (notes.includes("shopify") || notes.includes("web-so") || notes.includes("online")) {
             onlineShopify += order.totalAmount
           } else if (notes.includes("distributor") || order.totalAmount > 3000) {

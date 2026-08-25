@@ -77,10 +77,22 @@ export function buildAdvancedInventoryTools(principal: AgentPrincipal) {
       }),
       execute: async ({ action }) => {
         const inventory = await db.inventory.findMany({
-          include: { product: true },
+          // `category` is a relation, not a column on Product.
+          include: { product: { include: { category: true } } },
         })
 
-        const lowStockItems = []
+        // `const x = []` infers never[] and rejects every push.
+        const lowStockItems: Array<{
+          sku: string
+          productName: string
+          category: string
+          currentQty: number
+          safetyStock: number
+          suggestedReorderQty: number
+          estimatedUnitCost: number
+          estimatedTotalCost: number
+          supplierCategory: string
+        }> = []
 
         for (const inv of inventory) {
           // Rule: If stock is below 20 units, flag for reorder
@@ -93,13 +105,13 @@ export function buildAdvancedInventoryTools(principal: AgentPrincipal) {
             lowStockItems.push({
               sku: inv.product.sku,
               productName: inv.product.name,
-              category: inv.product.category || "General",
+              category: inv.product.category?.name || "General",
               currentQty: inv.quantity,
               safetyStock: safetyThreshold,
               suggestedReorderQty: reorderQty,
               estimatedUnitCost: money(unitCost),
               estimatedTotalCost: money(estimatedCost),
-              supplierCategory: inv.product.category === "Raw Materials" ? "Ingredient Suppliers (Manildra / Mutti)" : "Production Factory Run",
+              supplierCategory: inv.product.category?.name === "Raw Materials" ? "Ingredient Suppliers (Manildra / Mutti)" : "Production Factory Run",
             })
           }
         }
