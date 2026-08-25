@@ -137,6 +137,8 @@ export default function LeadsPage() {
       skipped: Array<{ row: number; reason: string; value?: string }>
     } | null
     preview: Array<Record<string, string>>
+    method?: string
+    warning?: string | null
   } | null>(null)
   const [csvText, setCsvText] = useState("")
   const [csvName, setCsvName] = useState("")
@@ -175,6 +177,7 @@ export default function LeadsPage() {
               mapping: result.data.mapping ?? {},
               summary: null,
               preview: [],
+              method: result.data.method,
             })
             toast({
               variant: "destructive",
@@ -362,7 +365,23 @@ export default function LeadsPage() {
               a wrong guess files phone numbers as postcodes without complaining.
             */}
             <div>
-              <p className="mb-1.5 font-medium">Which column is which</p>
+              <p className="mb-1.5 font-medium">
+                Which column is which
+                {/*
+                  Worth saying which it was. A mapping matched on header names is
+                  usually right; one a model worked out from the values is a good
+                  guess that deserves a glance before six thousand rows land on it.
+                */}
+                {analysis.method === "ai" ? (
+                  <span className="ml-2 font-normal text-muted-foreground">
+                    — worked out by reading your columns, so please check it
+                  </span>
+                ) : analysis.method === "ai-failed" ? (
+                  <span className="ml-2 font-normal text-amber-600">
+                    — could not be read automatically, please set it
+                  </span>
+                ) : null}
+              </p>
               <div className="grid gap-2 sm:grid-cols-2">
                 {MAPPABLE_FIELDS.map((field) => (
                   <div key={field.key} className="flex items-center gap-2">
@@ -390,6 +409,12 @@ export default function LeadsPage() {
                 ))}
               </div>
             </div>
+
+            {analysis.warning ? (
+              <p className="rounded border border-amber-300 bg-amber-50 p-2 text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                {analysis.warning}
+              </p>
+            ) : null}
 
             {!analysis.summary ? (
               <p className="text-muted-foreground">

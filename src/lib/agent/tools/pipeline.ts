@@ -1,7 +1,8 @@
 import { z } from "zod"
 
 import { summarisePipeline } from "@/lib/crm"
-import { importLeads, inferColumnMapping, parseCsv } from "@/lib/leads-import"
+import { importLeads, parseCsv } from "@/lib/leads-import"
+import { resolveColumnMapping } from "@/lib/leads-import-ai"
 import { db } from "@/lib/db"
 
 import type { AgentPrincipal } from "../context"
@@ -46,11 +47,15 @@ export function buildPipelineTools(principal: AgentPrincipal) {
         }
 
         const headers = Object.keys(rows[0])
-        const mapping = inferColumnMapping(headers)
+
+        // Header names first because it is free; the sample rows are read only
+        // when that leaves the one column the import cannot do without.
+        const chosen = await resolveColumnMapping({ headers, rows })
+        const mapping = chosen.mapping
 
         if (!mapping.businessName) {
           return refuse(
-            `I can't tell which column holds the business name. The columns are: ${headers.join(", ")}.`
+            `I can't tell which column holds the business name, even after reading the values. The columns are: ${headers.join(", ")}.`
           )
         }
 
@@ -67,6 +72,7 @@ export function buildPipelineTools(principal: AgentPrincipal) {
           // Said explicitly, because "imported 40" reads the same either way and
           // the difference between a dry run and a write is the whole point.
           committed: Boolean(confirm),
+          mappedBy: chosen.method,
           columnsUsed: Object.fromEntries(Object.entries(mapping).filter(([, column]) => column)),
           totalRows: summary.totalRows,
           wouldImport: summary.imported,

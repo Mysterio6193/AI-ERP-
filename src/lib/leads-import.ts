@@ -192,6 +192,21 @@ export function parseCsv(text: string, delimiter?: string): ParsedRow[] {
   )
 }
 
+/** Every field a lead can carry. The one list both the matcher and the model work from. */
+export const LEAD_FIELDS = [
+  "businessName",
+  "contactName",
+  "email",
+  "phone",
+  "suburb",
+  "state",
+  "postcode",
+  "industry",
+  "source",
+  "notes",
+  "estimatedValue",
+] as const satisfies readonly string[]
+
 /** Field names this importer understands, and the headers that map to them. */
 const COLUMN_ALIASES: Record<string, string[]> = {
   businessName: [
@@ -391,6 +406,40 @@ export function classifyDuplicate(
   if (hits(seen)) return "repeated-in-file"
 
   return null
+}
+
+/**
+ * Whether a column classifies records rather than identifying them.
+ *
+ * A business-name column is almost all distinct values — that is what a name
+ * is. A category column repeats: eight rows of "Distributor / Wholesaler" and
+ * "Retail (e.g. Grocery, Convenience, Speciality)". The difference is visible
+ * without understanding a word of it, and it is the last line of defence when
+ * a mapping is wrong for any reason — a bad guess, a stale page, a person
+ * picking the wrong column by hand.
+ *
+ * It only reports; it never blocks. A genuinely tiny list can repeat a name,
+ * and refusing an import on a heuristic is worse than saying what looks odd.
+ */
+export function columnLooksCategorical(values: string[]): boolean {
+  const filled = values.map((value) => value.trim()).filter((value) => value !== "")
+
+  // Too few rows to tell the difference between a category and a coincidence.
+  if (filled.length < 4) return false
+
+  const distinct = new Set(filled.map((value) => value.toLowerCase())).size
+  const distinctRatio = distinct / filled.length
+
+  // Names of businesses repeat only by accident; categories repeat by design.
+  if (distinctRatio <= 0.6) return true
+
+  // Long parenthetical values are how a survey writes its options, and no
+  // business is called "Restaurant / Commercial Foodservice (e.g. QSR, ...)".
+  const optionShaped = filled.filter(
+    (value) => /\(e\.g\.|\bor\b|\//.test(value) && value.length > 25
+  ).length
+
+  return optionShaped / filled.length >= 0.5
 }
 
 export async function importLeads(options: ImportOptions): Promise<ImportSummary> {
