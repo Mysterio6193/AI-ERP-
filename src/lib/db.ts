@@ -28,4 +28,7 @@ export const db =
           : ['warn', 'error'],
   })
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db
+// A warm Vercel function process serves more than one request. Keep one Prisma
+// client for that process in production too, rather than paying a fresh pooler
+// connection setup for each module evaluation.
+globalForPrisma.prisma = db
