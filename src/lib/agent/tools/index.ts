@@ -2,6 +2,7 @@ import type { ToolSet } from "ai"
 
 import type { AgentPrincipal } from "../context"
 import type { ToolPolicyMeta } from "../policy"
+import { buildBrowserTools } from "./browser"
 import { buildCatalogTools } from "./catalog"
 import { buildChannelTools } from "./channels"
 import { buildContactTools } from "./contacts"
@@ -96,6 +97,19 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
   listSettings: { risk: "read", roles: ["admin"] },
   getSetting: { risk: "read", roles: ["admin"] },
   proposeSettingChange: { risk: "high", roles: ["admin"], alwaysApprove: true },
+
+  /**
+   * The browser. Reading is low risk; acting on a page is not.
+   *
+   * A click on a page we did not write can submit an order, accept terms or
+   * move money, and nothing in the page's own text can be trusted to say
+   * which — so it always asks. Typing is gated for the same reason: filling a
+   * form is how you get to the button.
+   */
+  openPage: { risk: "low" },
+  readCurrentPage: { risk: "low" },
+  clickOnPage: { risk: "high", alwaysApprove: true },
+  typeIntoPage: { risk: "medium", alwaysApprove: true },
   resetSetting: { risk: "high", roles: ["admin"], alwaysApprove: true },
 
   // Catalog
@@ -436,6 +450,7 @@ export function buildTools(principal: AgentPrincipal, channel?: string): ToolSet
     buildOcrTools(principal),
     buildDocumentTools(principal, channel),
     buildSettingsTools(principal),
+    buildBrowserTools(principal),
     buildAutomationTools(principal),
     buildCalendarTools(principal),
     buildEmailTools(principal),

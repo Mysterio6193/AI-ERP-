@@ -28,3 +28,8 @@ SOFTWARE.
 
 Also carried with src/lib/secret-compare.ts, whose token-comparison approach and
 length guard follow OpenBot's agent-computer/src/authorisation.ts.
+
+Also carried with src/lib/agent/browser/, which follows OpenBot's agent-computer
+design: a persistent per-agent browser profile so logins survive, and pages read
+as an accessibility-style list of interactive elements with refs rather than as
+screenshots. The implementation is ours and differs in how refs are produced.

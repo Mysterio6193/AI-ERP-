@@ -14,6 +14,7 @@ than the benefit of copying.
 | Retry classification approach | `src/lib/agent/retry.ts` | [milind-soni/OpenMausBot](https://github.com/milind-soni/OpenMausBot) | Apache-2.0 | Notice in `docs/licences/openmausbot-Apache-2.0.txt`; own implementation |
 | Turn watchdog clock | `src/lib/agent/watchdog.ts` | [CopilotKit/OpenBot](https://github.com/CopilotKit/OpenBot) | MIT | Notice in `docs/licences/openbot-MIT.txt`; adapted, not copied wholesale |
 | Constant-time secret compare | `src/lib/secret-compare.ts` | [CopilotKit/OpenBot](https://github.com/CopilotKit/OpenBot) | MIT | Same notice; Node's `timingSafeEqual` does the work, the length guard is theirs |
+| Agent browser (profiles, element-list page reads) | `src/lib/agent/browser/` | [CopilotKit/OpenBot](https://github.com/CopilotKit/OpenBot) | MIT | Same notice; their design, our implementation on Playwright |
 
 ## The rule of thumb
 
