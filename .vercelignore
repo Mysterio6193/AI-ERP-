@@ -1,0 +1,11 @@
+# Local artifacts are recreated by Vercel during the deployment build.
+.next/
+node_modules/
+
+# Deployment secrets are configured in Vercel, never uploaded from a developer machine.
+.env
+.env.*
+!.env.example
+
+# This deployment serves the core web app only.
+apps/driver-app/
