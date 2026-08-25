@@ -196,6 +196,7 @@ export function parseCsv(text: string, delimiter?: string): ParsedRow[] {
 export const LEAD_FIELDS = [
   "businessName",
   "contactName",
+  "contactLastName",
   "email",
   "phone",
   "suburb",
@@ -216,7 +217,10 @@ const COLUMN_ALIASES: Record<string, string[]> = {
     "restaurant", "restaurant name", "pub", "cafe", "store", "store name", "outlet", "outlet name",
     "organisation", "organization", "entity", "shop", "shop name", "premises",
   ],
-  contactName: ["contact", "contact name", "first name", "full name", "owner", "manager", "person"],
+  contactName: ["contact", "contact name", "first name", "given name", "full name", "owner", "manager", "person"],
+  /// Exports split the person in two far more often than not, and a lead whose
+  /// contact is "Chris" is markedly less useful than one that is "Chris McIntyre".
+  contactLastName: ["last name", "surname", "family name"],
   email: ["email", "e-mail", "email address", "contact email"],
   phone: ["phone", "telephone", "mobile", "contact number", "phone number", "tel"],
   suburb: ["suburb", "city", "town", "locality", "area"],
@@ -249,7 +253,11 @@ const COLUMN_ALIASES: Record<string, string[]> = {
  * name should be, and the file looks like it worked.
  */
 const DISQUALIFIERS: Record<string, string[]> = {
-  businessName: ["type", "category", "segment", "class", "industry", "sector", "channel", "status", "id", "code", "number"],
+  businessName: [
+    "type", "category", "segment", "class", "industry", "sector", "channel", "status", "id", "code", "number",
+    // A person is not a business, and "Last Name" contains the word "name".
+    "first", "last", "surname", "given", "middle", "contact", "rep", "owner", "manager", "person", "title",
+  ],
   contactName: ["business", "company", "type", "category"],
 }
 
@@ -442,6 +450,141 @@ export function columnLooksCategorical(values: string[]): boolean {
   return optionShaped / filled.length >= 0.5
 }
 
+/** Values that are plainly not a business name. */
+function looksLikeContactDetail(value: string) {
+  return (
+    value.includes("@") ||
+    /^\+?[\d\s()-]{7,}$/.test(value) ||
+    /^\d{4}-\d{2}-\d{2}/.test(value) ||
+    /^https?:\/\//i.test(value)
+  )
+}
+
+/**
+ * The column most likely to hold business names, judged on its contents.
+ *
+ * Needed because a header can be a perfectly good name for a column and still
+ * describe the wrong thing. A real export had an "Organization" column — the
+ * obvious alias for a business name — filled with survey answers, because
+ * whoever built the form pointed the answer at it. No amount of reading headers
+ * finds that; the values give it away immediately.
+ *
+ * Deterministic on purpose. This is the fallback a model failing must land on,
+ * so it cannot itself need one.
+ */
+export function pickNameColumn(headers: string[], rows: Array<Record<string, string>>): string | null {
+  if (rows.length === 0) return null
+
+  const aliases = COLUMN_ALIASES.businessName.map((alias) =>
+    alias.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()
+  )
+
+  let best: string | null = null
+  let bestScore = 0
+
+  for (const column of headers) {
+    const values = rows.map((row) => (row[column] ?? "").trim())
+    const filled = values.filter((value) => value !== "")
+
+    // A column barely anyone filled in is not where the names live.
+    if (filled.length < rows.length * 0.5) continue
+    if (columnLooksCategorical(values)) continue
+
+    const distinctRatio = new Set(filled.map((value) => value.toLowerCase())).size / filled.length
+    const detailRatio = filled.filter(looksLikeContactDetail).length / filled.length
+
+    // Emails, phones and dates are all well-filled and highly distinct, which
+    // would otherwise make them look like ideal name columns.
+    if (detailRatio > 0.3) continue
+
+    const normalisedHeader = column.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()
+    const headerWords = normalisedHeader.split(" ")
+
+    // "Last Name" contains "name", so a single-word alias only counts when it
+    // is the entire header. Multi-word aliases are specific enough to appear
+    // inside a longer one — "Company Name" inside "*Company Name".
+    const namedLikeOne = aliases.some((alias) => {
+      const words = alias.split(" ")
+      if (words.length === 1) return normalisedHeader === alias
+      return words.every((word) => headerWords.includes(word))
+    })
+
+    // A column whose header says it holds something else is out, however good
+    // its values look.
+    const ruledOut = (DISQUALIFIERS.businessName ?? []).some((word) => headerWords.includes(word))
+    if (ruledOut) continue
+
+    const score =
+      distinctRatio * 40 +
+      (filled.length / rows.length) * 20 +
+      (namedLikeOne ? 45 : 0)
+
+    if (score > bestScore) {
+      bestScore = score
+      best = column
+    }
+  }
+
+  return best
+}
+
+/**
+ * Move a field off a column nobody filled in.
+ *
+ * Alias matching reads headers, so it cannot tell that this export has both a
+ * "*City" and a "*Suburb" column and that both are entirely empty, while the
+ * postcode beside them is filled for every row. Matching the name and taking
+ * the empty one throws the data away and looks like it worked.
+ *
+ * Only ever swaps to another column whose header also names the field, so this
+ * corrects an unlucky choice without ever inventing a new one.
+ */
+export function preferFilledColumns(
+  mapping: Record<string, string | null>,
+  headers: string[],
+  rows: Array<Record<string, string>>
+): Record<string, string | null> {
+  if (rows.length === 0) return mapping
+
+  const filledCount = (column: string) =>
+    rows.reduce((count, row) => count + ((row[column] ?? "").trim() === "" ? 0 : 1), 0)
+
+  const taken = new Set(Object.values(mapping).filter(Boolean) as string[])
+  const corrected: Record<string, string | null> = { ...mapping }
+
+  for (const [field, column] of Object.entries(mapping)) {
+    if (!column || filledCount(column) > 0) continue
+
+    const aliases = (COLUMN_ALIASES[field] ?? []).map((alias) =>
+      alias.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()
+    )
+
+    const replacement = headers
+      .filter((candidate) => candidate !== column && !taken.has(candidate))
+      .filter((candidate) => {
+        const words = candidate.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().split(" ")
+        return aliases.some((alias) => alias.split(" ").every((word) => words.includes(word)))
+      })
+      .map((candidate) => ({ candidate, filled: filledCount(candidate) }))
+      .filter((entry) => entry.filled > 0)
+      .sort((a, b) => b.filled - a.filled)[0]
+
+    // An empty column carries nothing either way, so dropping it loses no data
+    // and stops the page claiming a field was captured when it was not.
+    corrected[field] = replacement?.candidate ?? null
+    taken.delete(column)
+    if (replacement) taken.add(replacement.candidate)
+  }
+
+  return corrected
+}
+
+/** "Chris" and "McIntyre" are one person, and the lead should say so. */
+function joinName(first: string, last: string): string | null {
+  const joined = [first, last].map((part) => part.trim()).filter((part) => part !== "").join(" ")
+  return joined === "" ? null : joined
+}
+
 export async function importLeads(options: ImportOptions): Promise<ImportSummary> {
   const { rows, mapping } = options
 
@@ -528,7 +671,7 @@ export async function importLeads(options: ImportOptions): Promise<ImportSummary
 
     pending.push({
       businessName,
-      contactName: read(row, "contactName") || null,
+      contactName: joinName(read(row, "contactName"), read(row, "contactLastName")),
       email: email || null,
       phone: phone || null,
       suburb: read(row, "suburb") || null,

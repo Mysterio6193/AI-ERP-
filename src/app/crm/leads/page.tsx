@@ -31,6 +31,7 @@ import { useToast } from "@/hooks/use-toast"
 const MAPPABLE_FIELDS: Array<{ key: string; label: string; required?: boolean }> = [
   { key: "businessName", label: "Business", required: true },
   { key: "contactName", label: "Contact" },
+  { key: "contactLastName", label: "Surname" },
   { key: "email", label: "Email" },
   { key: "phone", label: "Phone" },
   { key: "suburb", label: "Suburb" },

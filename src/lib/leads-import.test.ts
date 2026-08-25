@@ -7,6 +7,8 @@ import {
   findHeaderRow,
   inferColumnMapping,
   parseCsv,
+  pickNameColumn,
+  preferFilledColumns,
   parseGrid,
   type KeyIndex,
 } from "./leads-import"
@@ -350,5 +352,86 @@ Business Name,Email
 Bella,a@b.com`)
 
     expect(rows).toEqual([{ "Business Name": "Bella", Email: "a@b.com" }])
+  })
+})
+
+const rowsFrom = (columns: Record<string, string[]>) => {
+  const length = Math.max(...Object.values(columns).map((values) => values.length))
+  return Array.from({ length }, (_, index) =>
+    Object.fromEntries(Object.entries(columns).map(([column, values]) => [column, values[index] ?? ""]))
+  )
+}
+
+describe("pickNameColumn", () => {
+  it("finds the company column in a wide export", () => {
+    // The real failure: "Organization" is the obvious name for a business name
+    // column, and in this export it holds the survey answer instead.
+    const rows = rowsFrom({
+      Organization: Array(8).fill("Restaurant / Commercial Foodservice (e.g. QSR, Fine Dining)"),
+      "*Company Name": ["The View", "Gema Group", "Lutheran Services", "Bidfood", "Roma Bar", "TAFE Qld", "Luna", "Sorella"],
+      Email: Array(8).fill("a@b.com"),
+    })
+
+    expect(pickNameColumn(["Organization", "*Company Name", "Email"], rows)).toBe("*Company Name")
+  })
+
+  it("does not mistake a person's surname for a business", () => {
+    const rows = rowsFrom({
+      "Last Name": ["Haire", "Morrison", "Sitapara", "Shaikh", "Bose", "Marra"],
+      "Company Name": ["The View", "Gema", "Lutheran", "Autosports", "TAFE", "Global Food"],
+    })
+
+    expect(pickNameColumn(["Last Name", "Company Name"], rows)).toBe("Company Name")
+  })
+
+  it("never returns an email or phone column", () => {
+    const rows = rowsFrom({
+      Email: ["a@b.com", "c@d.com", "e@f.com", "g@h.com", "i@j.com", "k@l.com"],
+      Phone: ["0412345678", "0423456789", "0434567890", "0445678901", "0456789012", "0467890123"],
+    })
+
+    expect(pickNameColumn(["Email", "Phone"], rows)).toBeNull()
+  })
+
+  it("ignores a column almost nobody filled in", () => {
+    const rows = rowsFrom({
+      "Venue Name": ["Bella", "", "", "", "", ""],
+      "Company Name": ["The View", "Gema", "Lutheran", "Autosports", "TAFE", "Global"],
+    })
+
+    expect(pickNameColumn(["Venue Name", "Company Name"], rows)).toBe("Company Name")
+  })
+})
+
+describe("preferFilledColumns", () => {
+  it("moves off an empty column onto the one holding the data", () => {
+    // This export has "*Lead Notes" (empty) and "*Expo Notes" (filled).
+    const rows = rowsFrom({ "*Lead Notes": ["", "", ""], "*Expo Notes": ["met at stand", "keen", "follow up"] })
+    const mapping = { notes: "*Lead Notes" }
+
+    expect(preferFilledColumns(mapping, ["*Lead Notes", "*Expo Notes"], rows).notes).toBe("*Expo Notes")
+  })
+
+  it("drops the field when every matching column is empty", () => {
+    // Both "*City" and "*Suburb" were empty in the real file. Claiming a suburb
+    // was captured when none was is worse than saying nothing.
+    const rows = rowsFrom({ "*City": ["", "", ""], "*Suburb": ["", "", ""] })
+    const mapping = { suburb: "*City" }
+
+    expect(preferFilledColumns(mapping, ["*City", "*Suburb"], rows).suburb).toBeNull()
+  })
+
+  it("leaves a column that has data alone", () => {
+    const rows = rowsFrom({ Suburb: ["Carlton", "Fitzroy", "Richmond"] })
+    expect(preferFilledColumns({ suburb: "Suburb" }, ["Suburb"], rows).suburb).toBe("Suburb")
+  })
+
+  it("will not steal a column another field is already using", () => {
+    const rows = rowsFrom({ "Contact Name": ["", "", ""], Name: ["Bella", "Luna", "Sorella"] })
+    const mapping = { businessName: "Name", contactName: "Contact Name" }
+    const corrected = preferFilledColumns(mapping, ["Contact Name", "Name"], rows)
+
+    expect(corrected.businessName).toBe("Name")
+    expect(corrected.contactName).toBeNull()
   })
 })
