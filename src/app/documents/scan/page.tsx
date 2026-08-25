@@ -23,11 +23,15 @@ import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
 import type { ExtractedDocument } from "@/lib/ocr/engine"
 
+/**
+ * Scanning needs a model that can see. DeepSeek Chat cannot, and the Nemotron
+ * VL model that used to lead this list no longer exists on OpenRouter — it was
+ * the only free vision option here, so every scan against it was failing on a
+ * model id the provider no longer serves.
+ */
 const OCR_MODEL_PRESETS = [
-  { label: "Nemotron Nano 12B VL (100% Free)", value: "nvidia/nemotron-nano-12b-v2-vl:free" },
+  { label: "MiniMax M3 (Free, vision)", value: "minimax/minimax-m3:free" },
   { label: "Gemini 2.5 Flash", value: "google/gemini-2.5-flash" },
-  { label: "Claude 3.5 Sonnet", value: "anthropic/claude-3.5-sonnet" },
-  { label: "DeepSeek Chat", value: "deepseek/deepseek-chat" },
 ]
 
 export default function DocumentScanPage() {

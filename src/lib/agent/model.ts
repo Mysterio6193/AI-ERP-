@@ -12,14 +12,14 @@ import { gateway, type LanguageModel } from "ai"
  *   gateway     - Vercel AI Gateway
  */
 
-export type AgentProviderMode = "gateway" | "local" | "openrouter" | "google"
+export type AgentProviderMode = "google" | "gateway" | "local" | "openrouter" | "minimax"
 
 export type ModelTier = "chat" | "fast"
 
-const DEFAULT_GATEWAY_MODEL = "anthropic/claude-sonnet-5"
-const DEFAULT_GATEWAY_FAST_MODEL = "anthropic/claude-haiku-4.5"
 const DEFAULT_LOCAL_BASE_URL = "http://localhost:11434/v1"
-const DEFAULT_LOCAL_MODEL = "llama3.1"
+const DEFAULT_LOCAL_MODEL = "llama3.2"
+const DEFAULT_GATEWAY_MODEL = "openai/gpt-4o"
+const DEFAULT_GATEWAY_FAST_MODEL = "openai/gpt-4o-mini"
 const DEFAULT_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 import {
   MAX_ATTEMPTS,
@@ -31,10 +31,10 @@ import {
   type Classification,
 } from "@/lib/agent/retry"
 
-const DEFAULT_OPENROUTER_MODEL = "nvidia/nemotron-3-ultra-550b-a55b:free"
-const DEFAULT_OPENROUTER_FAST_MODEL = "nvidia/nemotron-3-ultra-550b-a55b:free"
-const DEFAULT_GOOGLE_MODEL = "gemini-3.6-flash"
-const DEFAULT_GOOGLE_FAST_MODEL = "gemini-3.6-flash"
+const DEFAULT_OPENROUTER_MODEL = "minimax/minimax-m3"
+const DEFAULT_OPENROUTER_FAST_MODEL = "minimax/minimax-m3"
+const DEFAULT_GOOGLE_MODEL = "gemini-3.5-flash"
+const DEFAULT_GOOGLE_FAST_MODEL = "gemini-3.5-flash"
 
 function env(name: string) {
   const value = process.env[name]
@@ -43,8 +43,12 @@ function env(name: string) {
 
 export function getProviderMode(): AgentProviderMode {
   const explicit = env("AGENT_PROVIDER")?.toLowerCase()
-  if (explicit === "google" || explicit === "gateway" || explicit === "local" || explicit === "openrouter") {
+  if (explicit === "google" || explicit === "gateway" || explicit === "local" || explicit === "openrouter" || explicit === "minimax") {
     return explicit
+  }
+
+  if (env("MINIMAX_API_KEY")) {
+    return "minimax"
   }
 
   if (env("GEMINI_API_KEY") || env("GOOGLE_GENERATIVE_AI_API_KEY")) {
@@ -61,6 +65,14 @@ export function getProviderMode(): AgentProviderMode {
   }
 
   return env("AGENT_LOCAL_BASE_URL") ? "local" : "gateway"
+}
+
+function minimaxProvider() {
+  return createOpenAICompatible({
+    name: "minimax",
+    baseURL: env("MINIMAX_BASE_URL") || "https://api.minimax.chat/v1",
+    apiKey: env("MINIMAX_API_KEY") || "",
+  })
 }
 
 function googleProvider() {
@@ -181,7 +193,9 @@ function openrouterProvider() {
       /**
        * Primary model is exhausted or rate-limited. Engage fallback immediately.
        */
-      const fallback = env("AGENT_FALLBACK_MODEL") || "nvidia/nemotron-3-ultra-550b-a55b:free"
+      // A different model, not another attempt at the same one: the reason we
+      // are here is that the primary is rate-limited or out of capacity.
+      const fallback = env("AGENT_FALLBACK_MODEL") || "minimax/minimax-m2.7:free"
 
       if (fallback && fallback !== model && customOptions?.body && typeof customOptions.body === "string") {
         try {
@@ -387,6 +401,10 @@ export function resolveAgentModel(target?: ModelTier | string | ResolveModelOpti
 
   if (mode === "openrouter") {
     return openrouterProvider()(modelId)
+  }
+
+  if (mode === "minimax") {
+    return minimaxProvider()(modelId)
   }
 
   if (mode === "local") {

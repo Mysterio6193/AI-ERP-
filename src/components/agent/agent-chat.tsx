@@ -100,17 +100,22 @@ function toolLabel(toolName: string) {
   return labels[toolName] || `Running ${toolName}`
 }
 
+/**
+ * Only ids OpenRouter actually serves. Two here had been retired upstream and
+ * failed at request time rather than at selection, which reads as the agent
+ * being broken rather than the model being gone.
+ */
 const CHAT_MODEL_PRESETS = [
   { label: "Auto / Purpose Default", value: "" },
+  { label: "MiniMax M3 (Free, 1M context)", value: "minimax/minimax-m3:free" },
+  { label: "MiniMax M2.7 (Free)", value: "minimax/minimax-m2.7:free" },
   { label: "Stealth OX Alpha", value: "stealth/ox-alpha" },
   { label: "GLM 5.2 (Free)", value: "z-ai/glm-5.2:free" },
   { label: "Nemotron 3 Ultra 550B (Free)", value: "nvidia/nemotron-3-ultra-550b-a55b:free" },
   { label: "Nemotron 3 Super 120B (Free)", value: "nvidia/nemotron-3-super-120b-a12b:free" },
   { label: "Nemotron 3.5 Lightning (Free)", value: "nvidia/nemotron-3.5-lightning:free" },
-  { label: "Nemotron Nano 12B VL (Free)", value: "nvidia/nemotron-nano-12b-v2-vl:free" },
   { label: "DeepSeek Chat", value: "deepseek/deepseek-chat" },
   { label: "Llama 3.3 70B", value: "meta-llama/llama-3.3-70b-instruct" },
-  { label: "Claude 3.5 Sonnet", value: "anthropic/claude-3.5-sonnet" },
 ]
 
 export function AgentChat({ threadKey, suggestions, pageContext, compact }: AgentChatProps) {
