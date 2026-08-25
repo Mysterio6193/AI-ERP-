@@ -4,7 +4,7 @@ import { db } from "@/lib/db"
 import type { AgentPrincipal } from "../context"
 import { defineTool } from "./define"
 import { isStaff } from "./shared"
-import { createRoutine, listRoutines, stopRoutine } from "@/lib/agent/routines"
+import { createBot, createRoutine, listBots, listRoutines, stopRoutine } from "@/lib/agent/routines"
 
 /**
  * Automation, Productivity & Workflow Tools.
@@ -21,6 +21,50 @@ export function buildAutomationTools(principal: AgentPrincipal) {
   const userId = principal.kind === "staff" ? principal.userId : null
 
   return {
+    createBot: defineTool({
+      description:
+        "Create a named teammate for one job — 'Q4 Outbound', 'Expiry Watch', 'Drakes Account'. It keeps its own brief and its own conversation history, and inherits the tools and limits of the agent it is based on. Use this when someone wants a dedicated assistant for a piece of work rather than a one-off answer.",
+      inputSchema: z.object({
+        name: z.string().describe("What to call it, e.g. 'Q4 Outbound'"),
+        brief: z.string().describe("What this bot is for, in plain words"),
+        basedOn: z.string().optional().describe("Which agent it inherits tools from: ops, sales, warehouse, accounts, purchasing, compliance, executive, marketing, hr"),
+      }),
+      execute: async ({ name, brief, basedOn }) => {
+        if (principal.kind !== "staff") {
+          return { ok: false as const, error: "Only staff can create bots." }
+        }
+
+        const result = await createBot({ name, brief, basedOn, createdById: principal.userId })
+        if (!result.ok) return result
+
+        return {
+          ...result,
+          message:
+            `${result.created ? "Created" : "Updated"} "${result.name}", based on the ${result.basedOn} agent` +
+            `${result.toolCount ? ` with ${result.toolCount} tools` : ""}. ` +
+            `Talk to it by choosing it in the assistant, or ask me to hand something to it.`,
+        }
+      },
+    }),
+
+    listBots: defineTool({
+      description: "Every agent that can be talked to — the built-in ones and any created for a job.",
+      inputSchema: z.object({}),
+      execute: async () => {
+        const bots = await listBots()
+
+        return {
+          ok: true as const,
+          count: bots.length,
+          builtIn: bots.filter((b) => b.isSystem).map((b) => ({ slug: b.slug, name: b.name })),
+          made: bots.filter((b) => !b.isSystem).map((b) => ({
+            slug: b.slug, name: b.name, purpose: b.description, runsOnSchedule: b.trigger === "schedule",
+          })),
+        }
+      },
+    }),
+
+
     createRoutine: defineTool({
       description:
         "Turn an instruction into something that runs on its own — 'do this every Monday', 'check that every morning'. Creates a scheduled agent that reports back. Use this whenever someone asks for something recurring.",

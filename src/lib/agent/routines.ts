@@ -215,3 +215,138 @@ export async function stopRoutine(slug: string): Promise<{ ok: boolean; error?: 
 
   return { ok: true }
 }
+
+/**
+ * A bot: a named teammate for one job.
+ *
+ * The platform had ten fixed personas and no way to make an eleventh for the
+ * thing you are actually working on this month. Grok Bot's model is a bot per
+ * job — "Sales Outbound", "Weekly Reporting" — each carrying its own brief and
+ * its own history, rather than one general assistant that forgets which hat it
+ * is wearing.
+ *
+ * A bot is the same row a routine is: an AgentDefinition. The difference is
+ * that a routine fires on a schedule and a bot waits to be spoken to, and both
+ * inherit their tools and limits from a persona rather than inventing their
+ * own reach.
+ */
+export interface BotInput {
+  name: string
+  /** What this bot is for, in the operator's words. */
+  brief: string
+  /** The persona whose tools and limits it inherits. */
+  basedOn?: string
+  createdById: string
+}
+
+export type BotResult =
+  | { ok: false; error: string }
+  | { ok: true; slug: string; name: string; basedOn: string; created: boolean; toolCount: number | null }
+
+export async function createBot(input: BotInput): Promise<BotResult> {
+  const name = input.name.trim()
+  const brief = input.brief.trim()
+
+  if (!name) return { ok: false, error: "A bot needs a name." }
+  if (!brief) {
+    // A bot with no brief is the general assistant with extra steps.
+    return { ok: false, error: "Say what the bot is for, or it is just another general assistant." }
+  }
+
+  const slug = slugify(name)
+  if (!slug) return { ok: false, error: "That name has no letters or numbers to make a slug from." }
+
+  const existing = await db.agentDefinition.findFirst({
+    where: { slug },
+    select: { id: true, isSystem: true },
+  })
+
+  if (existing?.isSystem) {
+    return { ok: false, error: `"${name}" is a built-in agent. Choose a different name.` }
+  }
+
+  const baseSlug = input.basedOn ?? "ops"
+  const base = await db.agentDefinition.findFirst({
+    where: { slug: baseSlug },
+    select: { instructions: true, toolsJson: true, audience: true, model: true, maxSteps: true },
+  })
+
+  if (!base) {
+    return { ok: false, error: `No agent named "${baseSlug}" to base this on.` }
+  }
+
+  /**
+   * The brief goes after the persona's instructions, not instead of them.
+   * Replacing them would hand a bot the tools of a warehouse agent and none of
+   * the rules about how to use them.
+   */
+  /**
+   * The bot's own name comes first.
+   *
+   * Without it a bot introduces itself with the shared agent identity — a bot
+   * called "Expiry Watch" answering "I am Chloe, your warehouse assistant" is
+   * not a named teammate, it is the general assistant wearing a label.
+   */
+  const instructions = `You are "${name}".
+
+${brief}
+
+Introduce yourself by that name and describe your job in your own words when asked who you are.
+Stay on this job. If asked for something outside it, say so and point at the agent that does handle it.
+
+---
+
+The rest of this brief is how every agent on this platform behaves, and applies to you too.
+
+${base.instructions}`
+
+  const data = {
+    name,
+    instructions,
+    description: `Bot: ${brief.slice(0, 120)}`,
+    avatar: "🤖",
+    toolsJson: base.toolsJson,
+    audience: base.audience,
+    model: base.model,
+    maxSteps: base.maxSteps,
+    trigger: "manual",
+    enabled: true,
+    createdById: input.createdById,
+    isSystem: false,
+  }
+
+  if (existing) {
+    await db.agentDefinition.update({ where: { id: existing.id }, data })
+  } else {
+    await db.agentDefinition.create({ data: { ...data, slug } })
+  }
+
+  return {
+    ok: true,
+    slug,
+    name,
+    basedOn: baseSlug,
+    created: !existing,
+    toolCount: base.toolsJson ? (JSON.parse(base.toolsJson) as string[]).length : null,
+  }
+}
+
+export interface BotSummary {
+  slug: string
+  name: string
+  description: string | null
+  trigger: string
+  enabled: boolean
+  isSystem: boolean
+}
+
+/** Every agent someone can talk to, built-in or made for a job. */
+export async function listBots(): Promise<BotSummary[]> {
+  const rows = await db.agentDefinition.findMany({
+    where: { enabled: true },
+    orderBy: [{ isSystem: "desc" }, { name: "asc" }],
+    select: { slug: true, name: true, description: true, trigger: true, enabled: true, isSystem: true },
+  })
+
+  return rows
+}

@@ -249,6 +249,8 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
   learnAboutTheBusiness: { risk: "low", roles: ["admin", "sales", "accounts"] },
 
   // Routines schedule recurring model spend, so creating one is a decision.
+  createBot: { risk: "medium", roles: ["admin", "sales", "warehouse", "accounts"] },
+  listBots: { risk: "read" },
   createRoutine: { risk: "medium", roles: ["admin", "sales", "warehouse", "accounts"] },
   listRoutines: { risk: "read" },
   stopRoutine: { risk: "medium", roles: ["admin"] },
