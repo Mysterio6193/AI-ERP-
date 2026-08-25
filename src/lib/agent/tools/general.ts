@@ -5,6 +5,7 @@ import { defineTool } from "./define"
 import { acknowledgeTool, brokenTools, describeBroken, healthSummary } from "@/lib/agent/tool-health"
 import { db } from "@/lib/db"
 import { describeStale, STALE_AFTER_HOURS } from "@/lib/agent/proposal-summary"
+import { safeFetchPage } from "@/lib/agent/safe-fetch"
 
 /**
  * General digital problem solving & Hermes Reasoning tools.
@@ -201,40 +202,26 @@ export function buildGeneralTools(principal: AgentPrincipal) {
 
     fetchWebPage: defineTool({
       description:
-        "Fetch and read public web content, API endpoints, or online supplier price lists (returns cleaned text).",
+        "Fetch and read a public web page — a supplier price list, a food safety notice, a competitor's site. Returns cleaned text. Only reaches the public internet: addresses inside this network are refused.",
       inputSchema: z.object({
-        url: z.string().url().describe("The URL to fetch"),
+        url: z.string().url().describe("The public URL to fetch"),
       }),
       execute: async ({ url }) => {
-        try {
-          const response = await fetch(url, {
-            headers: { "User-Agent": "SupplySure-Agent/1.0 (B2B ERP Assistant)" },
-            signal: AbortSignal.timeout(10000),
-          })
+        // Was a raw fetch on whatever it was given, and this tool is available
+        // to customers — so a customer could have the agent read
+        // http://localhost:3000/api/orders from inside the network.
+        const result = await safeFetchPage(url)
 
-          if (!response.ok) {
-            return { ok: false as const, error: `HTTP ${response.status}: ${response.statusText}` }
-          }
+        if (!result.ok) {
+          return { ok: false as const, error: result.error }
+        }
 
-          const text = await response.text()
-          const cleaned = text
-            .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
-            .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "")
-            .replace(/<[^>]+>/g, " ")
-            .replace(/\s+/g, " ")
-            .trim()
-            .slice(0, 4000)
-
-          return {
-            ok: true as const,
-            url,
-            content: cleaned,
-          }
-        } catch (error) {
-          return {
-            ok: false as const,
-            error: `Failed to fetch URL: ${error instanceof Error ? error.message : "network error"}`,
-          }
+        return {
+          ok: true as const,
+          url: result.url,
+          content: result.content,
+          // Carried with the content so it cannot be read without it.
+          trust: result.trust,
         }
       },
     }),
