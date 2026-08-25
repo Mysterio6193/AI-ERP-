@@ -39,7 +39,7 @@ export function buildAutonomousAiTools(principal: AgentPrincipal) {
           db.product.count({ where: { status: "active" } }),
           db.customer.count({ where: { status: "active" } }),
           db.salesOrder.count({ where: { status: { in: ["pending", "approved", "in_production", "picking"] } } }),
-          db.inventory.findMany({ select: { quantity: true, product: { select: { name: true, costPrice: true, basePrice: true } } } }),
+          db.inventory.findMany({ select: { quantity: true, product: { select: { name: true, costPrice: true, wholesalePrice: true } } } }),
           db.invoice.findMany({ where: { status: { not: "paid" }, dueDate: { lt: new Date() } }, select: { outstandingAmt: true } }),
         ])
 
@@ -100,7 +100,16 @@ export function buildAutonomousAiTools(principal: AgentPrincipal) {
         scanScope: z.enum(["all", "margins", "inventory", "debtors", "customer_retention"]).optional().default("all"),
       }),
       execute: async ({ scanScope }) => {
-        const anomalies = []
+        // `const x = []` infers never[] and rejects every push. Typed
+        // concretely so the severity counts below stay comparable strings.
+        const anomalies: Array<{
+          domain: string
+          severity: string
+          entity: string
+          issue: string
+          action?: string
+          recommendedFix?: string
+        }> = []
 
         // 1. Margin scan
         if (scanScope === "all" || scanScope === "margins") {

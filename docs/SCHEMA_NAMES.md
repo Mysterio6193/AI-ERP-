@@ -7,6 +7,16 @@ Prisma `where` clauses, so a green typecheck is not proof a query is valid.
 
 Check here before writing a query against these models.
 
+## The build now refuses to break
+
+A pre-commit hook runs `tsc --noEmit` and refuses a commit that does not
+typecheck. It exists because the build was broken by a commit four separate
+times, always this way. Enable it in a fresh clone with:
+
+    git config core.hooksPath .githooks
+
+Skip it deliberately with `git commit --no-verify`.
+
 ## Fields that do not exist
 
 | Guessed | Real | Model |
@@ -25,6 +35,12 @@ Check here before writing a query against these models.
 | `isQuarantined` | `status === "quarantined"` | `InventoryBatch` |
 | `dueDate` | `dueAt` | `CrmTask` |
 | `description` | `notes` | `CrmTask` |
+| `title` | `name` | `Opportunity` |
+| `estimatedValue` | `value` | `Opportunity` |
+| `description` | *nothing* — a lost deal has `lossReason` | `Opportunity` |
+| `notes` | `customerNotes` / `internalNotes` | `SalesOrder` |
+| `notes` | *nothing* — `Activity` is the timeline | `Customer` |
+| `content` | `body` | `Activity` |
 
 ## Models under a different name
 
@@ -64,3 +80,15 @@ where an unattributed journal must still land somewhere.
 `Invoice.invoiceNumber`, `SalesOrder.orderNumber` and `PurchaseOrder.poNumber`
 are unique **per company**, not globally — two entities each having their own
 `INV-2026-01001` is correct.
+
+## Two mistakes that are not naming
+
+**A relation filtered as a string.** `product: { category: { equals: "x" } }`
+does not narrow a relation — and it breaks the *whole query's* typing, so
+`inv.product` collapses too and you get a cascade of unrelated-looking errors.
+Filter the relation's own field: `category: { name: { equals: "x" } }`.
+
+**`const rows = []` infers `never[]`.** Every `push` into it then fails. Declare
+the element type, and declare it concretely rather than as
+`Record<string, unknown>` — the loose version makes every value `unknown`, so
+any sum computed from those rows fails next.

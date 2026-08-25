@@ -112,7 +112,7 @@ export function buildSimulationAiTools(principal: AgentPrincipal) {
           include: { product: true },
         })
 
-        const fixes = []
+        const fixes: Array<{ entity: string; issue: string; action: string }> = []
 
         for (const inv of inventoryWithNegative) {
           fixes.push({
