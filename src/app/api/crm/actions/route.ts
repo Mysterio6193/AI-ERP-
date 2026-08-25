@@ -4,6 +4,7 @@ import { requireAdminUser } from "@/lib/admin-auth"
 import { db } from "@/lib/db"
 import { nextDocumentNumber } from "@/lib/numbering"
 import { getActiveCompanyId } from "@/lib/active-company"
+import { checkSupplyLink, isChannelRole } from "@/lib/channel"
 
 /**
  * CRM write actions.
@@ -475,6 +476,80 @@ const handlers: Record<string, ActionHandler> = {
     ])
 
     return { ok: true, data: { customerId: customer.id, customer: customer.name } }
+  },
+
+  /**
+   * Where an account sits in the channel.
+   *
+   * Mirrors the setChannelRole agent tool, including the refusal to demote a
+   * distributor that still supplies venues — otherwise those venues keep
+   * pointing at an account that is no longer allowed to supply, which reads as
+   * a valid link and is not.
+   */
+  async setChannelRole(payload) {
+    const customerId = String(payload.customerId || "")
+    const role = String(payload.role || "")
+
+    if (!customerId || !isChannelRole(role)) {
+      return { ok: false, error: "customerId and a valid role are required" }
+    }
+
+    const customer = await db.customer.findUnique({
+      where: { id: customerId },
+      select: { name: true, _count: { select: { supplies: true } } },
+    })
+
+    if (!customer) return { ok: false, error: "No such customer" }
+
+    if (role !== "distributor" && customer._count.supplies > 0) {
+      return {
+        ok: false,
+        error: `${customer.name} supplies ${customer._count.supplies} venue(s). Move those to another distributor first.`,
+      }
+    }
+
+    const updated = await db.customer.update({
+      where: { id: customerId },
+      data: { channelRole: role, ...(role === "distributor" ? { suppliedById: null } : {}) },
+      select: { id: true, name: true, channelRole: true },
+    })
+
+    return { ok: true, data: updated }
+  },
+
+  /** Which distributor supplies this venue. Mirrors setSupplyingDistributor. */
+  async setSupplyingDistributor(payload) {
+    const customerId = String(payload.customerId || "")
+    const distributorId = payload.distributorId ? String(payload.distributorId) : null
+
+    if (!customerId) return { ok: false, error: "customerId is required" }
+
+    const [customer, distributor] = await Promise.all([
+      db.customer.findUnique({ where: { id: customerId }, select: { name: true, channelRole: true } }),
+      distributorId
+        ? db.customer.findUnique({ where: { id: distributorId }, select: { name: true, channelRole: true } })
+        : Promise.resolve(null),
+    ])
+
+    if (!customer) return { ok: false, error: "No such customer" }
+    if (distributorId && !distributor) return { ok: false, error: "No such distributor" }
+
+    const verdict = checkSupplyLink({
+      customerId,
+      customerRole: customer.channelRole,
+      supplierId: distributorId,
+      supplierRole: distributor?.channelRole,
+    })
+
+    if (!verdict.ok) return { ok: false, error: verdict.reason as string }
+
+    const updated = await db.customer.update({
+      where: { id: customerId },
+      data: { suppliedById: distributorId },
+      select: { id: true, name: true, suppliedBy: { select: { id: true, name: true } } },
+    })
+
+    return { ok: true, data: updated }
   },
 
   async assignRep(payload) {

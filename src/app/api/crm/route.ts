@@ -67,9 +67,15 @@ export async function GET(request: NextRequest) {
         const page = Math.max(Number(searchParams.get("page")) || 1, 1)
         const pageSize = Math.min(Math.max(Number(searchParams.get("pageSize")) || 50, 1), 200)
 
+        // Where the lead came from is the filter that matters after a trade
+        // show: a rep needs the fifty people they met on Saturday, not every
+        // lead the business has ever had.
+        const source = searchParams.get("source") || ""
+
         const where: Prisma.LeadWhereInput = {
           ...(userId ? { ownerId: userId } : {}),
           ...(status && status !== "all" ? { status } : {}),
+          ...(source && source !== "all" ? { source } : {}),
           ...(search
             ? {
                 OR: [
@@ -84,7 +90,7 @@ export async function GET(request: NextRequest) {
             : {}),
         }
 
-        const [leads, total, statusCounts] = await Promise.all([
+        const [leads, total, statusCounts, sourceCounts] = await Promise.all([
           db.lead.findMany({
             where,
             orderBy: { createdAt: "desc" },
@@ -107,6 +113,7 @@ export async function GET(request: NextRequest) {
           }),
           db.lead.count({ where }),
           db.lead.groupBy({ by: ["status"], _count: { status: true } }),
+          db.lead.groupBy({ by: ["source"], _count: { source: true } }),
         ])
 
         return NextResponse.json({
@@ -120,6 +127,84 @@ export async function GET(request: NextRequest) {
             statusCounts: Object.fromEntries(
               statusCounts.map((row) => [row.status, row._count.status])
             ),
+            sourceCounts: Object.fromEntries(
+              sourceCounts.map((row) => [row.source, row._count.source])
+            ),
+          },
+        })
+      }
+
+      /**
+       * The account list, told as a channel rather than as a flat table.
+       *
+       * A distributor and the venues it supplies are different jobs — one is
+       * reordering, the other is demand creation — so the list says which each
+       * account is and, for a venue, who supplies it.
+       */
+      case "accounts": {
+        const search = (searchParams.get("search") || "").trim()
+        const role = searchParams.get("role") || ""
+        const page = Math.max(Number(searchParams.get("page")) || 1, 1)
+        const pageSize = Math.min(Math.max(Number(searchParams.get("pageSize")) || 50, 1), 200)
+
+        const where: Prisma.CustomerWhereInput = {
+          ...(userId ? { salesRepId: userId } : {}),
+          ...(role && role !== "all" ? { channelRole: role } : {}),
+          ...(search
+            ? {
+                OR: [
+                  { name: { contains: search, mode: "insensitive" } },
+                  { tradingName: { contains: search, mode: "insensitive" } },
+                  { contactPerson: { contains: search, mode: "insensitive" } },
+                  { email: { contains: search, mode: "insensitive" } },
+                ],
+              }
+            : {}),
+        }
+
+        const [accounts, total, roleCounts, distributors] = await Promise.all([
+          db.customer.findMany({
+            where,
+            orderBy: { name: "asc" },
+            skip: (page - 1) * pageSize,
+            take: pageSize,
+            select: {
+              id: true,
+              name: true,
+              contactPerson: true,
+              email: true,
+              phone: true,
+              status: true,
+              channelRole: true,
+              creditStatus: true,
+              creditBalance: true,
+              suppliedBy: { select: { id: true, name: true } },
+              salesRep: { select: { name: true } },
+              _count: { select: { orders: true, supplies: true } },
+            },
+          }),
+          db.customer.count({ where }),
+          db.customer.groupBy({ by: ["channelRole"], _count: { channelRole: true } }),
+          // For the "supplied by" picker; only a distributor may appear in it.
+          db.customer.findMany({
+            where: { channelRole: "distributor", status: "active" },
+            select: { id: true, name: true },
+            orderBy: { name: "asc" },
+          }),
+        ])
+
+        return NextResponse.json({
+          success: true,
+          data: {
+            accounts,
+            total,
+            page,
+            pageSize,
+            pageCount: Math.ceil(total / pageSize),
+            roleCounts: Object.fromEntries(
+              roleCounts.map((row) => [row.channelRole ?? "direct", row._count.channelRole])
+            ),
+            distributors,
           },
         })
       }

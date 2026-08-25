@@ -17,6 +17,7 @@ import {
   Settings,
   LogOut,
   Building2,
+  UserPlus,
   ChevronDown,
   Truck,
   Route,
@@ -143,6 +144,20 @@ const navItems: NavItem[] = [
     href: "/crm",
     icon: Contact2,
     roles: ["admin", "sales", "accounts"],
+    group: "Sales & CRM",
+  },
+  {
+    label: "Accounts",
+    href: "/crm/accounts",
+    icon: Building2,
+    roles: ["admin", "sales", "accounts"],
+    group: "Sales & CRM",
+  },
+  {
+    label: "Leads",
+    href: "/crm/leads",
+    icon: UserPlus,
+    roles: ["admin", "sales"],
     group: "Sales & CRM",
   },
   {
