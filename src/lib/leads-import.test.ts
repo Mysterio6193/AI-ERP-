@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { classifyDuplicate, inferColumnMapping, parseCsv, type KeyIndex } from "./leads-import"
+import { classifyDuplicate, detectDelimiter, inferColumnMapping, parseCsv, type KeyIndex } from "./leads-import"
 
 /**
  * A prospect list is someone's spreadsheet, so the parser meets quoted commas,
@@ -165,5 +165,89 @@ describe("classifyDuplicate", () => {
   it("does not treat two blank phones as the same person", () => {
     const k = keys({ phoneKey: "", nameKey: "uniquevenue" })
     expect(classifyDuplicate(k, index({ phone: [""] }), index())).toBeNull()
+  })
+})
+
+describe("detectDelimiter", () => {
+  it("finds commas", () => {
+    expect(detectDelimiter("a,b,c\n1,2,3")).toBe(",")
+  })
+
+  it("finds semicolons, which Excel writes in much of Europe", () => {
+    expect(detectDelimiter("a;b;c\n1;2;3")).toBe(";")
+  })
+
+  it("finds tabs, which is what a sheet pasted out of Excel looks like", () => {
+    expect(detectDelimiter("a\tb\tc\n1\t2\t3")).toBe("\t")
+  })
+
+  it("is not fooled by a comma inside a quoted header", () => {
+    expect(detectDelimiter('"Name, trading";Email\nBella;a@b.com')).toBe(";")
+  })
+
+  it("falls back to a comma for a single-column file", () => {
+    expect(detectDelimiter("Business Name\nBella")).toBe(",")
+  })
+})
+
+describe("parseCsv delimiters", () => {
+  it("reads a semicolon file", () => {
+    const rows = parseCsv("Business Name;Email\nBella;a@b.com")
+    expect(rows[0]).toEqual({ "Business Name": "Bella", Email: "a@b.com" })
+  })
+
+  it("reads a tab file", () => {
+    const rows = parseCsv("Business Name\tEmail\nBella\ta@b.com")
+    expect(rows[0]).toEqual({ "Business Name": "Bella", Email: "a@b.com" })
+  })
+
+  it("still protects a comma inside quotes when commas separate", () => {
+    const rows = parseCsv('Business Name,Address\nBella,"Shop 3, Village Precinct"')
+    expect(rows[0].Address).toBe("Shop 3, Village Precinct")
+  })
+})
+
+describe("inferColumnMapping — describing columns vs naming ones", () => {
+  it("does not mistake a category column for the business name", () => {
+    // "Business Type" holds "Restaurant / Commercial Foodservice". Taking it as
+    // the name imports every row with a category where its name should be, and
+    // the file looks like it worked.
+    const mapping = inferColumnMapping(["Business Type", "Company Name", "First Name", "Email"])
+    expect(mapping.businessName).toBe("Company Name")
+    expect(mapping.industry).toBe("Business Type")
+  })
+
+  it("returns nothing rather than guessing when no column names the business", () => {
+    const mapping = inferColumnMapping(["Business Type", "First Name", "Email"])
+    expect(mapping.businessName).toBeNull()
+  })
+
+  it("still treats a column headed exactly 'Business' as the name", () => {
+    expect(inferColumnMapping(["Business", "Contact"]).businessName).toBe("Business")
+  })
+
+  it("handles the words a hospitality list actually uses", () => {
+    const mapping = inferColumnMapping(["Restaurant Name", "Contact Person", "Phone Number"])
+    expect(mapping.businessName).toBe("Restaurant Name")
+    expect(mapping.contactName).toBe("Contact Person")
+    expect(mapping.phone).toBe("Phone Number")
+  })
+
+  it("separates a venue from its venue type", () => {
+    const mapping = inferColumnMapping(["Venue Name", "Venue Type", "Contact Name"])
+    expect(mapping.businessName).toBe("Venue Name")
+    expect(mapping.industry).toBe("Venue Type")
+  })
+
+  it("does not let 'name' steal the contact column", () => {
+    const mapping = inferColumnMapping(["Name", "Contact Name"])
+    expect(mapping.businessName).toBe("Name")
+    expect(mapping.contactName).toBe("Contact Name")
+  })
+
+  it("copes with underscores and other punctuation", () => {
+    const mapping = inferColumnMapping(["business_name", "email_address"])
+    expect(mapping.businessName).toBe("business_name")
+    expect(mapping.email).toBe("email_address")
   })
 })

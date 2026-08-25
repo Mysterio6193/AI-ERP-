@@ -27,6 +27,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
 
+/** The fields a lead can carry, in the order they matter when mapping. */
+const MAPPABLE_FIELDS: Array<{ key: string; label: string; required?: boolean }> = [
+  { key: "businessName", label: "Business", required: true },
+  { key: "contactName", label: "Contact" },
+  { key: "email", label: "Email" },
+  { key: "phone", label: "Phone" },
+  { key: "suburb", label: "Suburb" },
+  { key: "state", label: "State" },
+  { key: "postcode", label: "Postcode" },
+  { key: "industry", label: "Type" },
+  { key: "source", label: "Source" },
+  { key: "notes", label: "Notes" },
+  { key: "estimatedValue", label: "Value" },
+]
+
 interface Lead {
   id: string
   businessName: string
@@ -120,7 +135,7 @@ export default function LeadsPage() {
       duplicatesInFile: number
       duplicatesExisting: number
       skipped: Array<{ row: number; reason: string; value?: string }>
-    }
+    } | null
     preview: Array<Record<string, string>>
   } | null>(null)
   const [csvText, setCsvText] = useState("")
@@ -128,20 +143,48 @@ export default function LeadsPage() {
   const [importing, setImporting] = useState(false)
 
   const analyseCsv = useCallback(
-    async (text: string, fileName: string) => {
+    async (text: string, fileName: string, mappingOverride?: Record<string, string | null>) => {
       setImporting(true)
-      setAnalysis(null)
 
       try {
         const response = await fetch("/api/crm/leads/import", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ csv: text, mode: "analyse", source: source === "all" ? undefined : source }),
+          body: JSON.stringify({
+            csv: text,
+            mode: "analyse",
+            mapping: mappingOverride,
+            source: source === "all" ? undefined : source,
+          }),
         })
 
         const result = await response.json()
 
         if (!result.success) {
+          /**
+           * A mapping it could not guess is not a dead end. The route sends the
+           * headers back with its best attempt, so the columns can be picked by
+           * hand — which matters, because the error asks for exactly that and
+           * there is otherwise nothing to click.
+           */
+          if (result.data?.headers) {
+            setCsvText(text)
+            setCsvName(fileName)
+            setAnalysis({
+              headers: result.data.headers,
+              mapping: result.data.mapping ?? {},
+              summary: null,
+              preview: [],
+            })
+            toast({
+              variant: "destructive",
+              title: "Tell me which column holds the business name",
+              description: `Columns found: ${result.data.headers.join(", ")}`,
+            })
+            return
+          }
+
+          setAnalysis(null)
           toast({ variant: "destructive", title: "Could not read that file", description: result.error })
           return
         }
@@ -157,7 +200,7 @@ export default function LeadsPage() {
   )
 
   const commitImport = useCallback(async () => {
-    if (!csvText || !analysis) return
+    if (!csvText || !analysis?.summary) return
 
     setImporting(true)
 
@@ -307,66 +350,120 @@ export default function LeadsPage() {
               Check this before importing {csvName ? `— ${csvName}` : ""}
             </CardTitle>
             <CardDescription className="text-xs">
-              {analysis.summary.totalRows} row{analysis.summary.totalRows === 1 ? "" : "s"} read.
-              Nothing has been saved yet.
+              {analysis.summary
+                ? `${analysis.summary.totalRows} row${analysis.summary.totalRows === 1 ? "" : "s"} read. Nothing has been saved yet.`
+                : "Nothing has been saved yet."}
             </CardDescription>
           </CardHeader>
 
           <CardContent className="space-y-3 text-xs">
-            <div className="flex flex-wrap gap-4">
-              <span>
-                <span className="text-lg font-semibold">{analysis.summary.imported}</span> to import
-              </span>
-              <span className="text-muted-foreground">
-                <span className="text-lg font-semibold">{analysis.summary.duplicatesExisting}</span> already on file
-              </span>
-              <span className="text-muted-foreground">
-                <span className="text-lg font-semibold">{analysis.summary.duplicatesInFile}</span> repeated in the sheet
-              </span>
-            </div>
-
+            {/*
+              Mapping first: every number below is only as right as this is, and
+              a wrong guess files phone numbers as postcodes without complaining.
+            */}
             <div>
-              <p className="mb-1 font-medium">Columns it will use</p>
-              <div className="flex flex-wrap gap-1.5">
-                {Object.entries(analysis.mapping)
-                  .filter(([, column]) => column)
-                  .map(([field, column]) => (
-                    <Badge key={field} variant="secondary" className="font-normal">
-                      {field} ← {column}
-                    </Badge>
-                  ))}
+              <p className="mb-1.5 font-medium">Which column is which</p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {MAPPABLE_FIELDS.map((field) => (
+                  <div key={field.key} className="flex items-center gap-2">
+                    <span className="w-28 shrink-0 text-muted-foreground">
+                      {field.label}
+                      {field.required ? <span className="text-rose-600"> *</span> : null}
+                    </span>
+                    <Select
+                      value={analysis.mapping[field.key] ?? "__none__"}
+                      onValueChange={(value) => {
+                        const next = { ...analysis.mapping, [field.key]: value === "__none__" ? null : value }
+                        setAnalysis({ ...analysis, mapping: next })
+                        void analyseCsv(csvText, csvName, next)
+                      }}
+                    >
+                      <SelectTrigger className="h-7 flex-1 text-xs"><SelectValue placeholder="Not used" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Not used</SelectItem>
+                        {analysis.headers.map((header) => (
+                          <SelectItem key={header} value={header}>{header}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ))}
               </div>
-              {analysis.headers.some((header) => !Object.values(analysis.mapping).includes(header)) ? (
-                <p className="mt-1.5 text-muted-foreground">
-                  Ignored:{" "}
-                  {analysis.headers
-                    .filter((header) => !Object.values(analysis.mapping).includes(header))
-                    .join(", ")}
-                </p>
-              ) : null}
             </div>
 
-            {analysis.summary.skipped.length ? (
-              <div>
-                <p className="mb-1 font-medium">Skipped rows</p>
-                <ul className="space-y-0.5 text-muted-foreground">
-                  {analysis.summary.skipped.slice(0, 8).map((row) => (
-                    <li key={`${row.row}-${row.value ?? ""}`}>
-                      Row {row.row}: {row.reason}
-                      {row.value ? ` — ${row.value}` : ""}
-                    </li>
-                  ))}
-                  {analysis.summary.skipped.length > 8 ? (
-                    <li>…and {analysis.summary.skipped.length - 8} more</li>
-                  ) : null}
-                </ul>
-              </div>
-            ) : null}
+            {!analysis.summary ? (
+              <p className="text-muted-foreground">
+                Pick the business name column above and the counts will appear.
+              </p>
+            ) : (
+              <>
+                <div className="flex flex-wrap gap-4">
+                  <span>
+                    <span className="text-lg font-semibold">{analysis.summary.imported}</span> to import
+                  </span>
+                  <span className="text-muted-foreground">
+                    <span className="text-lg font-semibold">{analysis.summary.duplicatesExisting}</span> already on file
+                  </span>
+                  <span className="text-muted-foreground">
+                    <span className="text-lg font-semibold">{analysis.summary.duplicatesInFile}</span> repeated in the sheet
+                  </span>
+                </div>
+
+                {analysis.preview.length ? (
+                  <div>
+                    <p className="mb-1 font-medium">First rows, as they will be read</p>
+                    <div className="overflow-x-auto rounded border">
+                      <table className="w-full text-[11px]">
+                        <thead className="bg-muted/50">
+                          <tr>
+                            {MAPPABLE_FIELDS.filter((field) => analysis.mapping[field.key]).map((field) => (
+                              <th key={field.key} className="px-2 py-1 text-left font-medium">{field.label}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {analysis.preview.slice(0, 3).map((row, index) => (
+                            <tr key={index} className="border-t">
+                              {MAPPABLE_FIELDS.filter((field) => analysis.mapping[field.key]).map((field) => (
+                                <td key={field.key} className="px-2 py-1">
+                                  {row[analysis.mapping[field.key] as string] || "—"}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : null}
+
+                {analysis.summary.skipped.length ? (
+                  <div>
+                    <p className="mb-1 font-medium">Skipped rows</p>
+                    <ul className="space-y-0.5 text-muted-foreground">
+                      {analysis.summary.skipped.slice(0, 8).map((row) => (
+                        <li key={`${row.row}-${row.value ?? ""}`}>
+                          Row {row.row}: {row.reason}
+                          {row.value ? ` — ${row.value}` : ""}
+                        </li>
+                      ))}
+                      {analysis.summary.skipped.length > 8 ? (
+                        <li>…and {analysis.summary.skipped.length - 8} more</li>
+                      ) : null}
+                    </ul>
+                  </div>
+                ) : null}
+              </>
+            )}
 
             <div className="flex gap-2 pt-1">
-              <Button size="sm" disabled={importing || !analysis.summary.imported} onClick={() => void commitImport()}>
+              <Button
+                size="sm"
+                disabled={importing || !analysis.summary?.imported}
+                onClick={() => void commitImport()}
+              >
                 {importing ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
-                Import {analysis.summary.imported} lead{analysis.summary.imported === 1 ? "" : "s"}
+                Import {analysis.summary?.imported ?? 0} lead{analysis.summary?.imported === 1 ? "" : "s"}
               </Button>
               <Button size="sm" variant="ghost" disabled={importing} onClick={() => setAnalysis(null)}>
                 Cancel

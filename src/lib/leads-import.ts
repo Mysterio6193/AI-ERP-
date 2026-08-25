@@ -21,7 +21,48 @@ export interface ParsedRow {
  * any quoted field containing one - and "Shop 3, Village Precinct" is the norm
  * in this data, not the exception.
  */
-export function parseCsv(text: string): ParsedRow[] {
+/**
+ * Which character separates the fields.
+ *
+ * "CSV" is what people call the file regardless of what is actually in it:
+ * Excel writes semicolons wherever the decimal separator is a comma, and a
+ * sheet copied straight out of Excel is tab-separated. Guessing from the header
+ * line is enough, because whichever character really separates the fields
+ * occurs far more often there than the others.
+ */
+export function detectDelimiter(text: string): string {
+  const firstLine = text.replace(/^﻿/, "").split(/\r?\n/).find((line) => line.trim() !== "") ?? ""
+
+  // Counted outside quotes so a comma inside "Shop 3, Village" does not win.
+  const countOutsideQuotes = (delimiter: string) => {
+    let count = 0
+    let inQuotes = false
+
+    for (let index = 0; index < firstLine.length; index += 1) {
+      const char = firstLine[index]
+      if (char === '"') inQuotes = !inQuotes
+      else if (char === delimiter && !inQuotes) count += 1
+    }
+
+    return count
+  }
+
+  const candidates = [",", ";", "\t", "|"]
+  let best = ","
+  let bestCount = 0
+
+  for (const candidate of candidates) {
+    const count = countOutsideQuotes(candidate)
+    if (count > bestCount) {
+      best = candidate
+      bestCount = count
+    }
+  }
+
+  return best
+}
+
+export function parseCsv(text: string, delimiter?: string): ParsedRow[] {
   const rows: string[][] = []
   let row: string[] = []
   let field = ""
@@ -30,6 +71,7 @@ export function parseCsv(text: string): ParsedRow[] {
   // Strip a UTF-8 BOM, which Excel writes and which otherwise corrupts the
   // first header name.
   const input = text.replace(/^﻿/, "")
+  const separator = delimiter ?? detectDelimiter(input)
 
   for (let index = 0; index < input.length; index += 1) {
     const char = input[index]
@@ -50,7 +92,7 @@ export function parseCsv(text: string): ParsedRow[] {
 
     if (char === '"') {
       inQuotes = true
-    } else if (char === ",") {
+    } else if (char === separator) {
       row.push(field)
       field = ""
     } else if (char === "\n" || char === "\r") {
@@ -86,14 +128,26 @@ export function parseCsv(text: string): ParsedRow[] {
 
 /** Field names this importer understands, and the headers that map to them. */
 const COLUMN_ALIASES: Record<string, string[]> = {
-  businessName: ["business name", "business", "company", "company name", "trading name", "venue", "name", "account", "customer", "client"],
+  businessName: [
+    "business name", "business", "company", "company name", "trading name", "venue", "venue name",
+    "name", "account", "account name", "customer", "customer name", "client", "client name",
+    // What a hospitality prospect list actually calls the column.
+    "restaurant", "restaurant name", "pub", "cafe", "store", "store name", "outlet", "outlet name",
+    "organisation", "organization", "entity", "shop", "shop name", "premises",
+  ],
   contactName: ["contact", "contact name", "first name", "full name", "owner", "manager", "person"],
   email: ["email", "e-mail", "email address", "contact email"],
   phone: ["phone", "telephone", "mobile", "contact number", "phone number", "tel"],
   suburb: ["suburb", "city", "town", "locality", "area"],
   state: ["state", "region"],
   postcode: ["postcode", "post code", "zip", "postal code"],
-  industry: ["industry", "type", "category", "segment", "venue type", "cuisine"],
+  industry: [
+    "industry", "type", "category", "segment", "venue type", "cuisine", "sector",
+    // A column headed "Business Type" describes the business, it does not name
+    // it — and it is the single most common way to lose the real name column.
+    "business type", "business category", "business segment", "customer type",
+    "account type", "venue category", "channel",
+  ],
   source: ["source", "lead source", "origin", "channel"],
   notes: ["notes", "note", "comment", "comments", "description"],
   estimatedValue: ["estimated value", "value", "monthly spend", "potential", "est value", "revenue"],
@@ -105,26 +159,97 @@ const COLUMN_ALIASES: Record<string, string[]> = {
  * Returned rather than applied so the caller can show the mapping and let a
  * human correct it before six thousand rows are written.
  */
+/**
+ * Words that mean a header describes a record rather than names it.
+ *
+ * "Business Type" holds "Restaurant / Commercial Foodservice", not a business
+ * name, but it contains the word "business" and so out-scores the column that
+ * actually holds the name. Every row then imports with a category where its
+ * name should be, and the file looks like it worked.
+ */
+const DISQUALIFIERS: Record<string, string[]> = {
+  businessName: ["type", "category", "segment", "class", "industry", "sector", "channel", "status", "id", "code", "number"],
+  contactName: ["business", "company", "type", "category"],
+}
+
+/** Headers differ only by punctuation more often than by wording. */
+function normaliseHeader(header: string) {
+  return header.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()
+}
+
+/**
+ * Which column holds what.
+ *
+ * Two passes, and the order matters. An exact match on every field is settled
+ * first, so a sheet with both "Name" and "Contact Name" assigns each to the
+ * field that names it outright. Only then does the looser pass run, and it
+ * ranks every remaining field-and-column pair by how specific the match is
+ * before assigning any of them — otherwise "Contact Name" gets claimed by
+ * businessName, which lists "name" among its aliases, purely because
+ * businessName is considered first.
+ */
 export function inferColumnMapping(headers: string[]): Record<string, string | null> {
   const mapping: Record<string, string | null> = {}
   const used = new Set<string>()
 
-  for (const [field, aliases] of Object.entries(COLUMN_ALIASES)) {
-    const match = headers.find((header) => {
-      if (used.has(header)) {
-        return false
-      }
+  for (const field of Object.keys(COLUMN_ALIASES)) {
+    mapping[field] = null
+  }
 
-      const normalised = header.toLowerCase().trim()
-      return aliases.includes(normalised)
-    })
+  const disqualified = (field: string, header: string) => {
+    const words = normaliseHeader(header).split(" ")
+    return (DISQUALIFIERS[field] ?? []).some((word) => words.includes(word))
+  }
+
+  // Pass one: the header says exactly what it is. An exact match is trusted
+  // even against a disqualifier, since a column headed exactly "Business" is a
+  // name column whatever else the sheet contains.
+  for (const [field, aliases] of Object.entries(COLUMN_ALIASES)) {
+    const normalisedAliases = aliases.map(normaliseHeader)
+    const match = headers.find(
+      (header) => !used.has(header) && normalisedAliases.includes(normaliseHeader(header))
+    )
 
     if (match) {
       mapping[field] = match
       used.add(match)
-    } else {
-      mapping[field] = null
     }
+  }
+
+  // Pass two: the header contains the words, e.g. "Restaurant / Venue Name".
+  const candidates: Array<{ field: string; header: string; score: number }> = []
+
+  for (const [field, aliases] of Object.entries(COLUMN_ALIASES)) {
+    if (mapping[field]) continue
+
+    for (const header of headers) {
+      if (used.has(header)) continue
+      if (disqualified(field, header)) continue
+
+      const normalised = normaliseHeader(header)
+
+      for (const alias of aliases) {
+        const normalisedAlias = normaliseHeader(alias)
+
+        // Word-boundary matching, so "name" does not match "nameplate" and
+        // "tel" does not match "hotel".
+        const asWords = new RegExp(`(^| )${normalisedAlias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}( |$)`)
+
+        if (asWords.test(normalised)) {
+          // Longer aliases are more specific, so they win the column.
+          candidates.push({ field, header, score: normalisedAlias.length })
+        }
+      }
+    }
+  }
+
+  candidates.sort((a, b) => b.score - a.score)
+
+  for (const candidate of candidates) {
+    if (mapping[candidate.field] || used.has(candidate.header)) continue
+
+    mapping[candidate.field] = candidate.header
+    used.add(candidate.header)
   }
 
   return mapping
