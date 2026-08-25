@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { inferColumnMapping, parseCsv } from "./leads-import"
+import { classifyDuplicate, inferColumnMapping, parseCsv, type KeyIndex } from "./leads-import"
 
 /**
  * A prospect list is someone's spreadsheet, so the parser meets quoted commas,
@@ -109,5 +109,61 @@ describe("inferColumnMapping", () => {
     expect(mapping.businessName).toBe("Business Name")
     expect(mapping.phone).toBeNull()
     expect(mapping.email).toBeNull()
+  })
+})
+
+const index = (over: Partial<Record<"email" | "phone" | "name", string[]>> = {}): KeyIndex => ({
+  email: new Set(over.email ?? []),
+  phone: new Set(over.phone ?? []),
+  name: new Set(over.name ?? []),
+})
+
+const keys = (over: Partial<{ email: string; phoneKey: string; nameKey: string }> = {}) => ({
+  email: "",
+  phoneKey: "",
+  nameKey: "bellanapoli",
+  ...over,
+})
+
+describe("classifyDuplicate", () => {
+  it("lets a genuinely new row through", () => {
+    expect(classifyDuplicate(keys(), index(), index())).toBeNull()
+  })
+
+  it("catches someone we already have", () => {
+    expect(classifyDuplicate(keys(), index({ name: ["bellanapoli"] }), index())).toBe("already-on-file")
+  })
+
+  it("catches a row the sheet lists twice", () => {
+    expect(classifyDuplicate(keys(), index(), index({ name: ["bellanapoli"] }))).toBe("repeated-in-file")
+  })
+
+  it("calls a row that is both 'already on file' — the more useful answer", () => {
+    // Otherwise a sheet full of existing customers reads as a problem with the
+    // sheet, and someone goes looking for a mistake that is not there.
+    const both = classifyDuplicate(keys(), index({ name: ["bellanapoli"] }), index({ name: ["bellanapoli"] }))
+    expect(both).toBe("already-on-file")
+  })
+
+  it("matches on email as well as name", () => {
+    const k = keys({ email: "marco@bella.com.au", nameKey: "somethingelse" })
+    expect(classifyDuplicate(k, index({ email: ["marco@bella.com.au"] }), index())).toBe("already-on-file")
+  })
+
+  it("matches on phone as well as name", () => {
+    const k = keys({ phoneKey: "0391234567", nameKey: "somethingelse" })
+    expect(classifyDuplicate(k, index({ phone: ["0391234567"] }), index())).toBe("already-on-file")
+  })
+
+  it("does not treat two blank emails as the same person", () => {
+    // Half a trade-show list has no email; matching on empty would collapse it
+    // into one lead and silently bin the rest.
+    const k = keys({ email: "", nameKey: "uniquevenue" })
+    expect(classifyDuplicate(k, index({ email: [""] }), index())).toBeNull()
+  })
+
+  it("does not treat two blank phones as the same person", () => {
+    const k = keys({ phoneKey: "", nameKey: "uniquevenue" })
+    expect(classifyDuplicate(k, index({ phone: [""] }), index())).toBeNull()
   })
 })

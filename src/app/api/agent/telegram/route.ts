@@ -369,6 +369,66 @@ async function handleMessage(message: NonNullable<TelegramUpdate["message"]>) {
     }
   }
 
+  /**
+   * Attached files.
+   *
+   * A document carries no `text`, so before this every file sent to the bot
+   * fell through to the silent return below — the sender saw nothing at all and
+   * could not tell the bot from a bot that was down. Reading the file is the
+   * point, but replying even when it cannot be read is what stops the silence.
+   */
+  if (message.document) {
+    const fileName = message.document.file_name || "attachment"
+    const mimeType = message.document.mime_type || ""
+    const extension = fileName.includes(".") ? fileName.split(".").pop()!.toLowerCase() : ""
+
+    // Decided by extension as well as mime type: Telegram reports CSVs as
+    // application/vnd.ms-excel often enough that mime type alone misses them.
+    const isTextual =
+      /^text\//.test(mimeType) ||
+      ["csv", "tsv", "txt", "json", "md", "yml", "yaml"].includes(extension) ||
+      mimeType === "application/json" ||
+      mimeType === "application/csv" ||
+      mimeType === "application/vnd.ms-excel"
+
+    await sendTypingIndicator(chatId)
+    const downloaded = await downloadTelegramFile(message.document.file_id)
+
+    if (!downloaded) {
+      await sendTelegramMessage(chatId, `I couldn't download ${fileName}. Try sending it again.`)
+      return
+    }
+
+    if (!isTextual) {
+      await sendTelegramMessage(
+        chatId,
+        `I can't read ${fileName} yet — I handle CSV and other text files, photos of documents, and voice notes. ` +
+          `If it's a spreadsheet, export it as CSV and send that.`
+      )
+      return
+    }
+
+    // Capped so a large export cannot blow the model's context. Truncating is
+    // said out loud rather than silently sending a partial file, because a
+    // half-read list looks exactly like a complete one.
+    const MAX_FILE_CHARS = 100_000
+    const raw = downloaded.buffer.toString("utf8")
+    const truncated = raw.length > MAX_FILE_CHARS
+    const content = truncated ? raw.slice(0, MAX_FILE_CHARS) : raw
+
+    if (!content.trim()) {
+      await sendTelegramMessage(chatId, `${fileName} looks empty — there is nothing in it to read.`)
+      return
+    }
+
+    const fileBlock =
+      `📎 Attached file: ${fileName}\n` +
+      (truncated ? `(only the first ${MAX_FILE_CHARS.toLocaleString()} characters are shown)\n` : "") +
+      `\n\`\`\`\n${content}\n\`\`\``
+
+    text = text ? `${text}\n\n${fileBlock}` : fileBlock
+  }
+
   if (!text) {
     return
   }

@@ -166,6 +166,42 @@ const CHUNK = 200
  * file and against leads and customers already in the database, so re-importing
  * an updated export adds only what is new.
  */
+export interface DuplicateKeys {
+  email: string
+  phoneKey: string
+  nameKey: string
+}
+
+export interface KeyIndex {
+  email: Set<string>
+  phone: Set<string>
+  name: Set<string>
+}
+
+/**
+ * Why a row is being skipped, if it is.
+ *
+ * The database is checked before the file so a row that collides with both
+ * counts as one we already knew — the more useful answer, since "you already
+ * have them" tells someone to stop worrying, while "your sheet lists them
+ * twice" tells them to go and fix the sheet.
+ */
+export function classifyDuplicate(
+  keys: DuplicateKeys,
+  known: KeyIndex,
+  seen: KeyIndex
+): "already-on-file" | "repeated-in-file" | null {
+  const hits = (index: KeyIndex) =>
+    (keys.email !== "" && index.email.has(keys.email)) ||
+    (keys.phoneKey !== "" && index.phone.has(keys.phoneKey)) ||
+    index.name.has(keys.nameKey)
+
+  if (hits(known)) return "already-on-file"
+  if (hits(seen)) return "repeated-in-file"
+
+  return null
+}
+
 export async function importLeads(options: ImportOptions): Promise<ImportSummary> {
   const { rows, mapping } = options
 
@@ -188,18 +224,26 @@ export async function importLeads(options: ImportOptions): Promise<ImportSummary
     db.customer.findMany({ select: { name: true, email: true, phone: true } }),
   ])
 
-  const seenEmail = new Set<string>()
-  const seenPhone = new Set<string>()
-  const seenName = new Set<string>()
+  /**
+   * Keys already in the database, kept apart from keys seen earlier in this
+   * file. The two are different answers to "why was this row skipped": one
+   * means we already know them, the other means the sheet lists them twice,
+   * and only the second is a problem with the file the person just sent.
+   */
+  const dbEmail = new Set<string>()
+  const dbPhone = new Set<string>()
+  const dbName = new Set<string>()
 
   for (const record of [...existingLeads, ...existingCustomers]) {
     const name = "businessName" in record ? record.businessName : record.name
-    if (record.email) seenEmail.add(record.email.toLowerCase().trim())
-    if (record.phone) seenPhone.add(normalisePhone(record.phone))
-    if (name) seenName.add(normaliseKey(name))
+    if (record.email) dbEmail.add(record.email.toLowerCase().trim())
+    if (record.phone) dbPhone.add(normalisePhone(record.phone))
+    if (name) dbName.add(normaliseKey(name))
   }
 
-  const existingCount = seenEmail.size + seenPhone.size + seenName.size
+  const seenEmail = new Set<string>()
+  const seenPhone = new Set<string>()
+  const seenName = new Set<string>()
 
   const pending: Array<Record<string, unknown>> = []
 
@@ -217,16 +261,21 @@ export async function importLeads(options: ImportOptions): Promise<ImportSummary
     const phoneKey = phone ? normalisePhone(phone) : ""
     const nameKey = normaliseKey(businessName)
 
-    const duplicate =
-      (email && seenEmail.has(email)) ||
-      (phoneKey && seenPhone.has(phoneKey)) ||
-      seenName.has(nameKey)
+    const duplicate = classifyDuplicate(
+      { email, phoneKey, nameKey },
+      { email: dbEmail, phone: dbPhone, name: dbName },
+      { email: seenEmail, phone: seenPhone, name: seenName }
+    )
 
     if (duplicate) {
-      // Whether it collided with the file or the database is only knowable
-      // before this row's own keys are recorded, which is why the check runs first.
-      summary.duplicatesInFile += 1
-      summary.skipped.push({ row: rowNumber, reason: "Duplicate", value: businessName })
+      if (duplicate === "already-on-file") {
+        summary.duplicatesExisting += 1
+        summary.skipped.push({ row: rowNumber, reason: "Already on file", value: businessName })
+      } else {
+        summary.duplicatesInFile += 1
+        summary.skipped.push({ row: rowNumber, reason: "Repeated in this file", value: businessName })
+      }
+
       return
     }
 
@@ -251,8 +300,6 @@ export async function importLeads(options: ImportOptions): Promise<ImportSummary
       ownerId: options.ownerId || null,
     })
   })
-
-  summary.duplicatesExisting = existingCount
 
   if (options.dryRun) {
     summary.imported = pending.length

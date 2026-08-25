@@ -16,7 +16,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Loader2, Plus, Search, UserPlus } from "lucide-react"
+import { AlertTriangle, Loader2, Plus, Search, Upload, UserPlus } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -105,6 +105,99 @@ export default function LeadsPage() {
     }
   }, [search, status, source])
 
+  /**
+   * CSV import runs in two passes on purpose: analyse first, so the guessed
+   * column mapping and the duplicate counts can be read before anything is
+   * written. A trade-show list imported off an unreviewed guess is worse than
+   * no list, because nobody goes back and checks.
+   */
+  const [analysis, setAnalysis] = useState<{
+    headers: string[]
+    mapping: Record<string, string | null>
+    summary: {
+      totalRows: number
+      imported: number
+      duplicatesInFile: number
+      duplicatesExisting: number
+      skipped: Array<{ row: number; reason: string; value?: string }>
+    }
+    preview: Array<Record<string, string>>
+  } | null>(null)
+  const [csvText, setCsvText] = useState("")
+  const [csvName, setCsvName] = useState("")
+  const [importing, setImporting] = useState(false)
+
+  const analyseCsv = useCallback(
+    async (text: string, fileName: string) => {
+      setImporting(true)
+      setAnalysis(null)
+
+      try {
+        const response = await fetch("/api/crm/leads/import", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ csv: text, mode: "analyse", source: source === "all" ? undefined : source }),
+        })
+
+        const result = await response.json()
+
+        if (!result.success) {
+          toast({ variant: "destructive", title: "Could not read that file", description: result.error })
+          return
+        }
+
+        setCsvText(text)
+        setCsvName(fileName)
+        setAnalysis(result.data)
+      } finally {
+        setImporting(false)
+      }
+    },
+    [source, toast]
+  )
+
+  const commitImport = useCallback(async () => {
+    if (!csvText || !analysis) return
+
+    setImporting(true)
+
+    try {
+      const response = await fetch("/api/crm/leads/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          csv: csvText,
+          mode: "import",
+          mapping: analysis.mapping,
+          source: source === "all" ? undefined : source,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!result.success) {
+        toast({ variant: "destructive", title: "Import failed", description: result.error })
+        return
+      }
+
+      const done = result.data.summary
+      toast({
+        title: `Imported ${done.imported} lead${done.imported === 1 ? "" : "s"}`,
+        description:
+          done.duplicatesExisting || done.duplicatesInFile
+            ? `Skipped ${done.duplicatesExisting + done.duplicatesInFile} already on file or repeated in the sheet.`
+            : undefined,
+      })
+
+      setAnalysis(null)
+      setCsvText("")
+      setCsvName("")
+      await load()
+    } finally {
+      setImporting(false)
+    }
+  }, [analysis, csvText, load, source, toast])
+
   useEffect(() => {
     // Debounced, so typing a venue name does not fire a query per keystroke.
     const timer = setTimeout(load, search ? 300 : 0)
@@ -164,11 +257,124 @@ export default function LeadsPage() {
           </p>
         </div>
 
-        <Button onClick={() => setCapturing((open) => !open)}>
-          <Plus className="mr-1.5 h-4 w-4" />
-          {capturing ? "Close" : "Add a lead"}
-        </Button>
+        <div className="flex gap-2">
+          {/*
+            A trade show produces one spreadsheet, not fifty conversations, so
+            the file is the common case and typing them in is the exception.
+          */}
+          <Button variant="outline" asChild disabled={importing}>
+            <label className="cursor-pointer">
+              {importing ? (
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+              ) : (
+                <Upload className="mr-1.5 h-4 w-4" />
+              )}
+              Import CSV
+              <input
+                type="file"
+                accept=".csv,text/csv,text/plain"
+                className="sr-only"
+                onChange={async (event) => {
+                  const file = event.target.files?.[0]
+                  if (!file) return
+
+                  const contents = await file.text()
+                  await analyseCsv(contents, file.name)
+                  // Cleared so choosing the same file twice still fires.
+                  event.target.value = ""
+                }}
+              />
+            </label>
+          </Button>
+
+          <Button onClick={() => setCapturing((open) => !open)}>
+            <Plus className="mr-1.5 h-4 w-4" />
+            {capturing ? "Close" : "Add a lead"}
+          </Button>
+        </div>
       </div>
+
+      {/*
+        Nothing is written until these numbers have been looked at. The mapping
+        is a guess from the column headers, and a wrong guess silently files
+        every phone number as a postcode.
+      */}
+      {analysis ? (
+        <Card className="border-amber-300 dark:border-amber-800">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              Check this before importing {csvName ? `— ${csvName}` : ""}
+            </CardTitle>
+            <CardDescription className="text-xs">
+              {analysis.summary.totalRows} row{analysis.summary.totalRows === 1 ? "" : "s"} read.
+              Nothing has been saved yet.
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="space-y-3 text-xs">
+            <div className="flex flex-wrap gap-4">
+              <span>
+                <span className="text-lg font-semibold">{analysis.summary.imported}</span> to import
+              </span>
+              <span className="text-muted-foreground">
+                <span className="text-lg font-semibold">{analysis.summary.duplicatesExisting}</span> already on file
+              </span>
+              <span className="text-muted-foreground">
+                <span className="text-lg font-semibold">{analysis.summary.duplicatesInFile}</span> repeated in the sheet
+              </span>
+            </div>
+
+            <div>
+              <p className="mb-1 font-medium">Columns it will use</p>
+              <div className="flex flex-wrap gap-1.5">
+                {Object.entries(analysis.mapping)
+                  .filter(([, column]) => column)
+                  .map(([field, column]) => (
+                    <Badge key={field} variant="secondary" className="font-normal">
+                      {field} ← {column}
+                    </Badge>
+                  ))}
+              </div>
+              {analysis.headers.some((header) => !Object.values(analysis.mapping).includes(header)) ? (
+                <p className="mt-1.5 text-muted-foreground">
+                  Ignored:{" "}
+                  {analysis.headers
+                    .filter((header) => !Object.values(analysis.mapping).includes(header))
+                    .join(", ")}
+                </p>
+              ) : null}
+            </div>
+
+            {analysis.summary.skipped.length ? (
+              <div>
+                <p className="mb-1 font-medium">Skipped rows</p>
+                <ul className="space-y-0.5 text-muted-foreground">
+                  {analysis.summary.skipped.slice(0, 8).map((row) => (
+                    <li key={`${row.row}-${row.value ?? ""}`}>
+                      Row {row.row}: {row.reason}
+                      {row.value ? ` — ${row.value}` : ""}
+                    </li>
+                  ))}
+                  {analysis.summary.skipped.length > 8 ? (
+                    <li>…and {analysis.summary.skipped.length - 8} more</li>
+                  ) : null}
+                </ul>
+              </div>
+            ) : null}
+
+            <div className="flex gap-2 pt-1">
+              <Button size="sm" disabled={importing || !analysis.summary.imported} onClick={() => void commitImport()}>
+                {importing ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+                Import {analysis.summary.imported} lead{analysis.summary.imported === 1 ? "" : "s"}
+              </Button>
+              <Button size="sm" variant="ghost" disabled={importing} onClick={() => setAnalysis(null)}>
+                Cancel
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {capturing ? (
         <Card>

@@ -196,6 +196,8 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
   listLeads: { risk: "read" },
   pipelineSummary: { risk: "read" },
   createLead: { risk: "low", roles: ["admin", "sales"] },
+  // Writes many rows at once, so it sits a step above createLead.
+  importLeadsFromCsv: { risk: "medium", roles: ["admin", "sales"] },
   updateLead: { risk: "low", roles: ["admin", "sales"] },
   createOpportunity: { risk: "low", roles: ["admin", "sales"] },
   updateOpportunity: { risk: "low", roles: ["admin", "sales"] },
