@@ -112,6 +112,8 @@ export const SALES_TOOLS = [
   "listContacts", "logActivity", "createCase",
   "listLeads", "pipelineSummary", "createLead", "updateLead",
   "createOpportunity", "updateOpportunity", "convertLead",
+  "salesforceCustomer360", "salesforceOpportunityPipeline", "salesforceLeadScoring",
+  "ecommerceChannelPerformance",
   "sendDirectStaffMessage", "sendStaffAlert", "sendEmail", "draftEmail",
   "recallMemories", "remember",
 ]
@@ -123,6 +125,7 @@ export const WAREHOUSE_TOOLS = [
   "listPickLists", "createPickList", "listDeliveries", "listRoutes", "trackDelivery",
   "getBatches", "expiringStock", "traceBatch", "quarantineStock", "releaseStock",
   "checkAllergens",
+  "ecommerceSyncInventory", "palletOptimization", "warehouseSlottingAdvisor",
   "sendDirectStaffMessage", "sendStaffAlert",
   "recallMemories", "remember",
 ]
@@ -134,6 +137,7 @@ export const ACCOUNTS_TOOLS = [
   "listOrders", "getOrder",
   "listSuppliers", "listPurchaseOrders", "getPurchaseOrder",
   "businessSnapshot", "salesReport",
+  "xeroSyncInvoice", "xeroReconcileBankFeed", "xeroChartOfAccounts", "taxSummaryGst", "cashflowForecast",
   "listTasks", "createTask",
   "sendDirectStaffMessage", "sendStaffAlert", "sendEmail", "draftEmail",
   "recallMemories", "remember",
@@ -157,6 +161,7 @@ export const PURCHASING_TOOLS = [
   "listSuppliers", "createSupplier", "updateSupplier",
   "listPurchaseOrders", "getPurchaseOrder", "createPurchaseOrder", "receivePurchaseOrder",
   "reorderSuggestions", "searchProducts", "getStock", "stockOutlook",
+  "calculateLandedCost", "automatedReplenishmentPlanner", "compareSupplierQuotes",
   "priceMarginOptimizer", "executeCalculation",
   "listTasks", "createTask", "completeTask",
   "sendDirectStaffMessage", "sendStaffAlert",
@@ -202,6 +207,8 @@ export const EXECUTIVE_TOOLS = [
   "businessSnapshot", "salesReport", "customerHealthAudit", "priceMarginOptimizer",
   "draftCommunication", "generateDiagram", "executeCalculation", "runDataAnalysis",
   "findCustomers", "lapsedAccounts", "agedReceivables",
+  "salesforceCustomer360", "salesforceOpportunityPipeline", "xeroSyncInvoice", "xeroReconcileBankFeed",
+  "ecommerceChannelPerformance", "listIntegrationConnectors",
   "listOrders", "listPurchaseOrders", "listLeads", "pipelineSummary",
   "searchWeb", "searchKnowledge",
   "planTask", "scratchpadNote",
@@ -278,6 +285,11 @@ export const OPS_TOOLS = [
   "scheduleMeeting", "listUpcomingEvents",
   "cashflowForecast", "profitAndLossStatement", "customerRfmSegmentation", "supplierPerformanceScorecard", "taxSummaryGst",
   "compareSupplierQuotes", "recipeCostingAnalysis", "palletOptimization", "warehouseSlottingAdvisor", "mockRecallSimulation", "creditRiskAssessment",
+  "xeroSyncInvoice", "xeroReconcileBankFeed", "xeroChartOfAccounts",
+  "salesforceCustomer360", "salesforceOpportunityPipeline", "salesforceLeadScoring",
+  "ecommerceSyncInventory", "ecommerceIngestOrder", "ecommerceChannelPerformance",
+  "calculateLandedCost", "automatedReplenishmentPlanner",
+  "triggerWebhook", "listIntegrationConnectors",
   "listSkills", "readSkill", "createSkill", "improveSkill", "recordSkillOutcome", "recallMemories", "remember",
 ]
 
