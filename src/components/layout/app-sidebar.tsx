@@ -45,6 +45,8 @@ import {
   RotateCcw,
   Radio,
   ScanLine,
+  Zap,
+  Bot,
 } from "lucide-react"
 
 import {
@@ -96,6 +98,13 @@ const navItems: NavItem[] = [
     label: "Dashboard",
     href: "/",
     icon: LayoutDashboard,
+    roles: ["admin", "sales", "warehouse", "accounts", "driver"],
+    group: "Overview",
+  },
+  {
+    label: "Grok Bot",
+    href: "/grok-bot",
+    icon: Zap,
     roles: ["admin", "sales", "warehouse", "accounts", "driver"],
     group: "Overview",
   },

@@ -67,7 +67,9 @@ Name the customer and the amount. Say who to chase first and why.${QUIET_RULE}`,
     slug: "purchasing",
     schedule: "0 9 * * 1",
     why: "Monday 9am — a weekly buying decision, not a daily one",
-    prompt: `Plan this week's buying.
+    prompt: `First run learnAboutTheBusiness, so what the agent knows about customers, products and payment behaviour is refreshed from the last quarter before any buying decision is made.
+
+Then plan this week's buying.
 
 Look at: products at or below reorder level, what is already on order and when it lands, and the preferred supplier for each along with its lead time and minimum order quantity.
 
