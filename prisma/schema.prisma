@@ -796,6 +796,24 @@ model Customer {
 
   // Classification
   customerType String  @default("wholesale") // business, retail, wholesale
+
+  /// Where this account sits in the channel.
+  ///
+  /// RDM sells to distributors, and the venues that actually cook with the
+  /// product buy it from those distributors rather than from RDM. An end user
+  /// therefore places no orders here, which is a fact about the channel and not
+  /// a sign the relationship has gone quiet — so lapse detection has to be able
+  /// to tell them apart. Leads met at a trade show are almost always end users.
+  channelRole String @default("direct") // direct, distributor, end_user
+
+  /// For an end user, the distributor that supplies them.
+  ///
+  /// The question RDM actually needs answered — a venue asks for product and
+  /// somebody has to know who they order from — and the one that says whether a
+  /// distributor is pulling the product through.
+  suppliedById String?
+  suppliedBy   Customer?  @relation("ChannelSupply", fields: [suppliedById], references: [id])
+  supplies     Customer[] @relation("ChannelSupply")
   industry     String?
   salesRepId   String?
   salesRep     User?   @relation("CustomerSalesRep", fields: [salesRepId], references: [id])

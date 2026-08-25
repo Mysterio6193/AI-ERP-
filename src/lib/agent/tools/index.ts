@@ -5,6 +5,7 @@ import type { ToolPolicyMeta } from "../policy"
 import { buildBrowserTools } from "./browser"
 import { buildCatalogTools } from "./catalog"
 import { buildChannelTools } from "./channels"
+import { buildSalesChannelTools } from "./sales-channel"
 import { buildContactTools } from "./contacts"
 import { buildCrmTools } from "./crm"
 import { buildDelegationTools } from "./delegation"
@@ -106,6 +107,11 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
    * which — so it always asks. Typing is gated for the same reason: filling a
    * form is how you get to the button.
    */
+  setChannelRole: { risk: "medium", roles: ["admin", "sales"] },
+  setSupplyingDistributor: { risk: "low", roles: ["admin", "sales"] },
+  listVenuesForDistributor: { risk: "low" },
+  channelOverview: { risk: "low" },
+
   openPage: { risk: "low" },
   readCurrentPage: { risk: "low" },
   clickOnPage: { risk: "high", alwaysApprove: true },
@@ -451,6 +457,7 @@ export function buildTools(principal: AgentPrincipal, channel?: string): ToolSet
     buildDocumentTools(principal, channel),
     buildSettingsTools(principal),
     buildBrowserTools(principal),
+    buildSalesChannelTools(principal),
     buildAutomationTools(principal),
     buildCalendarTools(principal),
     buildEmailTools(principal),
