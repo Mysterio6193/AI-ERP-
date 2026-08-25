@@ -31,8 +31,8 @@ import {
   type Classification,
 } from "@/lib/agent/retry"
 
-const DEFAULT_OPENROUTER_MODEL = "nvidia/nemotron-3-super-120b-a12b"
-const DEFAULT_OPENROUTER_FAST_MODEL = "nvidia/nemotron-3.5-lightning"
+const DEFAULT_OPENROUTER_MODEL = "nvidia/nemotron-3.5-lightning:free"
+const DEFAULT_OPENROUTER_FAST_MODEL = "nvidia/nemotron-3.5-lightning:free"
 const DEFAULT_GOOGLE_MODEL = "gemini-3.1-flash-lite"
 const DEFAULT_GOOGLE_FAST_MODEL = "gemini-3.1-flash-lite"
 
@@ -92,26 +92,25 @@ function openrouterProvider() {
       "X-Title": "SupplySure OS",
     },
     fetch: async (url, options) => {
-      /**
-       * Retry the failures that clear on their own, and only those.
-       *
-       * What was here forced `max_tokens: 256` onto every request. That cap
-       * arrived as an unmentioned side effect of a Telegram commit and was
-       * applied at the provider, so it truncated every reply on every surface
-       * — web chat, voice, scheduled agents — not just Telegram. A tool-calling
-       * agent cut off at 256 output tokens can stop mid-call, which is how a
-       * tool call ends up with no result. It is also the wrong lever for cost:
-       * `max_tokens` bounds the reply, and it is the 88 tool definitions in the
-       * prompt that make these requests expensive.
-       */
-      const model = readModelId(options)
+      let customOptions = options
+      if (options?.body && typeof options.body === "string") {
+        try {
+          const parsed = JSON.parse(options.body)
+          if (!parsed.max_tokens || parsed.max_tokens > 500) {
+            parsed.max_tokens = 500
+            customOptions = { ...options, body: JSON.stringify(parsed) }
+          }
+        } catch {}
+      }
+
+      const model = readModelId(customOptions)
       let lastReason: Classification["reason"] = "unknown"
 
       for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
         let response: Response
 
         try {
-          response = await fetch(url, options)
+          response = await fetch(url, customOptions)
         } catch (error) {
           const text = error instanceof Error ? error.message : String(error)
           const verdict = classifyMessage(text)
