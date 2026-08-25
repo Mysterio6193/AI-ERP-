@@ -6,6 +6,7 @@ import type { AgentPrincipal } from "../context"
 import { forget, listMemories, recall, remember } from "../memory"
 import { defineTool } from "./define"
 import { isStaff } from "./shared"
+import { learnBusinessFacts } from "@/lib/agent/business-facts"
 
 /**
  * Memory tools.
@@ -26,6 +27,35 @@ export function buildMemoryTools(principal: AgentPrincipal) {
   }
 
   return {
+    learnAboutTheBusiness: defineTool({
+      description:
+        "Look at recent orders, products and invoices and record what is true about this business — who orders how often, which products carry revenue, who pays late. Run it weekly. Facts are upserted on a stable key, so re-running corrects what has changed rather than duplicating.",
+      inputSchema: z.object({
+        windowDays: z.number().int().min(14).max(365).optional().default(90)
+          .describe("How much history to learn from"),
+        dryRun: z.boolean().optional().default(false)
+          .describe("Report what would be learned without recording it"),
+      }),
+      execute: async ({ windowDays = 90, dryRun = false }) => {
+        const result = await learnBusinessFacts({ windowDays, dryRun })
+
+        return {
+          ok: true as const,
+          dryRun,
+          windowDays: result.windowDays,
+          learned: result.learned,
+          byTopic: {
+            customer: result.facts.filter((f) => f.topic === "customer").length,
+            product: result.facts.filter((f) => f.topic === "product").length,
+            finance: result.facts.filter((f) => f.topic === "finance").length,
+          },
+          facts: result.facts.map((f) => f.content),
+          note:
+            "These are observations over a window, not predictions. Each says what happened and over what period, so it can be judged as still true or not.",
+        }
+      },
+    }),
+
     remember: defineTool({
       description:
         "Keep a fact worth knowing next time. Use it for things a query cannot answer: how this business does something, a standing preference, a constraint, a promise made. Do NOT store anything a tool can look up - stock levels, balances, order contents - that goes stale and crowds out what matters. One clear sentence per fact.",

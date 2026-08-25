@@ -3119,3 +3119,35 @@ model AgentGroupChannel {
   @@unique([channel, externalId])
   @@index([status])
 }
+
+/// How each agent tool is actually behaving.
+///
+/// Nothing recorded whether a tool worked, so a tool that had been broken for
+/// weeks — a renamed column, a changed API, a parser that stopped matching —
+/// looked exactly like a tool nobody had used. Several of those were found by
+/// hand in this codebase. Aggregated per tool rather than per call, so the
+/// write stays cheap enough to do on every invocation.
+model ToolHealth {
+  id       String @id @default(cuid())
+  toolName String @unique
+
+  successCount Int @default(0)
+  failureCount Int @default(0)
+
+  /// Resets on any success. This is what tells a broken tool apart from a
+  /// flaky one.
+  consecutiveFailures Int @default(0)
+
+  lastError       String?
+  lastFailedAt    DateTime?
+  lastSucceededAt DateTime?
+
+  /// Set when someone has looked at it, so a known fault stops being reported
+  /// every morning.
+  acknowledgedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([consecutiveFailures])
+}

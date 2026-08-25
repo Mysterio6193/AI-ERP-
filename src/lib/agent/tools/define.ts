@@ -1,5 +1,6 @@
 import { tool, type Tool, type ToolExecutionOptions } from "ai"
 import type { z } from "zod"
+import { recordToolOutcome } from "@/lib/agent/tool-health"
 
 /**
  * Thin wrapper over the SDK's `tool()`.
@@ -14,6 +15,84 @@ export function defineTool<S extends z.ZodType, R>(config: {
   description: string
   inputSchema: S
   execute: (input: z.infer<S>, options: ToolExecutionOptions<never>) => Promise<R>
+  /** Set for a tool whose failures are not worth tracking. */
+  skipHealthTracking?: boolean
 }): Tool<z.infer<S>, R> {
-  return tool(config as never) as Tool<z.infer<S>, R>
+  const { skipHealthTracking, ...rest } = config
+
+  /**
+   * Every tool passes through here, which is the only place a hundred and
+   * forty-five of them can be watched without touching each one.
+   *
+   * A tool that threw and a tool that returned `{ ok: false }` are both
+   * failures — several bugs in this codebase were tools returning ok with an
+   * empty result, which is exactly the shape that hides.
+   */
+  const watched = async (input: z.infer<S>, options: ToolExecutionOptions<never>) => {
+    const toolName = toolNameFor(config.description)
+
+    try {
+      const result = await config.execute(input, options)
+
+      if (!skipHealthTracking) {
+        const failed =
+          typeof result === "object" && result !== null && "ok" in result && (result as { ok: unknown }).ok === false
+
+        void recordToolOutcome({
+          toolName,
+          ok: !failed,
+          error: failed ? String((result as { error?: unknown }).error ?? "Tool reported ok: false") : undefined,
+        })
+      }
+
+      return result
+    } catch (error) {
+      if (!skipHealthTracking) {
+        void recordToolOutcome({
+          toolName,
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+
+      // Rethrown: health tracking observes, it does not swallow.
+      throw error
+    }
+  }
+
+  return tool({ ...rest, execute: watched } as never) as Tool<z.infer<S>, R>
 }
+
+/**
+ * A stable name for a tool.
+ *
+ * `defineTool` never receives the key it is registered under, and the
+ * description is the only thing that distinguishes one tool from another here.
+ * A short hash of it is stable across restarts and unique per tool, which is
+ * all the health record needs — the readable name is attached where the tools
+ * are registered.
+ */
+const nameCache = new Map<string, string>()
+
+function toolNameFor(description: string): string {
+  const cached = nameCache.get(description)
+  if (cached) return cached
+
+  const registered = TOOL_NAMES.get(description)
+  const name = registered ?? `tool:${hash(description)}`
+
+  nameCache.set(description, name)
+  return name
+}
+
+function hash(value: string): string {
+  let h = 0
+  for (let i = 0; i < value.length; i++) {
+    h = (h << 5) - h + value.charCodeAt(i)
+    h |= 0
+  }
+  return Math.abs(h).toString(36)
+}
+
+/** Filled in where tools are registered, so health records read as real names. */
+export const TOOL_NAMES = new Map<string, string>()

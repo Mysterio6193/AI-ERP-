@@ -39,7 +39,9 @@ const SCHEDULED: Array<{ slug: string; schedule: string; prompt: string; why: st
     why: "weekday mornings, 7am — the overall sweep",
     prompt: `Review the business since yesterday.
 
-Check: invoices now overdue, stock at or below reorder level, orders sitting in pending_approval, deliveries that failed, and customers over their credit limit.${QUIET_RULE}`,
+Check: invoices now overdue, stock at or below reorder level, orders sitting in pending_approval, deliveries that failed, and customers over their credit limit.
+
+Also run pendingDecisions and checkToolHealth. Anything waiting on a person is work that has stopped, and it looks from the outside like a request being ignored. A tool that has quietly stopped working makes every answer after it wrong, and nobody notices until a decision is made on bad information — report any broken tool alongside the business items.${QUIET_RULE}`,
   },
   {
     slug: "warehouse",
@@ -65,7 +67,9 @@ Name the customer and the amount. Say who to chase first and why.${QUIET_RULE}`,
     slug: "purchasing",
     schedule: "0 9 * * 1",
     why: "Monday 9am — a weekly buying decision, not a daily one",
-    prompt: `Plan this week's buying.
+    prompt: `First run learnAboutTheBusiness, so what the agent knows about customers, products and payment behaviour is refreshed from the last quarter before any buying decision is made.
+
+Then plan this week's buying.
 
 Look at: products at or below reorder level, what is already on order and when it lands, and the preferred supplier for each along with its lead time and minimum order quantity.
 

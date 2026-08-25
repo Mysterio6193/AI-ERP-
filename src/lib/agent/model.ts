@@ -257,9 +257,39 @@ export function getModelId(target?: ModelTier | string | ResolveModelOptions): s
   return env("AGENT_MODEL") || DEFAULT_GATEWAY_MODEL
 }
 
+/**
+ * Whether a model id belongs to the provider that is configured.
+ *
+ * Gemini ids never contain a slash — `gemini-3.1-flash-lite` — while gateway
+ * ids always do: `z-ai/glm-5.2:free`, `nvidia/nemotron...`. Handing one to the
+ * other produces a 404 from a URL like
+ * `generativelanguage.googleapis.com/v1beta/z-ai/glm-5.2:free`, which is what
+ * "the assistant is not working" looked like from the outside.
+ */
+export function modelSuitsProvider(modelId: string, mode: AgentProviderMode): boolean {
+  if (mode === "google") return !modelId.includes("/")
+  return true
+}
+
 export function resolveAgentModel(target?: ModelTier | string | ResolveModelOptions): LanguageModel {
   const modelId = getModelId(target)
   const mode = getProviderMode()
+
+  if (mode === "google" && !modelSuitsProvider(modelId, mode)) {
+    // A gateway-style id was asked for while Google is configured. If there is
+    // an OpenRouter key, honour the request through the provider that can
+    // actually serve it; otherwise fall back to the configured Google model
+    // rather than sending a request that is certain to 404.
+    if (env("OPENROUTER_API_KEY")) {
+      return openrouterProvider()(modelId)
+    }
+
+    const fallback = env("AGENT_MODEL") || DEFAULT_GOOGLE_MODEL
+    console.warn(
+      `[MODEL] "${modelId}" is not a Google model and no OPENROUTER_API_KEY is set. Using "${fallback}" instead.`
+    )
+    return googleProvider()(fallback)
+  }
 
   if (mode === "google") {
     return googleProvider()(modelId)

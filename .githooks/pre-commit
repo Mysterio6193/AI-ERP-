@@ -1,0 +1,32 @@
+#!/bin/sh
+#
+# Refuse a commit that does not typecheck.
+#
+# The build has been broken by a commit four separate times, always the same
+# way: a query written against a column that does not exist. tsc catches every
+# one of them in about a minute, and nobody was running it. A broken main
+# branch costs whoever pulls next far more than that minute.
+#
+# Skip deliberately with:  git commit --no-verify
+
+printf 'Typechecking before commit... '
+
+OUTPUT=$(NODE_OPTIONS="--max-old-space-size=6144" npx tsc --noEmit 2>&1)
+
+if [ $? -ne 0 ]; then
+  COUNT=$(printf '%s\n' "$OUTPUT" | grep -c "error TS")
+
+  printf '\n\n  %s type error(s). Commit refused.\n\n' "$COUNT"
+  printf '%s\n' "$OUTPUT" | grep "error TS" | head -15 | sed 's/^/    /'
+
+  if [ "$COUNT" -gt 15 ]; then
+    printf '    ... and %s more\n' "$((COUNT - 15))"
+  fi
+
+  printf '\n  Field names that get guessed wrong: docs/SCHEMA_NAMES.md\n'
+  printf '  tsc does NOT validate Prisma where clauses - run the query too.\n'
+  printf '  To commit anyway: git commit --no-verify\n\n'
+  exit 1
+fi
+
+printf 'clean.\n'

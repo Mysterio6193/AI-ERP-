@@ -42,6 +42,16 @@ import { buildUniversalTools } from "./universal"
 import { buildWebSearchTools } from "./websearch"
 import { buildForecastingTools } from "./forecasting"
 import { buildFinancialAnomalyTools } from "./financial-anomalies"
+import { buildXeroTools } from "./xero-tools"
+import { buildSalesforceTools } from "./salesforce-tools"
+import { buildEcommerceTools } from "./ecommerce-tools"
+import { buildAdvancedInventoryTools } from "./inventory-advanced"
+import { buildWebhookTools } from "./webhooks-tools"
+import { buildAutonomousAiTools } from "./autonomous-ai"
+import { buildSimulationAiTools } from "./simulation-ai"
+import { buildAutonomousDecisionTools } from "./autonomous-decision"
+import { buildXaiBotTools } from "./xai-bot-tools"
+import { TOOL_NAMES } from "./define"
 
 /**
  * The tool registry.
@@ -141,6 +151,8 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
   createSupplier: { risk: "low", roles: ["admin", "warehouse", "accounts"] },
   updateSupplier: { risk: "low", roles: ["admin", "warehouse", "accounts"] },
   reorderSuggestions: { risk: "read" },
+  replenishmentPlan: { risk: "read" },
+  linkSuppliersFromHistory: { risk: "medium", roles: ["admin", "warehouse", "accounts"] },
   listPurchaseOrders: { risk: "read" },
   getPurchaseOrder: { risk: "read" },
   createPurchaseOrder: {
@@ -234,11 +246,18 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
   runDataAnalysis: { risk: "read" },
   fetchWebPage: { risk: "read" },
   searchWeb: { risk: "read" },
+
+  // The agent's view of its own tools. Reads only.
+  learnAboutTheBusiness: { risk: "low", roles: ["admin", "sales", "accounts"] },
+  pendingDecisions: { risk: "read" },
+  checkToolHealth: { risk: "read" },
+  acknowledgeToolFault: { risk: "low", roles: ["admin"] },
   searchKnowledge: { risk: "read" },
   generateDiagram: { risk: "read" },
   delegateToAgent: { risk: "read", roles: ["admin", "sales", "warehouse", "accounts"] },
   sendStaffAlert: { risk: "low", roles: ["admin", "sales", "warehouse", "accounts"] },
   sendDirectStaffMessage: { risk: "low", roles: ["admin", "sales", "warehouse", "accounts"] },
+  routeDepartmentUpdate: { risk: "low", roles: ["admin", "sales", "warehouse", "accounts"] },
 
   // Model Context Protocol (MCP) & REST API Gateway
   listMcpServers: { risk: "read" },
@@ -268,6 +287,11 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
 
   // Manufacturing & BOM Recipes
   listBoms: { risk: "read" },
+  mfgMultiLevelBomExplosion: { risk: "read" },
+  mfgCapacityAndShiftScheduler: { risk: "read" },
+  mfgBatchYieldAndWastage: { risk: "read" },
+  mfgHaccpQualityGate: { risk: "low", roles: ["admin", "warehouse"] },
+  mfgOeeAndMachinePerformance: { risk: "read" },
   createProductionOrder: { risk: "medium", roles: ["admin", "warehouse"] },
   listProductionOrders: { risk: "read" },
   updateProductionOrder: { risk: "medium", roles: ["admin", "warehouse", "sales"] },
@@ -329,6 +353,49 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
   detectDuplicatePayments: { risk: "read" },
   pricingDriftReport: { risk: "read" },
   reconciliationAnomalyCheck: { risk: "read" },
+
+  // Xero & Accounting Integrations
+  xeroSyncInvoice: { risk: "low", roles: ["admin", "accounts"] },
+  xeroReconcileBankFeed: { risk: "read" },
+  xeroChartOfAccounts: { risk: "read" },
+
+  // Salesforce & CRM Suite
+  salesforceCustomer360: { risk: "read" },
+  salesforceOpportunityPipeline: { risk: "low", roles: ["admin", "sales"] },
+  salesforceLeadScoring: { risk: "read" },
+
+  // E-Commerce & Shopify
+  ecommerceSyncInventory: { risk: "low", roles: ["admin", "warehouse", "sales"] },
+  ecommerceIngestOrder: { risk: "medium", roles: ["admin", "sales"] },
+  ecommerceChannelPerformance: { risk: "read" },
+
+  // Advanced Inventory & Landed Cost
+  calculateLandedCost: { risk: "read" },
+  automatedReplenishmentPlanner: { risk: "read" },
+
+  // Universal Webhooks & Connectors
+  triggerWebhook: { risk: "low", roles: ["admin", "sales", "warehouse", "accounts"] },
+  listIntegrationConnectors: { risk: "read" },
+
+  // Autonomous Intelligence & Goal Reasoning
+  autonomousGoalDecomposer: { risk: "read" },
+  detectOperationalAnomalies: { risk: "read" },
+  proactiveInsightGenerator: { risk: "read" },
+
+  // Digital Twin Simulation & Self-Healing
+  simulateWhatIfScenario: { risk: "read" },
+  autonomousSelfHealingRoutine: { risk: "low", roles: ["admin", "warehouse", "accounts"] },
+
+  // Autonomous Decision Matrix & Auto-Pilot
+  autonomousInventoryAllocationEngine: { risk: "read" },
+  operationsAutoPilotSweep: { risk: "read" },
+  synthesizeOperationalPlaybook: { risk: "low", roles: ["admin", "sales", "warehouse"] },
+
+  // xAI Grok Bot & Chief of Staff Suite
+  grokDeepReasoner: { risk: "read" },
+  chiefOfStaffOrchestrator: { risk: "low", roles: ["admin", "sales", "warehouse", "accounts"] },
+  xaiMarketTrendRadar: { risk: "read" },
+  demonstrateWorkflowMacro: { risk: "low", roles: ["admin", "sales", "warehouse"] },
 
   // Freight. Drafting writes a row and contacts nobody; sending commits the
   // business to a third party who acts on it immediately, so it is the gate.
@@ -398,9 +465,30 @@ export function buildTools(principal: AgentPrincipal, channel?: string): ToolSet
     buildPriceListTools(principal),
     buildForecastingTools(principal),
     buildFinancialAnomalyTools(principal),
+    buildXeroTools(principal),
+    buildSalesforceTools(principal),
+    buildEcommerceTools(principal),
+    buildAdvancedInventoryTools(principal),
+    buildWebhookTools(principal),
+    buildAutonomousAiTools(principal),
+    buildSimulationAiTools(principal),
+    buildAutonomousDecisionTools(principal),
+    buildXaiBotTools(principal),
+    buildForecastingTools(principal),
+    buildFinancialAnomalyTools(principal),
   ]
 
-  return Object.assign({}, ...builders) as ToolSet
+  const assembled = Object.assign({}, ...builders) as ToolSet
+
+  // defineTool never sees the key a tool is registered under, so the mapping
+  // from description to name is filled in here. Without it a health record
+  // reads as a hash and nobody can tell which tool is broken.
+  for (const [name, definition] of Object.entries(assembled)) {
+    const description = (definition as { description?: string })?.description
+    if (description) TOOL_NAMES.set(description, name)
+  }
+
+  return assembled
 }
 
 /** Every tool the registry can produce, for settings screens and docs. */

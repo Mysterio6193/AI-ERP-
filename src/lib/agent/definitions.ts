@@ -27,7 +27,11 @@ Hermes Agent Reasoning & Autonomy Philosophy:
 5. Procedural Self-Learning: Author or improve reusable skills (createSkill/improveSkill) when establishing new workflows, SOPs, or customer preferences.
 6. Multimodal & PDF Generation: Process scanned invoices/documents (scanDocument), dispatch publication-quality PDFs for invoices, orders, statements, supplier lists, inventory audits, or custom tabular reports (sendDocument, generateReportPdf), perform live web research (searchWeb), and broadcast critical operational alerts (sendStaffAlert). NEVER claim "I do not have a tool to directly generate a PDF file for a custom list like this" - use generateReportPdf or sendDocument to deliver the file immediately.
 7. Native Excel (.xlsx) & Spreadsheet Delivery: You have full digital capability to generate and deliver real Excel (.xlsx) workbooks and .csv files using generateSpreadsheet or exportReportToCsv. The platform compiles and delivers the real file attachment directly to Telegram/chat. NEVER claim "While I cannot directly create and send an .xlsx file..." or paste raw tables instead of generating the requested file attachment.
-8. Direct Staff Messaging & Alerts: You can send private direct messages, directives, and alerts to individual staff members (Antonio Russo, Tony Marchetti, Maria Esposito, Sam Nguyen, Riccardo Moretti) using sendDirectStaffMessage or sendStaffAlert. The system automatically routes to their Telegram DM, email, and dashboard tasks. NEVER claim "I am currently unable to send direct private messages to individual staff members via Telegram".`
+8. Always Answer In Words: Finish every turn with a short written answer, whatever tools you used. A tool result is not a reply — someone asking "how many customers do we have" wants the number in the message, not a file. Use tools to find the answer, then say it.
+
+9. Match The Output To The Question: Generate a spreadsheet, CSV or PDF only when a file is actually asked for, or when the answer is genuinely a table of many rows. A single figure, a yes or no, or a short list belongs in the message itself. Exporting a file for a one-line question wastes the reader's time and hides the answer.
+
+10. Direct Staff Messaging & Alerts: You can send private direct messages, directives, and alerts to individual staff members (Antonio Russo, Tony Marchetti, Maria Esposito, Sam Nguyen, Riccardo Moretti) using sendDirectStaffMessage or sendStaffAlert. The system automatically routes to their Telegram DM, email, and dashboard tasks. NEVER claim "I am currently unable to send direct private messages to individual staff members via Telegram".`
 
 export const CUSTOMER_INSTRUCTIONS = `You take orders and answer account questions for customers of a B2B food wholesaler.
 
@@ -108,7 +112,9 @@ export const SALES_TOOLS = [
   "listContacts", "logActivity", "createCase",
   "listLeads", "pipelineSummary", "createLead", "updateLead",
   "createOpportunity", "updateOpportunity", "convertLead",
-  "sendDirectStaffMessage", "sendStaffAlert", "sendEmail", "draftEmail",
+  "salesforceCustomer360", "salesforceOpportunityPipeline", "salesforceLeadScoring",
+  "ecommerceChannelPerformance",
+  "sendDirectStaffMessage", "sendStaffAlert", "routeDepartmentUpdate", "sendEmail", "draftEmail",
   "recallMemories", "remember",
 ]
 
@@ -120,7 +126,9 @@ export const WAREHOUSE_TOOLS = [
   "listPickLists", "createPickList", "listDeliveries", "listDeliveryRoutes", "trackDelivery",
   "getBatches", "expiringStock", "traceBatch", "quarantineStock", "releaseStock",
   "checkAllergens",
-  "sendDirectStaffMessage", "sendStaffAlert",
+  "listBoms", "mfgMultiLevelBomExplosion", "mfgCapacityAndShiftScheduler", "mfgBatchYieldAndWastage", "mfgOeeAndMachinePerformance",
+  "ecommerceSyncInventory", "palletOptimization", "warehouseSlottingAdvisor",
+  "sendDirectStaffMessage", "sendStaffAlert", "routeDepartmentUpdate",
   "recallMemories", "remember",
 ]
 
@@ -132,8 +140,9 @@ export const ACCOUNTS_TOOLS = [
   "listOrders", "getOrder",
   "listSuppliers", "listPurchaseOrders", "getPurchaseOrder",
   "businessSnapshot", "salesReport",
+  "xeroSyncInvoice", "xeroReconcileBankFeed", "xeroChartOfAccounts", "taxSummaryGst", "cashflowForecast",
   "listTasks", "createTask",
-  "sendDirectStaffMessage", "sendStaffAlert", "sendEmail", "draftEmail",
+  "sendDirectStaffMessage", "sendStaffAlert", "routeDepartmentUpdate", "sendEmail", "draftEmail",
   "recallMemories", "remember",
 ]
 
@@ -154,11 +163,12 @@ Rules:
 export const PURCHASING_TOOLS = [
   "listSuppliers", "createSupplier", "updateSupplier",
   "listPurchaseOrders", "getPurchaseOrder", "createPurchaseOrder", "receivePurchaseOrder",
-  "reorderSuggestions", "batchReorderForecast", "forecastDemand", "demandAnomalyCheck", "seasonalityInsights",
-  "searchProducts", "getStock", "stockOutlook",
+  "reorderSuggestions", "searchProducts", "getStock", "stockOutlook",
+  "batchReorderForecast", "forecastDemand", "demandAnomalyCheck", "seasonalityInsights",
+  "calculateLandedCost", "automatedReplenishmentPlanner", "compareSupplierQuotes",
   "priceMarginOptimizer", "executeCalculation",
   "listTasks", "createTask", "completeTask",
-  "sendDirectStaffMessage", "sendStaffAlert",
+  "sendDirectStaffMessage", "sendStaffAlert", "routeDepartmentUpdate",
   "recallMemories", "remember",
 ]
 
@@ -179,7 +189,8 @@ export const COMPLIANCE_TOOLS = [
   "getBatches", "expiringStock", "traceBatch", "quarantineStock", "releaseStock",
   "checkAllergens", "auditAllergenDeclarations", "checkStockAvailability",
   "searchProducts", "getStock",
-  "sendDirectStaffMessage", "sendStaffAlert", "planTask", "scratchpadNote",
+  "mfgHaccpQualityGate", "mockRecallSimulation",
+  "sendDirectStaffMessage", "sendStaffAlert", "routeDepartmentUpdate", "planTask", "scratchpadNote",
   "listTasks", "createTask", "completeTask",
   "recallMemories", "remember",
 ]
@@ -203,11 +214,18 @@ export const EXECUTIVE_TOOLS = [
   "scanInvoiceAnomalies", "detectDuplicatePayments", "pricingDriftReport", "reconciliationAnomalyCheck",
   "draftCommunication", "generateDiagram", "executeCalculation", "runDataAnalysis",
   "findCustomers", "lapsedAccounts", "agedReceivables",
+  "salesforceCustomer360", "salesforceOpportunityPipeline", "xeroSyncInvoice", "xeroReconcileBankFeed",
+  "mfgOeeAndMachinePerformance", "mfgBatchYieldAndWastage",
+  "ecommerceChannelPerformance", "listIntegrationConnectors",
+  "autonomousGoalDecomposer", "detectOperationalAnomalies", "proactiveInsightGenerator",
+  "simulateWhatIfScenario",
+  "autonomousInventoryAllocationEngine", "operationsAutoPilotSweep",
+  "grokDeepReasoner", "chiefOfStaffOrchestrator", "xaiMarketTrendRadar",
   "listOrders", "listPurchaseOrders", "listLeads", "pipelineSummary",
   "searchWeb", "searchKnowledge",
   "planTask", "scratchpadNote",
   "delegateToAgent", "spawnAgentTask", "agentSwarm", "broadcastToAgents",
-  "sendDirectStaffMessage", "sendStaffAlert", "postToGroupChannel",
+  "sendDirectStaffMessage", "sendStaffAlert", "routeDepartmentUpdate", "postToGroupChannel",
   "recallMemories", "remember",
 ]
 
@@ -293,9 +311,9 @@ export const OPS_TOOLS = [
   "listInvoices", "getInvoice", "agedReceivables", "businessSnapshot", "salesReport", "customerHealthAudit", "priceMarginOptimizer", "draftCommunication",
   "scanInvoiceAnomalies", "detectDuplicatePayments", "pricingDriftReport", "reconciliationAnomalyCheck",
   "getBatches", "expiringStock", "checkAllergens",
-  "listBoms", "createProductionOrder", "listProductionOrders",
+  "listBoms", "mfgMultiLevelBomExplosion", "mfgCapacityAndShiftScheduler", "mfgBatchYieldAndWastage", "mfgHaccpQualityGate", "mfgOeeAndMachinePerformance", "createProductionOrder", "listProductionOrders",
   "listDeliveryRoutes", "createDeliveryRoute", "listReturns", "createCustomerReturn", "listPriceLists", "assignCustomerPriceList",
-  "planTask", "scratchpadNote", "scanDocument", "sendDocument", "generateDocumentPdf", "generateReportPdf", "executeCalculation", "runDataAnalysis", "fetchWebPage", "searchWeb", "searchKnowledge", "generateDiagram", "listMcpServers", "callMcpTool", "callGenericApi", "delegateToAgent", "sendStaffAlert", "sendDirectStaffMessage",
+  "planTask", "scratchpadNote", "scanDocument", "sendDocument", "generateDocumentPdf", "generateReportPdf", "executeCalculation", "runDataAnalysis", "fetchWebPage", "searchWeb", "searchKnowledge", "generateDiagram", "listMcpServers", "callMcpTool", "callGenericApi", "delegateToAgent", "sendStaffAlert", "sendDirectStaffMessage", "routeDepartmentUpdate",
   "listAgentChannels", "generateMorningBriefing", "sendMorningGreeting", "listGroupChannels", "updateGroupChannel", "postToGroupChannel",
   "spawnAgentTask", "agentSwarm", "agentHandoff", "broadcastToAgents", "listAvailableAgents",
   "setReminder", "createRecurringReport", "createWorkflow", "translateText", "generateQrCode", "summarizeThread", "createChecklist",
@@ -304,6 +322,15 @@ export const OPS_TOOLS = [
   "scheduleMeeting", "listUpcomingEvents",
   "cashflowForecast", "profitAndLossStatement", "customerRfmSegmentation", "supplierPerformanceScorecard", "taxSummaryGst",
   "compareSupplierQuotes", "recipeCostingAnalysis", "palletOptimization", "warehouseSlottingAdvisor", "mockRecallSimulation", "creditRiskAssessment",
+  "xeroSyncInvoice", "xeroReconcileBankFeed", "xeroChartOfAccounts",
+  "salesforceCustomer360", "salesforceOpportunityPipeline", "salesforceLeadScoring",
+  "ecommerceSyncInventory", "ecommerceIngestOrder", "ecommerceChannelPerformance",
+  "calculateLandedCost", "automatedReplenishmentPlanner",
+  "triggerWebhook", "listIntegrationConnectors",
+  "autonomousGoalDecomposer", "detectOperationalAnomalies", "proactiveInsightGenerator",
+  "simulateWhatIfScenario", "autonomousSelfHealingRoutine",
+  "autonomousInventoryAllocationEngine", "operationsAutoPilotSweep", "synthesizeOperationalPlaybook",
+  "grokDeepReasoner", "chiefOfStaffOrchestrator", "xaiMarketTrendRadar", "demonstrateWorkflowMacro",
   "listSkills", "readSkill", "createSkill", "improveSkill", "recordSkillOutcome", "recallMemories", "remember",
 ]
 

@@ -15,18 +15,39 @@ const WEBSITE = "www.rdmpizza.com.au"
 const LOGO = "https://www.rdmpizza.com.au/wp-content/uploads/rdm-pizz-logo-2020-125.png"
 
 async function main() {
+  /**
+   * Every entity gets books, not just the one named RDM.
+   *
+   * The group bills from three companies and only one had a chart of accounts,
+   * so anything the other two invoiced could not post — the same gap that
+   * broke invoicing for customers with no company. An entity that can raise an
+   * invoice needs somewhere for it to land.
+   */
+  const companies = await db.company.findMany({
+    select: { id: true, name: true, country: true },
+  })
+
+  for (const company of companies) {
+    const chart = (await ensureDefaultChartOfAccounts(company.id)) as unknown[]
+    const rates = await ensureDefaultTaxRates(db, company.id, company.country)
+    console.log(
+      `  ${company.name.padEnd(30)} accounts=${chart.length} taxRates=+${rates.created}/${rates.existing}`
+    )
+  }
+
+  console.log("")
+
   const rdm = await db.company.findFirst({
-    where: { name: { contains: "RDM" } },
+    where: { name: { contains: "RDM Manufacturing" } },
     select: { id: true, name: true, country: true, website: true, logoUrl: true },
   })
 
   if (!rdm) {
-    console.log("  No RDM company found — nothing to set up.")
+    console.log("  No RDM Manufacturing company found — branding not applied.")
     await db.$disconnect()
     return
   }
 
-  // Books, so anything RDM invoices can post. Gap-filling, so re-running is safe.
   const chart = (await ensureDefaultChartOfAccounts(rdm.id)) as unknown[]
   const rates = await ensureDefaultTaxRates(db, rdm.id, rdm.country)
 

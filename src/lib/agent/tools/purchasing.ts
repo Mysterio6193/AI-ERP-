@@ -6,6 +6,8 @@ import type { AgentPrincipal } from "../context"
 import { defineTool } from "./define"
 import { isStaff, money } from "./shared"
 import { nextDocumentNumber } from "@/lib/numbering"
+import { daysOfCover, demandRates, projectedStockoutDate, reorderPoint, sortByUrgency, suggestOrderQuantity, urgencyOf, type ReplenishmentLine } from "@/lib/replenishment"
+import { backfillSupplierLinks, productsWithoutSupplier } from "@/lib/supplier-links"
 
 /** Suppliers, purchase orders and reordering. Staff only. */
 
@@ -151,6 +153,149 @@ id: supplier.id,
           ok: true as const,
           supplier,
           message: `Updated supplier "${supplier.name}".`,
+        }
+      },
+    }),
+
+    linkSuppliersFromHistory: defineTool({
+      description:
+        "Create product-supplier links from purchase order history, so replenishment planning knows who supplies what, at what cost and lead time. Derives links only where a purchase order actually exists — it never guesses a supplier. Run with dryRun first to see what it would create.",
+      inputSchema: z.object({
+        dryRun: z.boolean().optional().default(true).describe("Report what would be created without creating it"),
+        defaultLeadTimeDays: z.number().int().min(0).max(90).optional().default(7),
+      }),
+      execute: async ({ dryRun = true, defaultLeadTimeDays = 7 }) => {
+        const result = await backfillSupplierLinks(db, { dryRun, defaultLeadTimeDays })
+        const unlinked = await productsWithoutSupplier(db)
+
+        return {
+          ok: true as const,
+          dryRun,
+          ...result,
+          // The gap that remains after history is exhausted. These need a
+          // person to say who supplies them; no data in the system knows.
+          stillUnlinked: unlinked.length,
+          stillUnlinkedExamples: unlinked.slice(0, 10).map((p) => `${p.sku} ${p.name}`),
+          note: dryRun
+            ? "Nothing was created. Run again with dryRun false to apply."
+            : "Lead time and minimum order quantity are defaults — set the real ones per link where they matter.",
+        }
+      },
+    }),
+
+    replenishmentPlan: defineTool({
+      description:
+        "What to buy, worked out from how fast each product actually sells and how long its supplier takes. Unlike reorderSuggestions, which compares stock to a fixed threshold, this projects when each line runs out and orders enough to cover a target number of days. Use it for weekly buying decisions.",
+      inputSchema: z.object({
+        windowDays: z.number().int().min(7).max(180).optional().default(56)
+          .describe("How much sales history to measure demand over"),
+        targetCoverDays: z.number().int().min(7).max(120).optional().default(30)
+          .describe("How many days of stock an order should buy"),
+        onlyNeedingAction: z.boolean().optional().default(true),
+      }),
+      execute: async ({ windowDays = 56, targetCoverDays = 30, onlyNeedingAction = true }) => {
+        const since = new Date(Date.now() - windowDays * 86400000)
+
+        /**
+         * Demand comes from what customers ordered, not from stock movements.
+         * Movements only exist once an order dispatches, so measuring them
+         * misses everything currently in the pipeline and understates demand
+         * exactly when a business is busiest.
+         */
+        const lines = await db.salesOrderItem.findMany({
+          where: {
+            order: { orderDate: { gte: since }, status: { not: "cancelled" } },
+          },
+          select: { productId: true, quantity: true, order: { select: { orderDate: true } } },
+        })
+
+        const rates = demandRates(
+          lines.map((l) => ({ productId: l.productId, quantity: l.quantity, at: l.order.orderDate })),
+          windowDays
+        )
+
+        const inventory = await db.inventory.findMany({
+          select: {
+            productId: true, quantity: true, reserved: true, onOrder: true,
+            product: {
+              select: {
+                sku: true, name: true,
+                suppliers: {
+                  select: {
+                    costPrice: true, leadTime: true, minOrderQty: true, isPreferred: true,
+                    supplier: { select: { id: true, name: true } },
+                  },
+                },
+              },
+            },
+          },
+        })
+
+        const plan: ReplenishmentLine[] = inventory.map((row) => {
+          const rate = rates.get(row.productId)
+          const perDay = rate?.perDay ?? 0
+          const available = row.quantity - row.reserved
+
+          // Preferred supplier first, then cheapest — the same rule the
+          // reorder advice uses, so the two never disagree.
+          const candidates = [...(row.product?.suppliers ?? [])]
+          const chosen =
+            candidates.filter((c) => c.isPreferred).sort((a, b) => a.costPrice - b.costPrice)[0] ??
+            candidates.sort((a, b) => a.costPrice - b.costPrice)[0]
+
+          const leadTimeDays = chosen?.leadTime ?? 7
+          const cover = daysOfCover(available, perDay)
+          const suggestion = suggestOrderQuantity({
+            available, onOrder: row.onOrder, perDay, targetCoverDays,
+            minOrderQty: chosen?.minOrderQty,
+          })
+
+          return {
+            productId: row.productId,
+            sku: row.product?.sku ?? "",
+            name: row.product?.name ?? "",
+            available,
+            onOrder: row.onOrder,
+            perDay,
+            coverDays: cover,
+            reorderPoint: reorderPoint(perDay, leadTimeDays),
+            urgency: urgencyOf(cover, leadTimeDays),
+            suggestedQty: suggestion.quantity,
+            raisedToMinimum: suggestion.raisedToMinimum,
+            stockoutOn: projectedStockoutDate(available, perDay),
+            supplierName: chosen?.supplier?.name ?? null,
+            supplierId: chosen?.supplier?.id ?? null,
+            leadTimeDays,
+            unitCost: chosen ? chosen.costPrice : null,
+          }
+        })
+
+        const ranked = sortByUrgency(
+          onlyNeedingAction ? plan.filter((l) => l.suggestedQty > 0 || l.urgency !== "ok") : plan
+        )
+
+        return {
+          ok: true as const,
+          measuredOver: `${windowDays} days of orders`,
+          targetCoverDays,
+          counts: {
+            stockout: ranked.filter((l) => l.urgency === "stockout").length,
+            urgent: ranked.filter((l) => l.urgency === "urgent").length,
+            soon: ranked.filter((l) => l.urgency === "soon").length,
+          },
+          lines: ranked.slice(0, 40).map((l) => ({
+            ...l,
+            stockoutOn: l.stockoutOn ? l.stockoutOn.toISOString().slice(0, 10) : null,
+            estimatedCost: l.unitCost !== null ? money(l.unitCost * l.suggestedQty) : null,
+          })),
+          // A line with no supplier can be counted but not ordered, so the
+          // gap is stated rather than left as a quiet "no supplier" per row.
+          withoutSupplier: ranked.filter((l) => !l.supplierId).length,
+          note:
+            "Demand is measured from customer orders, so it includes what has not shipped yet. Urgency compares days of cover against each supplier's lead time." +
+            (ranked.some((l) => !l.supplierId)
+              ? " Some lines have no supplier linked, so no cost or lead time is known for them — run linkSuppliersFromHistory, or link them by hand."
+              : ""),
         }
       },
     }),

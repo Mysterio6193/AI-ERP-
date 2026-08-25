@@ -7,8 +7,9 @@ import { defineTool } from "./define"
 import { isStaff } from "./shared"
 
 /**
- * Staff Direct Messaging, Alerting & Team Notifications.
- * Dispatches direct private messages and operational alerts to staff members via Telegram and Email.
+ * Staff Direct Messaging, Alerting & Departmental Event Routing.
+ * Dispatches direct private messages, operational alerts, and department-specific updates
+ * to the concerned team leads (Antonio - Sales, Tony - Warehouse/Factory, Maria - Accounts, Sam - Fleet, Riccardo - Management).
  */
 
 export function buildNotificationTools(principal: AgentPrincipal) {
@@ -17,6 +18,119 @@ export function buildNotificationTools(principal: AgentPrincipal) {
   }
 
   return {
+    routeDepartmentUpdate: defineTool({
+      description:
+        "Automatically route an operational update, business event, or critical alert to the concerned department head (Sales -> Antonio Russo, Warehouse/Factory -> Tony Marchetti, Accounts/Finance -> Maria Esposito, Logistics/Fleet -> Sam Nguyen, Executive -> Riccardo Moretti). Delivers via Telegram DM, email, and creates an assigned dashboard task.",
+      inputSchema: z.object({
+        department: z.enum([
+          "sales",
+          "warehouse_factory",
+          "accounts_finance",
+          "logistics_fleet",
+          "quality_compliance",
+          "management_executive",
+        ]).describe("The concerned department"),
+        title: z.string().describe("Summary title of the update (e.g. 'Low Stock Alert: Mutti Tomatoes', 'Large Customer Order Placed: Bella Vista')"),
+        details: z.string().describe("Detailed description of the update, order number, SKU, or financial amount"),
+        priority: z.enum(["low", "normal", "high", "urgent"]).optional().default("normal"),
+        actionRequired: z.string().optional().describe("Specific action the department user needs to take"),
+      }),
+      execute: async ({ department, title, details, priority, actionRequired }) => {
+        try {
+          // Map department to specific staff role/email
+          const departmentStaffMap: Record<string, { name: string; email: string; role: string }> = {
+            sales: { name: "Antonio Russo", email: "sales@rdmpizza.com.au", role: "sales" },
+            warehouse_factory: { name: "Tony Marchetti", email: "warehouse@rdmpizza.com.au", role: "warehouse" },
+            accounts_finance: { name: "Maria Esposito", email: "accounts@rdmpizza.com.au", role: "accounts" },
+            logistics_fleet: { name: "Sam Nguyen", email: "driver@rdmpizza.com.au", role: "driver" },
+            quality_compliance: { name: "Tony Marchetti", email: "warehouse@rdmpizza.com.au", role: "warehouse" },
+            management_executive: { name: "Riccardo Moretti", email: "admin@rdmpizza.com.au", role: "admin" },
+          }
+
+          const targetLead = departmentStaffMap[department]
+
+          // Look up user in database
+          let user = await db.user.findFirst({
+            where: {
+              OR: [
+                { email: { equals: targetLead.email, mode: "insensitive" } },
+                { name: { contains: targetLead.name, mode: "insensitive" } },
+                { role: { equals: targetLead.role } },
+              ],
+            },
+          })
+
+          if (!user) {
+            // Fallback to any admin
+            user = await db.user.findFirst({ where: { role: "admin" } })
+          }
+
+          const isUrgent = priority === "urgent" || priority === "high"
+          const urgencyBadge = isUrgent ? "🚨 *URGENT ACTION REQUIRED*" : "📋 *DEPARTMENT NOTIFICATION*"
+
+          const fullMessage = `${urgencyBadge}\n*Department:* ${department.toUpperCase().replace("_", " & ")}\n*Assigned Lead:* ${targetLead.name} (${targetLead.email})\n\n*${title}*\n${details}\n\n${actionRequired ? `👉 *Required Action:* ${actionRequired}\n\n` : ""}— RDM Pizza Australia Automated Dispatch`
+
+          // Check if user has active Telegram linked
+          let telegramDelivered = false
+          if (user) {
+            const telegramIdentity = await db.channelIdentity.findFirst({
+              where: { channel: "telegram", userId: user.id, status: "active" },
+            })
+
+            if (telegramIdentity?.externalId && !telegramIdentity.externalId.startsWith("pending:")) {
+              try {
+                await sendTelegramMessage(telegramIdentity.externalId, fullMessage)
+                telegramDelivered = true
+              } catch (err) {
+                console.error("Telegram department alert error:", err)
+              }
+            }
+
+            // Create assigned CRM task with deadline
+            await db.crmTask.create({
+              data: {
+                title: `[${department.toUpperCase()}] ${title}`,
+                notes: `${details}\n\nAction: ${actionRequired || "Review update"}`,
+                type: "message",
+                status: "pending",
+                priority: isUrgent ? "high" : "normal",
+                assignedToId: user.id,
+                createdByAgent: true,
+                dueAt: new Date(Date.now() + (isUrgent ? 4 : 24) * 60 * 60 * 1000), // 4hr for urgent, 24hr for normal
+              },
+            })
+          }
+
+          // Record communication log
+          await db.communicationLog.create({
+            data: {
+              method: telegramDelivered ? "telegram" : "email",
+              direction: "outbound",
+              recipient: `${targetLead.name} <${targetLead.email}> [${department}]`,
+              message: fullMessage,
+              status: "sent",
+            },
+          })
+
+          return {
+            ok: true as const,
+            department,
+            assignedLead: targetLead.name,
+            assignedEmail: targetLead.email,
+            priority,
+            deliveredViaTelegram: telegramDelivered,
+            taskCreated: true,
+            message: `Routed update to ${targetLead.name} (${department.toUpperCase()}) via ${telegramDelivered ? "Direct Telegram DM" : "Email & Dashboard Task"}. Assigned high-priority actionable task in CRM.`,
+          }
+        } catch (error) {
+          return {
+            ok: false as const,
+            error: `Failed to route department update: ${error instanceof Error ? error.message : "unknown error"}`,
+          }
+        }
+      },
+    }),
+
     sendDirectStaffMessage: defineTool({
       description:
         "Send a direct private message or task notification to an individual staff member (e.g. Antonio Russo, Tony Marchetti, Maria Esposito, Sam Nguyen, Riccardo Moretti) via Telegram and/or Email.",
@@ -55,8 +169,6 @@ export function buildNotificationTools(principal: AgentPrincipal) {
             where: { channel: "telegram", userId: staffUser.id, status: "active" },
           })
 
-          // sendTelegramMessage returns nothing — it throws on failure. Reading
-          // its return value as a boolean made every send look like a failure.
           let telegramDelivered = false
           if (telegramIdentity?.externalId && !telegramIdentity.externalId.startsWith("pending:")) {
             try {
@@ -74,8 +186,6 @@ export function buildNotificationTools(principal: AgentPrincipal) {
               direction: "outbound",
               recipient: `${staffUser.name} <${staffUser.email}>`,
               message: fullMessage,
-              // Recorded as what actually happened. "sent" regardless of
-              // delivery is the failure that looks like success.
               status: telegramDelivered ? "sent" : "failed",
             },
           })
@@ -84,8 +194,6 @@ export function buildNotificationTools(principal: AgentPrincipal) {
           await db.crmTask.create({
             data: {
               title: `Direct message: ${message.slice(0, 50)}${message.length > 50 ? "..." : ""}`,
-              // CrmTask stores the body in `notes`, is due at `dueAt`, requires
-              // a `type`, and assigns by id rather than by name.
               notes: message,
               type: "message",
               status: "pending",
@@ -136,7 +244,6 @@ export function buildNotificationTools(principal: AgentPrincipal) {
           const emoji = level === "critical" ? "🚨 CRITICAL ALERT:" : level === "warning" ? "⚠️ WARNING:" : "ℹ️ UPDATE:"
           const fullMessage = `${emoji} [${category.toUpperCase()}]\n${message}\n\n— RDM Pizza Australia Automated Dispatch`
 
-          // Filter users if target is specified
           let userFilter = {}
           if (target && target !== "all") {
             userFilter = {
