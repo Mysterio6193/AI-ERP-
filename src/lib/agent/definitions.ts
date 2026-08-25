@@ -114,7 +114,7 @@ export const SALES_TOOLS = [
   "createOpportunity", "updateOpportunity", "convertLead",
   "salesforceCustomer360", "salesforceOpportunityPipeline", "salesforceLeadScoring",
   "ecommerceChannelPerformance",
-  "sendDirectStaffMessage", "sendStaffAlert", "sendEmail", "draftEmail",
+  "sendDirectStaffMessage", "sendStaffAlert", "routeDepartmentUpdate", "sendEmail", "draftEmail",
   "recallMemories", "remember",
 ]
 
@@ -127,7 +127,7 @@ export const WAREHOUSE_TOOLS = [
   "checkAllergens",
   "listBoms", "mfgMultiLevelBomExplosion", "mfgCapacityAndShiftScheduler", "mfgBatchYieldAndWastage", "mfgOeeAndMachinePerformance",
   "ecommerceSyncInventory", "palletOptimization", "warehouseSlottingAdvisor",
-  "sendDirectStaffMessage", "sendStaffAlert",
+  "sendDirectStaffMessage", "sendStaffAlert", "routeDepartmentUpdate",
   "recallMemories", "remember",
 ]
 
@@ -140,7 +140,7 @@ export const ACCOUNTS_TOOLS = [
   "businessSnapshot", "salesReport",
   "xeroSyncInvoice", "xeroReconcileBankFeed", "xeroChartOfAccounts", "taxSummaryGst", "cashflowForecast",
   "listTasks", "createTask",
-  "sendDirectStaffMessage", "sendStaffAlert", "sendEmail", "draftEmail",
+  "sendDirectStaffMessage", "sendStaffAlert", "routeDepartmentUpdate", "sendEmail", "draftEmail",
   "recallMemories", "remember",
 ]
 
@@ -165,7 +165,7 @@ export const PURCHASING_TOOLS = [
   "calculateLandedCost", "automatedReplenishmentPlanner", "compareSupplierQuotes",
   "priceMarginOptimizer", "executeCalculation",
   "listTasks", "createTask", "completeTask",
-  "sendDirectStaffMessage", "sendStaffAlert",
+  "sendDirectStaffMessage", "sendStaffAlert", "routeDepartmentUpdate",
   "recallMemories", "remember",
 ]
 
@@ -187,7 +187,7 @@ export const COMPLIANCE_TOOLS = [
   "checkAllergens", "auditAllergenDeclarations", "checkStockAvailability",
   "searchProducts", "getStock",
   "mfgHaccpQualityGate", "mockRecallSimulation",
-  "sendDirectStaffMessage", "sendStaffAlert", "planTask", "scratchpadNote",
+  "sendDirectStaffMessage", "sendStaffAlert", "routeDepartmentUpdate", "planTask", "scratchpadNote",
   "listTasks", "createTask", "completeTask",
   "recallMemories", "remember",
 ]
@@ -218,7 +218,7 @@ export const EXECUTIVE_TOOLS = [
   "searchWeb", "searchKnowledge",
   "planTask", "scratchpadNote",
   "delegateToAgent", "spawnAgentTask", "agentSwarm", "broadcastToAgents",
-  "sendDirectStaffMessage", "sendStaffAlert", "postToGroupChannel",
+  "sendDirectStaffMessage", "sendStaffAlert", "routeDepartmentUpdate", "postToGroupChannel",
   "recallMemories", "remember",
 ]
 
@@ -281,7 +281,7 @@ export const OPS_TOOLS = [
   "getBatches", "expiringStock", "checkAllergens",
   "listBoms", "mfgMultiLevelBomExplosion", "mfgCapacityAndShiftScheduler", "mfgBatchYieldAndWastage", "mfgHaccpQualityGate", "mfgOeeAndMachinePerformance", "createProductionOrder", "listProductionOrders",
   "listDeliveryRoutes", "createDeliveryRoute", "listReturns", "createCustomerReturn", "listPriceLists", "assignCustomerPriceList",
-  "planTask", "scratchpadNote", "scanDocument", "sendDocument", "generateDocumentPdf", "generateReportPdf", "executeCalculation", "runDataAnalysis", "fetchWebPage", "searchWeb", "searchKnowledge", "generateDiagram", "listMcpServers", "callMcpTool", "callGenericApi", "delegateToAgent", "sendStaffAlert", "sendDirectStaffMessage",
+  "planTask", "scratchpadNote", "scanDocument", "sendDocument", "generateDocumentPdf", "generateReportPdf", "executeCalculation", "runDataAnalysis", "fetchWebPage", "searchWeb", "searchKnowledge", "generateDiagram", "listMcpServers", "callMcpTool", "callGenericApi", "delegateToAgent", "sendStaffAlert", "sendDirectStaffMessage", "routeDepartmentUpdate",
   "listAgentChannels", "generateMorningBriefing", "sendMorningGreeting", "listGroupChannels", "updateGroupChannel", "postToGroupChannel",
   "spawnAgentTask", "agentSwarm", "agentHandoff", "broadcastToAgents", "listAvailableAgents",
   "setReminder", "createRecurringReport", "createWorkflow", "translateText", "generateQrCode", "summarizeThread", "createChecklist",
