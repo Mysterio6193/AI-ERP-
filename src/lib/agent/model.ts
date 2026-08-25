@@ -31,8 +31,8 @@ import {
   type Classification,
 } from "@/lib/agent/retry"
 
-const DEFAULT_OPENROUTER_MODEL = "nvidia/nemotron-3.5-lightning:free"
-const DEFAULT_OPENROUTER_FAST_MODEL = "nvidia/nemotron-3.5-lightning:free"
+const DEFAULT_OPENROUTER_MODEL = "nvidia/nemotron-3-ultra-550b-a55b:free"
+const DEFAULT_OPENROUTER_FAST_MODEL = "nvidia/nemotron-3-ultra-550b-a55b:free"
 const DEFAULT_GOOGLE_MODEL = "gemini-3.1-flash-lite"
 const DEFAULT_GOOGLE_FAST_MODEL = "gemini-3.1-flash-lite"
 
