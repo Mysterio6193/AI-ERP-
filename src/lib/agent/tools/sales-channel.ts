@@ -2,6 +2,7 @@ import { z } from "zod"
 
 import { db } from "@/lib/db"
 import { CHANNEL_LABEL, canSupply, checkSupplyLink, isChannelRole, summariseChannel } from "@/lib/channel"
+import { USAGE_STATUS_LABEL, describeConfidence, summarisePullThrough, type UsageRow } from "@/lib/end-user-usage"
 
 import type { AgentPrincipal } from "../context"
 import { defineTool } from "./define"
@@ -140,6 +141,184 @@ export function buildSalesChannelTools(principal: AgentPrincipal) {
           distributor: distributor.name,
           count: venues.length,
           venues,
+        }
+      },
+    }),
+
+    recordEndUserUsage: defineTool({
+      description:
+        "Record what a venue actually uses, when they buy it through a distributor rather than from us. Use this after a rep visit or when a distributor reports it. Re-recording the same venue and product corrects the figure rather than adding a second one.",
+      inputSchema: z.object({
+        customerId: z.string().describe("The venue"),
+        productId: z.string().describe("The product they use"),
+        estimatedQty: z.number().optional().describe("Roughly how much, per period"),
+        period: z.enum(["week", "month"]).optional().describe("Per week or per month; defaults to week"),
+        unit: z.string().optional().describe("Boxes, pallets, kg - whatever they said"),
+        viaDistributorId: z.string().optional().describe("Which distributor they buy it through"),
+        status: z
+          .enum(["using", "trialling", "lapsed", "lost_to_competitor"])
+          .optional()
+          .describe("Defaults to using"),
+        competitorProduct: z.string().optional().describe("What they switched to, if lost"),
+        notes: z.string().optional(),
+      }),
+      execute: async (input) => {
+        const [customer, product] = await Promise.all([
+          db.customer.findUnique({ where: { id: input.customerId }, select: { name: true, channelRole: true } }),
+          db.product.findUnique({ where: { id: input.productId }, select: { name: true, baseUnit: true } }),
+        ])
+
+        if (!customer) return refuse("No customer with that id.")
+        if (!product) return refuse("No product with that id.")
+
+        /**
+         * Recorded against a direct buyer this would duplicate the order book
+         * and disagree with it, so it is refused with the reason rather than
+         * quietly written somewhere nobody looks.
+         */
+        if (customer.channelRole !== "end_user") {
+          return refuse(
+            `${customer.name} buys from us directly, so their usage is already in the order history. ` +
+              `This is for venues that buy through a distributor — mark them as an end user first.`
+          )
+        }
+
+        const usage = await db.endUserProduct.upsert({
+          where: { customerId_productId: { customerId: input.customerId, productId: input.productId } },
+          create: {
+            customerId: input.customerId,
+            productId: input.productId,
+            estimatedQty: input.estimatedQty ?? null,
+            period: input.period ?? "week",
+            unit: input.unit ?? product.baseUnit ?? null,
+            viaDistributorId: input.viaDistributorId ?? null,
+            status: input.status ?? "using",
+            competitorProduct: input.competitorProduct ?? null,
+            notes: input.notes ?? null,
+            // Recording it is confirming it; that is what makes the row ageable.
+            lastConfirmedAt: new Date(),
+            confirmedById: principal.userId ?? null,
+            source: "rep_visit",
+          },
+          update: {
+            ...(input.estimatedQty !== undefined ? { estimatedQty: input.estimatedQty } : {}),
+            ...(input.period ? { period: input.period } : {}),
+            ...(input.unit ? { unit: input.unit } : {}),
+            ...(input.viaDistributorId ? { viaDistributorId: input.viaDistributorId } : {}),
+            ...(input.status ? { status: input.status } : {}),
+            ...(input.competitorProduct !== undefined ? { competitorProduct: input.competitorProduct } : {}),
+            ...(input.notes !== undefined ? { notes: input.notes } : {}),
+            lastConfirmedAt: new Date(),
+            confirmedById: principal.userId ?? null,
+          },
+          select: { id: true, status: true, estimatedQty: true, period: true, unit: true },
+        })
+
+        return {
+          ok: true as const,
+          customer: customer.name,
+          product: product.name,
+          status: USAGE_STATUS_LABEL[usage.status as keyof typeof USAGE_STATUS_LABEL] ?? usage.status,
+          recorded:
+            usage.estimatedQty !== null
+              ? `about ${usage.estimatedQty} ${usage.unit ?? ""} a ${usage.period}`.replace(/\s+/g, " ").trim()
+              : "no quantity given",
+        }
+      },
+    }),
+
+    productPullThrough: defineTool({
+      description:
+        "What venues say they use, summarised per product. Answers what the order book cannot: whether real demand is holding up when a distributor's orders fall, and which distributors a product reaches venues through.",
+      inputSchema: z.object({
+        productId: z.string().optional().describe("Limit to one product"),
+      }),
+      execute: async ({ productId }) => {
+        const rows = await db.endUserProduct.findMany({
+          where: productId ? { productId } : {},
+          select: {
+            customerId: true,
+            productId: true,
+            estimatedQty: true,
+            period: true,
+            unit: true,
+            status: true,
+            viaDistributorId: true,
+            lastConfirmedAt: true,
+            customer: { select: { name: true } },
+            product: { select: { name: true } },
+            viaDistributor: { select: { name: true } },
+          },
+        })
+
+        if (rows.length === 0) {
+          return {
+            ok: true as const,
+            products: [],
+            message:
+              "Nothing recorded yet. Usage is added from rep visits with recordEndUserUsage — venues buying through a distributor never appear in the order book.",
+          }
+        }
+
+        const usage: UsageRow[] = rows.map((row) => ({
+          customerId: row.customerId,
+          customerName: row.customer?.name ?? "Unknown",
+          productId: row.productId,
+          productName: row.product?.name ?? "Unknown",
+          estimatedQty: row.estimatedQty,
+          period: row.period,
+          unit: row.unit,
+          status: row.status,
+          viaDistributorId: row.viaDistributorId,
+          viaDistributorName: row.viaDistributor?.name ?? null,
+          lastConfirmedAt: row.lastConfirmedAt,
+        }))
+
+        return { ok: true as const, products: summarisePullThrough(usage) }
+      },
+    }),
+
+    venueUsage: defineTool({
+      description:
+        "What one venue uses, with how recently each figure was confirmed. Read this before visiting or ringing them.",
+      inputSchema: z.object({ customerId: z.string() }),
+      execute: async ({ customerId }) => {
+        const customer = await db.customer.findUnique({
+          where: { id: customerId },
+          select: { name: true, channelRole: true, suppliedBy: { select: { name: true } } },
+        })
+
+        if (!customer) return refuse("No customer with that id.")
+
+        const rows = await db.endUserProduct.findMany({
+          where: { customerId },
+          orderBy: { status: "asc" },
+          select: {
+            estimatedQty: true, period: true, unit: true, status: true,
+            competitorProduct: true, notes: true, lastConfirmedAt: true,
+            product: { select: { id: true, name: true, sku: true } },
+            viaDistributor: { select: { name: true } },
+          },
+        })
+
+        return {
+          ok: true as const,
+          customer: customer.name,
+          buysThrough: customer.suppliedBy?.name ?? null,
+          uses: rows.map((row) => ({
+            product: row.product?.name,
+            sku: row.product?.sku,
+            status: USAGE_STATUS_LABEL[row.status as keyof typeof USAGE_STATUS_LABEL] ?? row.status,
+            quantity:
+              row.estimatedQty !== null
+                ? `about ${row.estimatedQty} ${row.unit ?? ""} a ${row.period}`.replace(/\s+/g, " ").trim()
+                : null,
+            via: row.viaDistributor?.name ?? null,
+            switchedTo: row.competitorProduct,
+            // Said on every figure, so nobody quotes a rumour as a fact.
+            confidence: describeConfidence(row.lastConfirmedAt),
+            notes: row.notes,
+          })),
         }
       },
     }),

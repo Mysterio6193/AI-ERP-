@@ -108,6 +108,9 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
    * form is how you get to the button.
    */
   setChannelRole: { risk: "medium", roles: ["admin", "sales"] },
+  recordEndUserUsage: { risk: "low", roles: ["admin", "sales"] },
+  productPullThrough: { risk: "low" },
+  venueUsage: { risk: "low" },
   setSupplyingDistributor: { risk: "low", roles: ["admin", "sales"] },
   listVenuesForDistributor: { risk: "low" },
   channelOverview: { risk: "low" },
