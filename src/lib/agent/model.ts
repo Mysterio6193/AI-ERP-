@@ -33,8 +33,8 @@ import {
 
 const DEFAULT_OPENROUTER_MODEL = "nvidia/nemotron-3-ultra-550b-a55b:free"
 const DEFAULT_OPENROUTER_FAST_MODEL = "nvidia/nemotron-3-ultra-550b-a55b:free"
-const DEFAULT_GOOGLE_MODEL = "gemini-3.1-flash-lite"
-const DEFAULT_GOOGLE_FAST_MODEL = "gemini-3.1-flash-lite"
+const DEFAULT_GOOGLE_MODEL = "gemini-3.6-flash"
+const DEFAULT_GOOGLE_FAST_MODEL = "gemini-3.6-flash"
 
 function env(name: string) {
   const value = process.env[name]
