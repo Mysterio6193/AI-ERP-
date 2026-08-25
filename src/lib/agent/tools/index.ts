@@ -47,6 +47,7 @@ import { buildAdvancedInventoryTools } from "./inventory-advanced"
 import { buildWebhookTools } from "./webhooks-tools"
 import { buildAutonomousAiTools } from "./autonomous-ai"
 import { buildSimulationAiTools } from "./simulation-ai"
+import { buildAutonomousDecisionTools } from "./autonomous-decision"
 import { TOOL_NAMES } from "./define"
 
 /**
@@ -363,6 +364,11 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
   simulateWhatIfScenario: { risk: "read" },
   autonomousSelfHealingRoutine: { risk: "low", roles: ["admin", "warehouse", "accounts"] },
 
+  // Autonomous Decision Matrix & Auto-Pilot
+  autonomousInventoryAllocationEngine: { risk: "read" },
+  operationsAutoPilotSweep: { risk: "read" },
+  synthesizeOperationalPlaybook: { risk: "low", roles: ["admin", "sales", "warehouse"] },
+
   // Freight. Drafting writes a row and contacts nobody; sending commits the
   // business to a third party who acts on it immediately, so it is the gate.
   listCarriers: { risk: "read" },
@@ -436,6 +442,7 @@ export function buildTools(principal: AgentPrincipal, channel?: string): ToolSet
     buildWebhookTools(principal),
     buildAutonomousAiTools(principal),
     buildSimulationAiTools(principal),
+    buildAutonomousDecisionTools(principal),
   ]
 
   const assembled = Object.assign({}, ...builders) as ToolSet

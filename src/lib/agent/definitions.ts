@@ -214,6 +214,7 @@ export const EXECUTIVE_TOOLS = [
   "ecommerceChannelPerformance", "listIntegrationConnectors",
   "autonomousGoalDecomposer", "detectOperationalAnomalies", "proactiveInsightGenerator",
   "simulateWhatIfScenario",
+  "autonomousInventoryAllocationEngine", "operationsAutoPilotSweep",
   "listOrders", "listPurchaseOrders", "listLeads", "pipelineSummary",
   "searchWeb", "searchKnowledge",
   "planTask", "scratchpadNote",
@@ -297,6 +298,7 @@ export const OPS_TOOLS = [
   "triggerWebhook", "listIntegrationConnectors",
   "autonomousGoalDecomposer", "detectOperationalAnomalies", "proactiveInsightGenerator",
   "simulateWhatIfScenario", "autonomousSelfHealingRoutine",
+  "autonomousInventoryAllocationEngine", "operationsAutoPilotSweep", "synthesizeOperationalPlaybook",
   "listSkills", "readSkill", "createSkill", "improveSkill", "recordSkillOutcome", "recallMemories", "remember",
 ]
 
