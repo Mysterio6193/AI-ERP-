@@ -40,6 +40,11 @@ import { buildAnalyticsTools } from "./analytics"
 import { buildDeepOperationsTools } from "./operations-deep"
 import { buildUniversalTools } from "./universal"
 import { buildWebSearchTools } from "./websearch"
+import { buildXeroTools } from "./xero-tools"
+import { buildSalesforceTools } from "./salesforce-tools"
+import { buildEcommerceTools } from "./ecommerce-tools"
+import { buildAdvancedInventoryTools } from "./inventory-advanced"
+import { buildWebhookTools } from "./webhooks-tools"
 import { TOOL_NAMES } from "./define"
 
 /**
@@ -141,6 +146,7 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
   updateSupplier: { risk: "low", roles: ["admin", "warehouse", "accounts"] },
   reorderSuggestions: { risk: "read" },
   replenishmentPlan: { risk: "read" },
+  linkSuppliersFromHistory: { risk: "medium", roles: ["admin", "warehouse", "accounts"] },
   listPurchaseOrders: { risk: "read" },
   getPurchaseOrder: { risk: "read" },
   createPurchaseOrder: {
@@ -316,6 +322,29 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
   mockRecallSimulation: { risk: "read" },
   creditRiskAssessment: { risk: "read" },
 
+  // Xero & Accounting Integrations
+  xeroSyncInvoice: { risk: "low", roles: ["admin", "accounts"] },
+  xeroReconcileBankFeed: { risk: "read" },
+  xeroChartOfAccounts: { risk: "read" },
+
+  // Salesforce & CRM Suite
+  salesforceCustomer360: { risk: "read" },
+  salesforceOpportunityPipeline: { risk: "low", roles: ["admin", "sales"] },
+  salesforceLeadScoring: { risk: "read" },
+
+  // E-Commerce & Shopify
+  ecommerceSyncInventory: { risk: "low", roles: ["admin", "warehouse", "sales"] },
+  ecommerceIngestOrder: { risk: "medium", roles: ["admin", "sales"] },
+  ecommerceChannelPerformance: { risk: "read" },
+
+  // Advanced Inventory & Landed Cost
+  calculateLandedCost: { risk: "read" },
+  automatedReplenishmentPlanner: { risk: "read" },
+
+  // Universal Webhooks & Connectors
+  triggerWebhook: { risk: "low", roles: ["admin", "sales", "warehouse", "accounts"] },
+  listIntegrationConnectors: { risk: "read" },
+
   // Freight. Drafting writes a row and contacts nobody; sending commits the
   // business to a third party who acts on it immediately, so it is the gate.
   listCarriers: { risk: "read" },
@@ -382,6 +411,11 @@ export function buildTools(principal: AgentPrincipal, channel?: string): ToolSet
     buildRouteTools(principal),
     buildReturnTools(principal),
     buildPriceListTools(principal),
+    buildXeroTools(principal),
+    buildSalesforceTools(principal),
+    buildEcommerceTools(principal),
+    buildAdvancedInventoryTools(principal),
+    buildWebhookTools(principal),
   ]
 
   const assembled = Object.assign({}, ...builders) as ToolSet

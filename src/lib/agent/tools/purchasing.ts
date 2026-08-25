@@ -7,6 +7,7 @@ import { defineTool } from "./define"
 import { isStaff, money } from "./shared"
 import { nextDocumentNumber } from "@/lib/numbering"
 import { daysOfCover, demandRates, projectedStockoutDate, reorderPoint, sortByUrgency, suggestOrderQuantity, urgencyOf, type ReplenishmentLine } from "@/lib/replenishment"
+import { backfillSupplierLinks, productsWithoutSupplier } from "@/lib/supplier-links"
 
 /** Suppliers, purchase orders and reordering. Staff only. */
 
@@ -147,6 +148,32 @@ export function buildPurchasingTools(principal: AgentPrincipal) {
       },
     }),
 
+    linkSuppliersFromHistory: defineTool({
+      description:
+        "Create product-supplier links from purchase order history, so replenishment planning knows who supplies what, at what cost and lead time. Derives links only where a purchase order actually exists — it never guesses a supplier. Run with dryRun first to see what it would create.",
+      inputSchema: z.object({
+        dryRun: z.boolean().optional().default(true).describe("Report what would be created without creating it"),
+        defaultLeadTimeDays: z.number().int().min(0).max(90).optional().default(7),
+      }),
+      execute: async ({ dryRun = true, defaultLeadTimeDays = 7 }) => {
+        const result = await backfillSupplierLinks(db, { dryRun, defaultLeadTimeDays })
+        const unlinked = await productsWithoutSupplier(db)
+
+        return {
+          ok: true as const,
+          dryRun,
+          ...result,
+          // The gap that remains after history is exhausted. These need a
+          // person to say who supplies them; no data in the system knows.
+          stillUnlinked: unlinked.length,
+          stillUnlinkedExamples: unlinked.slice(0, 10).map((p) => `${p.sku} ${p.name}`),
+          note: dryRun
+            ? "Nothing was created. Run again with dryRun false to apply."
+            : "Lead time and minimum order quantity are defaults — set the real ones per link where they matter.",
+        }
+      },
+    }),
+
     replenishmentPlan: defineTool({
       description:
         "What to buy, worked out from how fast each product actually sells and how long its supplier takes. Unlike reorderSuggestions, which compares stock to a fixed threshold, this projects when each line runs out and orders enough to cover a target number of days. Use it for weekly buying decisions.",
@@ -252,8 +279,14 @@ export function buildPurchasingTools(principal: AgentPrincipal) {
             stockoutOn: l.stockoutOn ? l.stockoutOn.toISOString().slice(0, 10) : null,
             estimatedCost: l.unitCost !== null ? money(l.unitCost * l.suggestedQty) : null,
           })),
+          // A line with no supplier can be counted but not ordered, so the
+          // gap is stated rather than left as a quiet "no supplier" per row.
+          withoutSupplier: ranked.filter((l) => !l.supplierId).length,
           note:
-            "Demand is measured from customer orders, so it includes what has not shipped yet. Urgency compares days of cover against each supplier's lead time.",
+            "Demand is measured from customer orders, so it includes what has not shipped yet. Urgency compares days of cover against each supplier's lead time." +
+            (ranked.some((l) => !l.supplierId)
+              ? " Some lines have no supplier linked, so no cost or lead time is known for them — run linkSuppliersFromHistory, or link them by hand."
+              : ""),
         }
       },
     }),
