@@ -1,4 +1,5 @@
 import { db } from "@/lib/db"
+import { secretEquals } from "@/lib/secret-compare"
 
 /**
  * Telegram transport.
@@ -37,7 +38,9 @@ export function verifyTelegramSecret(headerValue: string | null) {
     return true
   }
 
-  return headerValue === expected
+  // Constant-time. The webhook is public, so a comparison that returns faster
+  // the sooner it finds a wrong byte is a way to learn the secret.
+  return secretEquals(expected, headerValue)
 }
 
 async function call<T = unknown>(method: string, payload: Record<string, unknown>): Promise<T | null> {

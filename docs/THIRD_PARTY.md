@@ -13,6 +13,7 @@ than the benefit of copying.
 | npm dependencies | `node_modules/` | many | mostly MIT / Apache-2.0 | Nothing while used as dependencies |
 | Retry classification approach | `src/lib/agent/retry.ts` | [milind-soni/OpenMausBot](https://github.com/milind-soni/OpenMausBot) | Apache-2.0 | Notice in `docs/licences/openmausbot-Apache-2.0.txt`; own implementation |
 | Turn watchdog clock | `src/lib/agent/watchdog.ts` | [CopilotKit/OpenBot](https://github.com/CopilotKit/OpenBot) | MIT | Notice in `docs/licences/openbot-MIT.txt`; adapted, not copied wholesale |
+| Constant-time secret compare | `src/lib/secret-compare.ts` | [CopilotKit/OpenBot](https://github.com/CopilotKit/OpenBot) | MIT | Same notice; Node's `timingSafeEqual` does the work, the length guard is theirs |
 
 ## The rule of thumb
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { getAdminUserFromRequest, hasRole } from "@/lib/admin-auth"
 import { tick } from "@/lib/agent/scheduler"
+import { bearerToken, secretEquals } from "@/lib/secret-compare"
 
 /**
  * The scheduler tick.
@@ -20,18 +21,9 @@ export const maxDuration = 300
 export const dynamic = "force-dynamic"
 
 function authorised(request: NextRequest) {
-  const secret = process.env.CRON_SECRET
-
-  if (secret) {
-    const header = request.headers.get("authorization") || ""
-    const provided = header.startsWith("Bearer ") ? header.slice(7) : request.headers.get("x-cron-secret")
-
-    if (provided && provided === secret) {
-      return true
-    }
-  }
-
-  return false
+  // Constant-time: this endpoint is public and may be called as often as the
+  // caller likes, which is exactly the condition a timing attack needs.
+  return secretEquals(process.env.CRON_SECRET, bearerToken(request.headers, "x-cron-secret"))
 }
 
 async function handle(request: NextRequest) {
