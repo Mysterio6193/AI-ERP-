@@ -22,6 +22,7 @@ import { buildTools, TOOL_POLICY } from "./tools"
 import { describeSettingProposal } from "./tools/settings"
 import { formatIdentity, getAgentIdentity } from "./identity"
 import { budgetFor, dropOrphanedToolCalls, windowHistory } from "@/lib/agent/history-window"
+import { describeGenericProposal } from "@/lib/agent/proposal-summary"
 
 /**
  * The agent runtime.
@@ -82,7 +83,9 @@ export async function summarise(toolName: string, args: Record<string, unknown>)
     case "setCreditStatus":
       return `Change credit status to "${args.status}"`
     default:
-      return `Run ${toolName}`
+      // Was `Run ${toolName}`, which asked a person to approve something they
+      // could not see: the arguments are the decision, not the tool name.
+      return describeGenericProposal(toolName, args)
   }
 }
 

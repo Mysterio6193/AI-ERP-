@@ -4,6 +4,7 @@ import type { AgentPrincipal } from "../context"
 import { defineTool } from "./define"
 import { acknowledgeTool, brokenTools, describeBroken, healthSummary } from "@/lib/agent/tool-health"
 import { db } from "@/lib/db"
+import { describeStale, STALE_AFTER_HOURS } from "@/lib/agent/proposal-summary"
 
 /**
  * General digital problem solving & Hermes Reasoning tools.
@@ -17,6 +18,43 @@ export function buildGeneralTools(principal: AgentPrincipal) {
   const principalKey = principal.kind === "staff" ? principal.userId : principal.customerId
 
   return {
+    pendingDecisions: defineTool({
+      description:
+        "Actions the agent has proposed that are still waiting for a person to approve or reject, oldest first. Use this when asked what needs attention, and before telling someone a request was not actioned — it may be waiting on them.",
+      inputSchema: z.object({
+        staleAfterHours: z.number().int().min(0).max(168).optional().default(0)
+          .describe("Only show proposals waiting longer than this. 0 shows all."),
+      }),
+      skipHealthTracking: true,
+      execute: async ({ staleAfterHours = 0 }) => {
+        const cutoff = new Date(Date.now() - staleAfterHours * 3600000)
+
+        const rows = await db.agentProposal.findMany({
+          where: { status: "pending", createdAt: { lte: cutoff } },
+          orderBy: { createdAt: "asc" },
+          select: { id: true, toolName: true, summary: true, createdAt: true, requestedBy: true, risk: true },
+        })
+
+        const proposals = rows.map((r) => ({
+          id: r.id,
+          toolName: r.toolName,
+          summary: r.summary,
+          risk: r.risk,
+          requestedBy: r.requestedBy,
+          hoursWaiting: Math.floor((Date.now() - r.createdAt.getTime()) / 3600000),
+        }))
+
+        return {
+          ok: true as const,
+          count: proposals.length,
+          proposals,
+          report: describeStale(proposals),
+          note:
+            "A proposal nobody answers is a stall, not a decision — the work never happens and it looks like the request was ignored.",
+        }
+      },
+    }),
+
     checkToolHealth: defineTool({
       description:
         "Which of the agent's own tools are failing, with the last error for each. Use this when a tool behaves oddly, when asked whether anything is broken, or before reporting that something cannot be done.",

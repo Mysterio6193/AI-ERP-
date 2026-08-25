@@ -16,6 +16,7 @@ import { checkEnvironment } from "../src/lib/env-guard"
 import { db } from "../src/lib/db"
 import { looksLikeFillerText, looksLikePlaceholder } from "../src/lib/placeholder-detect"
 import { brokenTools } from "../src/lib/agent/tool-health"
+import { STALE_AFTER_HOURS } from "../src/lib/agent/proposal-summary"
 
 type Level = "fatal" | "warn" | "ok"
 const rows: Array<{ level: Level; area: string; message: string }> = []
@@ -144,6 +145,19 @@ async function main() {
       "agent tools",
       `${tool.toolName} ${tool.neverWorked ? "has never succeeded" : `failed its last ${tool.consecutiveFailures} calls`}: ${tool.lastError ?? "unknown error"}`
     )
+  }
+
+  // --- Waiting on a person --------------------------------------------------
+  // A proposal nobody answered means the work never happened, and from the
+  // outside that looks like the agent ignoring what it was asked.
+  const stalled = await db.agentProposal.findMany({
+    where: { status: "pending", createdAt: { lte: new Date(Date.now() - STALE_AFTER_HOURS * 3600000) } },
+    select: { summary: true, createdAt: true },
+  })
+
+  for (const proposal of stalled) {
+    const hours = Math.floor((Date.now() - proposal.createdAt.getTime()) / 3600000)
+    add("warn", "approvals", `"${proposal.summary}" has been waiting ${hours}h for a decision.`)
   }
 
   // --- Build ---------------------------------------------------------------

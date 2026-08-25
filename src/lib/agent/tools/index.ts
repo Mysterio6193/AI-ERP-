@@ -244,6 +244,7 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
   searchWeb: { risk: "read" },
 
   // The agent's view of its own tools. Reads only.
+  pendingDecisions: { risk: "read" },
   checkToolHealth: { risk: "read" },
   acknowledgeToolFault: { risk: "low", roles: ["admin"] },
   searchKnowledge: { risk: "read" },
