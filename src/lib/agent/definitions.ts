@@ -116,6 +116,7 @@ export const SALES_TOOLS = [
 export const WAREHOUSE_TOOLS = [
   "searchProducts", "getProductUnits", "convertQuantity",
   "getStock", "stockOutlook", "adjustInventory", "checkStockAvailability",
+  "forecastDemand", "batchReorderForecast",
   "listPickLists", "createPickList", "listDeliveries", "listDeliveryRoutes", "trackDelivery",
   "getBatches", "expiringStock", "traceBatch", "quarantineStock", "releaseStock",
   "checkAllergens",
@@ -126,6 +127,7 @@ export const WAREHOUSE_TOOLS = [
 /** No stock writes, no order creation. */
 export const ACCOUNTS_TOOLS = [
   "listInvoices", "getInvoice", "agedReceivables", "recordPayment", "setCreditStatus",
+  "scanInvoiceAnomalies", "detectDuplicatePayments", "pricingDriftReport", "reconciliationAnomalyCheck",
   "findCustomers", "getCustomer", "accountTimeline",
   "listOrders", "getOrder",
   "listSuppliers", "listPurchaseOrders", "getPurchaseOrder",
@@ -152,7 +154,8 @@ Rules:
 export const PURCHASING_TOOLS = [
   "listSuppliers", "createSupplier", "updateSupplier",
   "listPurchaseOrders", "getPurchaseOrder", "createPurchaseOrder", "receivePurchaseOrder",
-  "reorderSuggestions", "searchProducts", "getStock", "stockOutlook",
+  "reorderSuggestions", "batchReorderForecast", "forecastDemand", "demandAnomalyCheck", "seasonalityInsights",
+  "searchProducts", "getStock", "stockOutlook",
   "priceMarginOptimizer", "executeCalculation",
   "listTasks", "createTask", "completeTask",
   "sendDirectStaffMessage", "sendStaffAlert",
@@ -196,6 +199,8 @@ Rules:
 
 export const EXECUTIVE_TOOLS = [
   "businessSnapshot", "salesReport", "customerHealthAudit", "priceMarginOptimizer",
+  "forecastDemand", "batchReorderForecast", "demandAnomalyCheck",
+  "scanInvoiceAnomalies", "detectDuplicatePayments", "pricingDriftReport", "reconciliationAnomalyCheck",
   "draftCommunication", "generateDiagram", "executeCalculation", "runDataAnalysis",
   "findCustomers", "lapsedAccounts", "agedReceivables",
   "listOrders", "listPurchaseOrders", "listLeads", "pipelineSummary",
@@ -203,6 +208,29 @@ export const EXECUTIVE_TOOLS = [
   "planTask", "scratchpadNote",
   "delegateToAgent", "spawnAgentTask", "agentSwarm", "broadcastToAgents",
   "sendDirectStaffMessage", "sendStaffAlert", "postToGroupChannel",
+  "recallMemories", "remember",
+]
+
+export const DEMAND_INSTRUCTIONS = `You are the demand forecasting and inventory replenishment intelligence agent for a B2B food distribution business running on SupplySure OS.
+
+You work with purchasing, warehouse, and operations teams to predict stock depletion, model reorder timing, detect seasonal consumption spikes, and prevent costly stock-outs.
+
+Rules:
+- Always use tools for actual metrics. Never invent sales run-rates, lead times, or stock levels.
+- Evaluate supplier lead times when projecting stockout dates — flag any item with daysUntilStockout <= leadTimeDays as CRITICAL.
+- Factor in day-of-week seasonality (e.g. restaurant weekend surges) when advising on production or replenishment.
+- Reorder recommendations must account for safety stock, minimum order quantities, and target cycle coverage.
+- If an anomaly is detected (unusual spike or drop), highlight the statistical deviation and recommend verifying with sales.
+- You do not execute purchase orders directly without approval — generate actionable recommendations for the purchasing team.`
+
+export const DEMAND_TOOLS = [
+  "forecastDemand", "demandAnomalyCheck", "seasonalityInsights", "batchReorderForecast",
+  "searchProducts", "getProductUnits", "convertQuantity", "getStock", "stockOutlook", "checkStockAvailability",
+  "reorderSuggestions", "listSuppliers", "listPurchaseOrders", "getPurchaseOrder",
+  "businessSnapshot", "salesReport", "priceMarginOptimizer",
+  "listTasks", "createTask", "completeTask",
+  "planTask", "scratchpadNote", "generateSpreadsheet", "exportReportToCsv",
+  "sendDirectStaffMessage", "sendStaffAlert",
   "recallMemories", "remember",
 ]
 
@@ -257,11 +285,13 @@ export const HR_TOOLS = [
 /** Comprehensive yet token-efficient operations tools set. */
 export const OPS_TOOLS = [
   "searchProducts", "createProduct", "updateProduct", "getProductUnits", "convertQuantity", "getStock", "stockOutlook", "checkStockAvailability",
+  "forecastDemand", "demandAnomalyCheck", "seasonalityInsights", "batchReorderForecast",
   "quoteBasket", "listQuotes", "createSalesOrder", "listOrders", "getOrder", "updateOrderStatus",
   "findCustomers", "getCustomer", "createCustomer", "updateCustomer", "lapsedAccounts", "accountTimeline",
   "listTasks", "createTask", "completeTask", "logCustomerNote",
   "listSuppliers", "createSupplier", "updateSupplier", "listPurchaseOrders", "getPurchaseOrder", "createPurchaseOrder", "receivePurchaseOrder",
   "listInvoices", "getInvoice", "agedReceivables", "businessSnapshot", "salesReport", "customerHealthAudit", "priceMarginOptimizer", "draftCommunication",
+  "scanInvoiceAnomalies", "detectDuplicatePayments", "pricingDriftReport", "reconciliationAnomalyCheck",
   "getBatches", "expiringStock", "checkAllergens",
   "listBoms", "createProductionOrder", "listProductionOrders",
   "listDeliveryRoutes", "createDeliveryRoute", "listReturns", "createCustomerReturn", "listPriceLists", "assignCustomerPriceList",
@@ -397,6 +427,17 @@ const FALLBACKS: Record<string, ResolvedDefinition> = {
     name: "HR",
     instructions: HR_INSTRUCTIONS,
     tools: HR_TOOLS,
+    audience: "staff",
+    model: null,
+    maxSteps: 12,
+    thresholds: DEFAULT_THRESHOLDS,
+  },
+  demand: {
+    id: null,
+    slug: "demand",
+    name: "Demand Forecasting",
+    instructions: DEMAND_INSTRUCTIONS,
+    tools: DEMAND_TOOLS,
     audience: "staff",
     model: null,
     maxSteps: 12,
@@ -620,6 +661,15 @@ export async function ensureSystemDefinitions() {
       avatar: "👥",
       instructions: HR_INSTRUCTIONS,
       toolsJson: JSON.stringify(HR_TOOLS),
+      audience: "staff",
+    },
+    {
+      slug: "demand",
+      name: "Demand Forecasting",
+      description: "Sales velocity, run-rates, stockout risk and reorder modeling.",
+      avatar: "🔮",
+      instructions: DEMAND_INSTRUCTIONS,
+      toolsJson: JSON.stringify(DEMAND_TOOLS),
       audience: "staff",
     },
   ]

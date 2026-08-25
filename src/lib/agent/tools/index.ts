@@ -40,6 +40,8 @@ import { buildAnalyticsTools } from "./analytics"
 import { buildDeepOperationsTools } from "./operations-deep"
 import { buildUniversalTools } from "./universal"
 import { buildWebSearchTools } from "./websearch"
+import { buildForecastingTools } from "./forecasting"
+import { buildFinancialAnomalyTools } from "./financial-anomalies"
 
 /**
  * The tool registry.
@@ -316,6 +318,18 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
   mockRecallSimulation: { risk: "read" },
   creditRiskAssessment: { risk: "read" },
 
+  // Demand Forecasting & Inventory Replenishment Analytics
+  forecastDemand: { risk: "read" },
+  demandAnomalyCheck: { risk: "read" },
+  seasonalityInsights: { risk: "read" },
+  batchReorderForecast: { risk: "read" },
+
+  // Financial Anomaly Detection & Pricing Audit
+  scanInvoiceAnomalies: { risk: "read" },
+  detectDuplicatePayments: { risk: "read" },
+  pricingDriftReport: { risk: "read" },
+  reconciliationAnomalyCheck: { risk: "read" },
+
   // Freight. Drafting writes a row and contacts nobody; sending commits the
   // business to a third party who acts on it immediately, so it is the gate.
   listCarriers: { risk: "read" },
@@ -382,6 +396,8 @@ export function buildTools(principal: AgentPrincipal, channel?: string): ToolSet
     buildRouteTools(principal),
     buildReturnTools(principal),
     buildPriceListTools(principal),
+    buildForecastingTools(principal),
+    buildFinancialAnomalyTools(principal),
   ]
 
   return Object.assign({}, ...builders) as ToolSet

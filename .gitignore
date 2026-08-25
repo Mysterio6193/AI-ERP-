@@ -60,7 +60,6 @@ next-env.d.ts
 local-*
 
 # local AI-tooling config
-.claude
 .codex
 
 # local Postgres cluster (embedded-postgres)

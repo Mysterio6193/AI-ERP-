@@ -29,7 +29,7 @@ describe("defaultSlugFor", () => {
 })
 
 describe("role agent allowlists", () => {
-  const roleAgents = ["sales", "warehouse", "accounts"] as const
+  const roleAgents = ["sales", "warehouse", "accounts", "purchasing", "compliance", "executive", "marketing", "hr", "demand"] as const
 
   it("names only tools that actually exist", () => {
     // A typo here silently gives the agent fewer tools than intended, and the
