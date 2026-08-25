@@ -21,6 +21,16 @@ const DEFAULT_GATEWAY_FAST_MODEL = "anthropic/claude-haiku-4.5"
 const DEFAULT_LOCAL_BASE_URL = "http://localhost:11434/v1"
 const DEFAULT_LOCAL_MODEL = "llama3.1"
 const DEFAULT_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+import {
+  MAX_ATTEMPTS,
+  classifyMessage,
+  classifyResponse,
+  computeBackoff,
+  describeFailure,
+  retryAfterMs,
+  type Classification,
+} from "@/lib/agent/retry"
+
 const DEFAULT_OPENROUTER_MODEL = "nvidia/nemotron-3-super-120b-a12b"
 const DEFAULT_OPENROUTER_FAST_MODEL = "nvidia/nemotron-3.5-lightning"
 const DEFAULT_GOOGLE_MODEL = "gemini-3.1-flash-lite"
@@ -82,56 +92,82 @@ function openrouterProvider() {
       "X-Title": "SupplySure OS",
     },
     fetch: async (url, options) => {
-      let originalModel = ""
-      if (options?.body && typeof options.body === "string") {
+      /**
+       * Retry the failures that clear on their own, and only those.
+       *
+       * What was here forced `max_tokens: 256` onto every request. That cap
+       * arrived as an unmentioned side effect of a Telegram commit and was
+       * applied at the provider, so it truncated every reply on every surface
+       * — web chat, voice, scheduled agents — not just Telegram. A tool-calling
+       * agent cut off at 256 output tokens can stop mid-call, which is how a
+       * tool call ends up with no result. It is also the wrong lever for cost:
+       * `max_tokens` bounds the reply, and it is the 88 tool definitions in the
+       * prompt that make these requests expensive.
+       */
+      const model = readModelId(options)
+      let lastReason: Classification["reason"] = "unknown"
+
+      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        let response: Response
+
         try {
-          const parsed = JSON.parse(options.body)
-          originalModel = parsed.model || ""
-          if (!parsed.max_tokens || parsed.max_tokens > 256) {
-            parsed.max_tokens = 256
-            options = {
-              ...options,
-              body: JSON.stringify(parsed),
-            }
-          }
-        } catch {
-          // ignore JSON parse errors
+          response = await fetch(url, options)
+        } catch (error) {
+          const text = error instanceof Error ? error.message : String(error)
+          const verdict = classifyMessage(text)
+          lastReason = verdict.reason
+
+          // A thrown fetch has no response to hand back, so a terminal one has
+          // to keep throwing rather than returning something the SDK will
+          // misread as a reply.
+          if (!verdict.transient || attempt === MAX_ATTEMPTS - 1) throw error
+
+          await sleep(computeBackoff(attempt))
+          continue
         }
+
+        if (response.ok) return response
+
+        // Reading the body consumes it, so it is only read on the failure
+        // path where the response is not being returned to the caller.
+        const body = await response.clone().text().catch(() => "")
+        const verdict = classifyResponse(response.status, body)
+        lastReason = verdict.reason
+
+        if (!verdict.transient || attempt === MAX_ATTEMPTS - 1) {
+          if (!verdict.transient) {
+            console.error(`[agent] ${describeFailure(verdict.reason, model)}`)
+          }
+          return response
+        }
+
+        // The provider saying when to come back beats guessing.
+        const wait = retryAfterMs(response.headers.get("retry-after")) ?? computeBackoff(attempt)
+        console.warn(
+          `[agent] ${model} ${verdict.reason} (HTTP ${response.status}), retrying in ${wait}ms ` +
+            `(attempt ${attempt + 1}/${MAX_ATTEMPTS})`
+        )
+        await sleep(wait)
       }
 
-      let response = await fetch(url, options)
-
-      // Graceful fallback if a :free model hits upstream rate-limits or errors
-      if ((response.status === 429 || response.status >= 500) && originalModel.includes(":free") && options?.body && typeof options.body === "string") {
-        try {
-          const parsed = JSON.parse(options.body)
-          // 1. First try stripping :free tag
-          parsed.model = originalModel.replace(":free", "")
-          let fallbackResponse = await fetch(url, {
-            ...options,
-            body: JSON.stringify(parsed),
-          })
-          if (fallbackResponse.ok) {
-            return fallbackResponse
-          }
-
-          // 2. Fallback to ultra-fast resilient model
-          parsed.model = "google/gemini-2.5-flash"
-          fallbackResponse = await fetch(url, {
-            ...options,
-            body: JSON.stringify(parsed),
-          })
-          if (fallbackResponse.ok) {
-            return fallbackResponse
-          }
-        } catch {
-          // keep original response
-        }
-      }
-
-      return response
+      throw new Error(describeFailure(lastReason, model))
     },
   })
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/** The model id out of the request body, for logs that name what failed. */
+function readModelId(options: RequestInit | undefined): string {
+  if (!options?.body || typeof options.body !== "string") return "the model"
+
+  try {
+    return JSON.parse(options.body).model || "the model"
+  } catch {
+    return "the model"
+  }
 }
 
 export type AgentPurpose =

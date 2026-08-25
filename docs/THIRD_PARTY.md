@@ -11,6 +11,7 @@ than the benefit of copying.
 | Hermes skill definitions (485 files) | `skills/hermes/` | [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) | MIT | Keep the copyright and permission notice — now in `skills/hermes/NOTICE.md` |
 | Assorted skill packs | `skills/*/LICENSE.txt` | various | MIT | Notices already present upstream |
 | npm dependencies | `node_modules/` | many | mostly MIT / Apache-2.0 | Nothing while used as dependencies |
+| Retry classification approach | `src/lib/agent/retry.ts` | [milind-soni/OpenMausBot](https://github.com/milind-soni/OpenMausBot) | Apache-2.0 | Credited in the file header; own implementation, not a copy |
 
 ## The rule of thumb
 
@@ -40,6 +41,20 @@ snippets from blog posts, Stack Overflow answers used wholesale, and gists.
 
 Small idiomatic fragments — a regex, a date calculation, a three-line helper —
 are not what this is about. A directory of files is.
+
+## Reading a project without copying from it
+
+Reading how someone else solved a problem is not copying, and it is often worth
+more. `src/lib/agent/retry.ts` came out of reading OpenMausBot's driver retry
+and taking the *idea* — that the useful question is "would trying again help",
+not "did it fail" — then writing our own against our own provider. The header
+credits it because the debt is real even though no lines were taken.
+
+That reading also found two bugs in our code that no amount of staring at our
+own code had surfaced: every OpenRouter reply was truncated at 256 tokens, and
+the retry path only ran for models whose id ended `:free`, which the configured
+default does not. Comparing against another implementation is a cheap way to
+notice what you have stopped seeing.
 
 ## This project's own licence
 
