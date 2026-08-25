@@ -62,7 +62,15 @@ export function detectDelimiter(text: string): string {
   return best
 }
 
-export function parseCsv(text: string, delimiter?: string): ParsedRow[] {
+/**
+ * The file as a raw grid, before deciding which row is the header.
+ *
+ * Exports rarely start at the header. There is a title row, a "Generated on
+ * 24/08/2026" line, a blank, sometimes a filter description — and reading row
+ * one as the header turns all of that into column names and quietly drops the
+ * first real record.
+ */
+export function parseGrid(text: string, delimiter?: string): string[][] {
   const rows: string[][] = []
   let row: string[] = []
   let field = ""
@@ -114,14 +122,72 @@ export function parseCsv(text: string, delimiter?: string): ParsedRow[] {
     rows.push(row)
   }
 
-  const nonEmpty = rows.filter((candidate) => candidate.some((cell) => cell.trim() !== ""))
-  if (nonEmpty.length < 2) {
-    return []
+  return rows.filter((candidate) => candidate.some((cell) => cell.trim() !== ""))
+}
+
+function looksNumeric(value: string) {
+  return value.trim() !== "" && !Number.isNaN(Number(value.replace(/[$,\s%]/g, "")))
+}
+
+/**
+ * Which row holds the column names.
+ *
+ * A header row is wide, made of distinct short words, and has no numbers in it,
+ * while the preamble above it is usually one or two cells of prose. Scoring
+ * those three things apart is enough, and it beats assuming row one — which is
+ * wrong for most things exported out of a real system.
+ */
+export function findHeaderRow(grid: string[][]): number {
+  if (grid.length === 0) return 0
+
+  const widest = Math.max(...grid.map((row) => row.filter((cell) => cell.trim() !== "").length))
+
+  let bestIndex = 0
+  let bestScore = -Infinity
+
+  // Only the top of the file: a header further down than this is not a header,
+  // it is a second table, and guessing at that does more harm than good.
+  const limit = Math.min(grid.length, 15)
+
+  for (let index = 0; index < limit; index += 1) {
+    const row = grid[index]
+    const filled = row.filter((cell) => cell.trim() !== "")
+
+    // A header needs data under it; the last row of a file never qualifies.
+    if (index === grid.length - 1) continue
+    if (filled.length < 2) continue
+
+    const distinct = new Set(filled.map((cell) => cell.trim().toLowerCase())).size
+    const numeric = filled.filter(looksNumeric).length
+
+    const score =
+      filled.length * 3 +
+      distinct * 2 +
+      // Being as wide as the widest row in the file is the strongest single
+      // signal, since preamble lines are narrow.
+      (filled.length === widest ? 6 : 0) -
+      // Numbers in a header mean it is not one.
+      numeric * 8 -
+      // Prefer the earliest good candidate, all else being equal.
+      index
+
+    if (score > bestScore) {
+      bestScore = score
+      bestIndex = index
+    }
   }
 
-  const headers = nonEmpty[0].map((header) => header.trim())
+  return bestIndex
+}
 
-  return nonEmpty.slice(1).map((cells) =>
+export function parseCsv(text: string, delimiter?: string): ParsedRow[] {
+  const grid = parseGrid(text, delimiter)
+  if (grid.length < 2) return []
+
+  const headerIndex = findHeaderRow(grid)
+  const headers = (grid[headerIndex] ?? []).map((header) => header.trim())
+
+  return grid.slice(headerIndex + 1).map((cells) =>
     Object.fromEntries(headers.map((header, index) => [header, (cells[index] ?? "").trim()]))
   )
 }

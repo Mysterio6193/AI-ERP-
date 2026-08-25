@@ -289,15 +289,19 @@ export async function logTelegramMessage(input: {
   message: string
   externalId?: string | null
 }) {
-  await db.communicationLog.create({
-    data: {
-      customerId: input.customerId || null,
-      method: "telegram",
-      direction: input.direction,
-      recipient: input.recipient,
-      message: input.message,
-      status: input.direction === "inbound" ? "received" : "sent",
-      externalId: input.externalId || null,
-    },
-  })
+  try {
+    await db.communicationLog.create({
+      data: {
+        customerId: input.customerId || null,
+        method: "telegram",
+        direction: input.direction,
+        recipient: input.recipient,
+        message: input.message ? input.message.slice(0, 4000) : "",
+        status: input.direction === "inbound" ? "received" : "sent",
+        externalId: input.externalId || null,
+      },
+    })
+  } catch (err) {
+    console.warn("Notice: logTelegramMessage skipped:", err)
+  }
 }

@@ -152,7 +152,11 @@ export async function processTelegramUpdate(update: TelegramUpdate) {
 
     const chatId = update.message?.chat.id || update.callback_query?.message?.chat.id
     if (chatId) {
-      await sendTelegramMessage(chatId, "Something went wrong handling that. Try again in a moment.")
+      const errMsg = error instanceof Error ? error.message : "Temporary operational error"
+      await sendTelegramMessage(
+        chatId,
+        `⚠️ I ran into an issue processing that file/message: ${errMsg}.\n\nIf you are uploading a leads CSV, ensure it has column headers like "Business Name", "Contact Name", "Email", and "Phone", then try sending it again.`
+      )
     }
     return { ok: false, error }
   }
@@ -426,7 +430,12 @@ async function handleMessage(message: NonNullable<TelegramUpdate["message"]>) {
       (truncated ? `(only the first ${MAX_FILE_CHARS.toLocaleString()} characters are shown)\n` : "") +
       `\n\`\`\`\n${content}\n\`\`\``
 
-    text = text ? `${text}\n\n${fileBlock}` : fileBlock
+    if (extension === "csv" || mimeType === "application/csv" || mimeType === "application/vnd.ms-excel") {
+      const csvInstruction = `\n\n[Action Directive: The user provided a CSV spreadsheet "${fileName}". If this contains sales prospects or leads, use the importLeadsFromCsv tool to parse, validate, and import them. If the user asked to save or import them, pass confirm: true.]`
+      text = text ? `${text}\n\n${fileBlock}${csvInstruction}` : `Attached leads CSV spreadsheet "${fileName}". Please import these leads into our CRM.\n\n${fileBlock}${csvInstruction}`
+    } else {
+      text = text ? `${text}\n\n${fileBlock}` : fileBlock
+    }
   }
 
   if (!text) {
