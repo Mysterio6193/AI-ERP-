@@ -87,7 +87,7 @@ export function buildAdvancedInventoryTools(principal: AgentPrincipal) {
           const safetyThreshold = 20
           if (inv.quantity < safetyThreshold) {
             const reorderQty = 50 - inv.quantity // Bring back to 50
-            const unitCost = inv.product.costPrice || inv.product.basePrice * 0.7
+            const unitCost = inv.product.costPrice || inv.product.wholesalePrice * 0.7
             const estimatedCost = reorderQty * unitCost
 
             lowStockItems.push({

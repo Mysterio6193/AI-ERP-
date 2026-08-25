@@ -278,6 +278,11 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
 
   // Manufacturing & BOM Recipes
   listBoms: { risk: "read" },
+  mfgMultiLevelBomExplosion: { risk: "read" },
+  mfgCapacityAndShiftScheduler: { risk: "read" },
+  mfgBatchYieldAndWastage: { risk: "read" },
+  mfgHaccpQualityGate: { risk: "low", roles: ["admin", "warehouse"] },
+  mfgOeeAndMachinePerformance: { risk: "read" },
   createProductionOrder: { risk: "medium", roles: ["admin", "warehouse"] },
   listProductionOrders: { risk: "read" },
 

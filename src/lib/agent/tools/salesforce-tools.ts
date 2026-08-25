@@ -28,8 +28,11 @@ export function buildSalesforceTools(principal: AgentPrincipal) {
         const customer = await db.customer.findFirst({
           where: {
             OR: [
+              // Customer has no code column; the searchable identifiers are
+              // the names and the contact.
               { name: { contains: customerQuery, mode: "insensitive" } },
-              { code: { contains: customerQuery, mode: "insensitive" } },
+              { tradingName: { contains: customerQuery, mode: "insensitive" } },
+              { contactPerson: { contains: customerQuery, mode: "insensitive" } },
             ],
           },
           include: {
@@ -43,7 +46,9 @@ export function buildSalesforceTools(principal: AgentPrincipal) {
               orderBy: { createdAt: "desc" },
               take: 20,
             },
-            notes: {
+            // There is no `notes` relation. Activity is the customer's
+            // timeline, and it now fills itself from business events.
+            activities: {
               orderBy: { createdAt: "desc" },
               take: 5,
             },
@@ -105,12 +110,12 @@ export function buildSalesforceTools(principal: AgentPrincipal) {
         return {
           ok: true as const,
           accountId: customer.id,
-          accountCode: customer.code || "CUST",
+          accountCode: customer.abn || "CUST",
           businessName: customer.name,
-          contactPerson: customer.contactName || "Direct Contact",
+          contactPerson: customer.contactPerson || "Direct Contact",
           phone: customer.phone,
           email: customer.email,
-          paymentTerms: `${customer.paymentTermsDays || 30} Days Net`,
+          paymentTerms: `${customer.paymentTerms || 30} Days Net`,
           creditLimit: money(customer.creditLimit || 0),
           financialMetrics: {
             lifetimeValue: money(totalSpend),
@@ -127,10 +132,11 @@ export function buildSalesforceTools(principal: AgentPrincipal) {
             status: customer.status,
           },
           topProducts,
-          recentNotes: customer.notes.map((n) => ({
+          recentNotes: customer.activities.map((n) => ({
             date: n.createdAt.toISOString().split("T")[0],
-            content: n.content,
-            author: n.authorName || "Staff Rep",
+            // Activity's body is `body`, and it has a subject worth showing.
+            subject: n.subject,
+            content: n.body,
           })),
         }
       },
@@ -167,10 +173,10 @@ export function buildSalesforceTools(principal: AgentPrincipal) {
             closed_lost: 0,
           }
 
-          const pipelineTotal = opportunities.reduce((sum, o) => sum + (o.estimatedValue || 0), 0)
+          const pipelineTotal = opportunities.reduce((sum, o) => sum + (o.value || 0), 0)
           const weightedTotal = opportunities.reduce((sum, o) => {
             const prob = stageProbability[o.stage] || 50
-            return sum + (o.estimatedValue || 0) * (prob / 100)
+            return sum + (o.value || 0) * (prob / 100)
           }, 0)
 
           return {
@@ -180,10 +186,10 @@ export function buildSalesforceTools(principal: AgentPrincipal) {
             weightedForecastRevenue: money(weightedTotal),
             opportunities: opportunities.map((o) => ({
               id: o.id,
-              title: o.title,
+              title: o.name,
               customerName: o.customer?.name || "New Prospect",
               stage: o.stage,
-              estimatedValue: money(o.estimatedValue || 0),
+              value: money(o.value || 0),
               probability: `${stageProbability[o.stage] || 50}%`,
               expectedCloseDate: o.expectedCloseDate ? o.expectedCloseDate.toISOString().split("T")[0] : "TBD",
             })),
@@ -199,7 +205,7 @@ export function buildSalesforceTools(principal: AgentPrincipal) {
             ok: true as const,
             opportunityId,
             newStage: stage,
-            message: `Advanced opportunity "${updated.title}" to stage "${stage}".`,
+            message: `Advanced opportunity "${updated.name}" to stage "${stage}".`,
           }
         }
 
@@ -212,7 +218,7 @@ export function buildSalesforceTools(principal: AgentPrincipal) {
             ok: true as const,
             opportunityId,
             stage: "closed_won",
-            message: `🎉 Deal CLOSED WON: "${won.title}" ($${money(won.estimatedValue || 0)}). Ready for onboarding and first delivery run!`,
+            message: `🎉 Deal CLOSED WON: "${won.name}" ($${money(won.value || 0)}). Ready for onboarding and first delivery run!`,
           }
         }
 
@@ -221,7 +227,9 @@ export function buildSalesforceTools(principal: AgentPrincipal) {
             where: { id: opportunityId },
             data: {
               stage: "closed_lost",
-              description: `Lost Reason: ${lossReason || "Unspecified"} | Competitor: ${competitorName || "N/A"}`,
+              // Opportunity has no description; the reason it was lost has
+              // its own column.
+              lossReason: `${lossReason || "Unspecified"}${competitorName ? ` (lost to ${competitorName})` : ""}`,
             },
           })
           return {
@@ -230,7 +238,7 @@ export function buildSalesforceTools(principal: AgentPrincipal) {
             stage: "closed_lost",
             lossReason: lossReason || "Price / Competitor",
             competitorName: competitorName || "N/A",
-            message: `Deal closed lost recorded for market intelligence: "${lost.title}".`,
+            message: `Deal closed lost recorded for market intelligence: "${lost.name}".`,
           }
         }
 

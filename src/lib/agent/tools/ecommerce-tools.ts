@@ -28,7 +28,7 @@ export function buildEcommerceTools(principal: AgentPrincipal) {
       execute: async ({ channel, categoryFilter }) => {
         const inventory = await db.inventory.findMany({
           where: categoryFilter
-            ? { product: { category: { equals: categoryFilter, mode: "insensitive" } } }
+            ? { product: { category: { name: { equals: categoryFilter, mode: "insensitive" } } } }
             : {},
           include: { product: true },
           take: 50,
@@ -45,7 +45,7 @@ export function buildEcommerceTools(principal: AgentPrincipal) {
             warehouseStock: inv.quantity,
             safetyBuffer: buffer,
             onlineAvailableQty: availableToPromise,
-            unitPrice: money(inv.product.basePrice),
+            unitPrice: money(inv.product.wholesalePrice),
             syncStatus: "SYNCHRONIZED",
           }
         })
@@ -87,7 +87,7 @@ export function buildEcommerceTools(principal: AgentPrincipal) {
               name: customerName,
               email: customerEmail,
               status: "active",
-              paymentTermsDays: 0, // Online orders are prepaid
+              paymentTerms: 0, // Online orders are prepaid
             },
           })
         }
@@ -102,7 +102,7 @@ export function buildEcommerceTools(principal: AgentPrincipal) {
             return { ok: false as const, error: `Product SKU "${item.sku}" not recognized.` }
           }
 
-          const price = item.unitPrice || product.basePrice
+          const price = item.unitPrice || product.wholesalePrice
           const lineTotal = price * item.quantity
           subtotal += lineTotal
 
