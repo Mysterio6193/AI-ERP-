@@ -73,6 +73,19 @@ export function checkEnvironment(env: NodeJS.ProcessEnv = process.env): EnvIssue
 
   if (!databaseUrl) {
     issues.push({ level: "fatal", key: "DATABASE_URL", message: "Not set." })
+  } else if (isProduction && /@(localhost|127\.0\.0\.1)[:/]/.test(databaseUrl)) {
+    /**
+     * The development database is an embedded Postgres started by a npm script
+     * on the developer's own machine. In production that address either points
+     * at nothing or, worse, at something unrelated on the same host — and the
+     * app boots either way and only fails once someone tries to use it.
+     */
+    issues.push({
+      level: "fatal",
+      key: "DATABASE_URL",
+      message:
+        "Points at localhost. That is the embedded development database, which does not exist in production. Set it to the real database before deploying.",
+    })
   } else if (isProduction && databaseUrl.startsWith("file:")) {
     issues.push({
       level: "warn",
@@ -104,6 +117,28 @@ export function checkEnvironment(env: NodeJS.ProcessEnv = process.env): EnvIssue
       level: "warn",
       key: "OPENROUTER_API_KEY",
       message: "No model credential found. Every agent feature will fail at call time.",
+    })
+  }
+
+  /**
+   * Free model tiers are metered per account per day — fifty requests on
+   * OpenRouter — and every agent feature shares that budget. It is ample for
+   * development and gone within minutes of real traffic, at which point every
+   * agent call starts failing at once and it reads as an outage.
+   */
+  const freeTierModels = [
+    env.AGENT_MODEL,
+    env.AGENT_FAST_MODEL,
+    env.AGENT_FALLBACK_MODEL,
+  ].filter((model): model is string => Boolean(model && model.endsWith(":free")))
+
+  if (isProduction && freeTierModels.length > 0) {
+    issues.push({
+      level: "warn",
+      key: "AGENT_MODEL",
+      message:
+        `Configured with free-tier model(s): ${[...new Set(freeTierModels)].join(", ")}. ` +
+        "Those share a small daily per-account quota, so agent features will fail together once it is spent.",
     })
   }
 

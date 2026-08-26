@@ -76,6 +76,9 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // Set when the status change went through but the customer could not be told.
+  let deliveryWarning: string | null = null
+
   try {
     const auth = await requireAdminUser(request, ["admin", "sales", "warehouse", "driver"])
     if (auth.response) {
@@ -427,14 +430,24 @@ export async function PUT(
         })
       }
 
+      /**
+       * The status change stands whether or not the customer can be told, but
+       * the operator has to know which happened. Swallowing this left them
+       * looking at "Order confirmed" while the confirmation sat in the log
+       * marked failed — and the first they hear of it is the customer ringing
+       * to ask where their order is.
+       */
       try {
         if (status === "approved") {
-          await sendSalesOrderEmail(id, "confirmed")
+          const result = await sendSalesOrderEmail(id, "confirmed")
+          if (result && result.success === false) deliveryWarning = "The confirmation email could not be sent."
         } else if (status === "cancelled") {
-          await sendSalesOrderEmail(id, "cancelled")
+          const result = await sendSalesOrderEmail(id, "cancelled")
+          if (result && result.success === false) deliveryWarning = "The cancellation email could not be sent."
         }
       } catch (error) {
         console.error("Failed to send order status email:", error)
+        deliveryWarning = error instanceof Error ? error.message : "The email could not be sent."
       }
     }
 
@@ -463,7 +476,8 @@ export async function PUT(
       },
     })
 
-    return NextResponse.json({ success: true, data: order })
+    // The status change stands; the warning says what did not happen alongside it.
+    return NextResponse.json({ success: true, data: order, ...(deliveryWarning ? { warning: deliveryWarning } : {}) })
   } catch (error) {
     console.error("Error updating order:", error)
     return NextResponse.json(

@@ -182,3 +182,48 @@ describe("production secrets that must not fall back", () => {
     expect(issues.some((issue) => issue.key === "STRIPE_WEBHOOK_SECRET")).toBe(false)
   })
 })
+
+describe("production deployment blockers", () => {
+  it("refuses a localhost database in production", () => {
+    // The embedded development Postgres. In production that address points at
+    // nothing, and the app boots anyway.
+    const issues = checkEnvironment(
+      prod({ DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/supplysure" })
+    )
+    const db = issues.find((issue) => issue.key === "DATABASE_URL")
+
+    expect(db?.level).toBe("fatal")
+  })
+
+  it("accepts a real database host", () => {
+    const issues = checkEnvironment(
+      prod({ DATABASE_URL: "postgresql://user:pw@db.internal.example.com:5432/supplysure" })
+    )
+
+    expect(issues.find((issue) => issue.key === "DATABASE_URL")).toBeUndefined()
+  })
+
+  it("warns when agents run on a free model tier in production", () => {
+    const issues = checkEnvironment(prod({ AGENT_MODEL: "minimax/minimax-m3:free" }))
+    const model = issues.find((issue) => issue.key === "AGENT_MODEL")
+
+    expect(model?.level).toBe("warn")
+    expect(model?.message).toContain("minimax/minimax-m3:free")
+  })
+
+  it("says nothing about a paid model", () => {
+    const issues = checkEnvironment(prod({ AGENT_MODEL: "anthropic/claude-sonnet-5" }))
+    expect(issues.find((issue) => issue.key === "AGENT_MODEL")).toBeUndefined()
+  })
+
+  it("leaves development alone on both counts", () => {
+    const issues = checkEnvironment({
+      NODE_ENV: "development",
+      DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/supplysure",
+      AGENT_MODEL: "minimax/minimax-m3:free",
+    } as NodeJS.ProcessEnv)
+
+    expect(issues.find((issue) => issue.key === "DATABASE_URL")).toBeUndefined()
+    expect(issues.find((issue) => issue.key === "AGENT_MODEL")).toBeUndefined()
+  })
+})

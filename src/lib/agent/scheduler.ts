@@ -33,6 +33,8 @@ export interface TickResult {
   checked: number
   ran: Array<{ slug: string; ok: boolean; text?: string; error?: string; pending: number }>
   skipped: Array<{ slug: string; reason: string }>
+  /** Runs abandoned by a crash and closed out on this tick. */
+  reaped?: number
   /** Proactive alerts raised on this tick, if the heartbeat is enabled. */
   heartbeat?: HeartbeatResult
   /** Conversations summarised on this tick, keeping the archive searchable. */
@@ -169,8 +171,51 @@ export async function runScheduledAgent(definitionId: string) {
  * Safe to call more often than the finest schedule - due-ness is decided by
  * `nextRunAt`, not by when the tick happened to arrive.
  */
+/**
+ * How long a run may sit in "running" before it is presumed dead.
+ *
+ * Generous, because a legitimate turn can be slow: a large tool chain, a model
+ * retrying through rate limits. Anything past this did not finish slowly, it
+ * stopped existing.
+ */
+export const RUN_ABANDONED_AFTER_MS = 30 * 60 * 1000
+
+/**
+ * Close out runs whose process died.
+ *
+ * Nothing else does. A run is marked "running" before the model is called and
+ * updated afterwards, so anything that kills the process in between — a deploy,
+ * a crash, the database going away mid-turn — leaves the row saying "running"
+ * for ever. They accumulate silently, and every question anyone asks of the run
+ * history afterwards ("is the agent working", "what failed last night") is
+ * answered against rows that are lying.
+ */
+export async function reapAbandonedRuns(now: Date = new Date()): Promise<number> {
+  const cutoff = new Date(now.getTime() - RUN_ABANDONED_AFTER_MS)
+
+  const result = await db.agentRun.updateMany({
+    where: { status: "running", startedAt: { lt: cutoff } },
+    data: {
+      status: "failed",
+      // Said plainly, so nobody debugs a model error that never happened.
+      errorText: "Abandoned: the process did not finish this run. Marked failed by the scheduler.",
+      finishedAt: now,
+    },
+  })
+
+  if (result.count > 0) {
+    console.warn(`[scheduler] closed ${result.count} abandoned run(s)`)
+  }
+
+  return result.count
+}
+
 export async function tick(now: Date = new Date()): Promise<TickResult> {
   const result: TickResult = { checked: 0, ran: [], skipped: [] }
+
+  // Before anything else: a tick is the only thing that runs regularly, so it
+  // is the only place abandoned runs can be noticed.
+  result.reaped = await reapAbandonedRuns(now)
 
   const candidates = await db.agentDefinition.findMany({
     where: {
