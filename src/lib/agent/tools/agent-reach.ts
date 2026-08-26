@@ -8,20 +8,26 @@ import { defineTool } from "./define"
 const execFileAsync = promisify(execFile)
 
 /**
- * Agent Reach & Multi-Platform Web Access Integration for SupplySure OS.
+ * Agent Reach & Multi-Platform Social Intelligence Suite for SupplySure OS.
  *
  * Full multi-channel internet intelligence suite without paid API fees:
- * 1. 📺 YouTube (Subtitles & Video Search)
- * 2. 🌐 Clean Webpage (Jina Reader & Markdown parser)
- * 3. 📖 Reddit (Community Search & Full Thread / Comment Discussions)
- * 4. 🐦 Twitter / X (Search Tweets, Sentiment, and Discussions)
- * 5. 📦 GitHub (Search Repos, READMEs, Issues, and Discussions)
- * 6. 📡 RSS / Atom (Feed Reader & News Monitoring)
- * 7. 📺 Bilibili (Manufacturing, Machinery, and Video Search)
- * 8. 💻 V2EX (Developer, Tech, and Node Discussions)
- * 9. 📈 Xueqiu (雪球) (Market Quotes & Stock Discussions)
- * 10. 🔍 Semantic Web Search (Exa MCP via mcporter)
- * 11. 🩺 Agent Reach Doctor (Diagnostics across all backends)
+ * 1.  📺 YouTube (Subtitles & Video Search)
+ * 2.  🌐 Clean Webpage (Jina Reader & Markdown parser)
+ * 3.  📖 Reddit (Community Search & Full Thread / Comment Discussions)
+ * 4.  🐦 Twitter / X (Search Tweets, Sentiment, and Discussions)
+ * 5.  💼 LinkedIn (Company Profiles, Distributor Pages & Executive Info)
+ * 6.  📷 Instagram (Venues, Packaging Visuals & Brand Sentiment)
+ * 7.  📘 Facebook (Supplier Business Pages & Community Groups)
+ * 8.  📕 XiaoHongShu / RED (FMCG Reviews, Product Sentiment & Consumer Trends)
+ * 9.  🎵 TikTok (Viral Food/Beverage Trends & Packaging Innovations)
+ * 10. 📦 GitHub (Search Repos, READMEs, Issues, and Discussions)
+ * 11. 📡 RSS / Atom (Feed Reader & News Monitoring)
+ * 12. 📺 Bilibili (Manufacturing, Machinery, and Video Search)
+ * 13. 💻 V2EX (Developer, Tech, and Node Discussions)
+ * 14. 📈 Xueqiu (雪球) (Market Quotes & Stock Discussions)
+ * 15. 🔍 Semantic Web Search (Exa MCP via mcporter)
+ * 16. 🌐 Multi-Social Sentiment Radar (All-in-one multi-platform cross-search)
+ * 17. 🩺 Agent Reach Doctor (Diagnostics across all backends)
  */
 
 export interface YoutubeTranscriptSnippet {
@@ -43,6 +49,36 @@ export function cleanExtractedText(text: string): string {
     .replace(/\r\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim()
+}
+
+/** Helper to query search indices without API keys */
+async function searchDomainIndex(site: string, query: string, limit = 5) {
+  try {
+    const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(`site:${site} ${query}`)}`
+    const res = await fetch(searchUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko)",
+      },
+      signal: AbortSignal.timeout(12000),
+    })
+
+    if (!res.ok) return []
+
+    const html = await res.text()
+    const matches = Array.from(
+      html.matchAll(/<a\s+[^>]*class="[^"]*\bresult__a\b[^"]*"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi)
+    ).slice(0, limit)
+
+    return matches.map((m) => {
+      const title = cleanExtractedText(m[2])
+      const rawUrl = m[1]
+      const uddgMatch = rawUrl.match(/[?&]uddg=([^&]+)/)
+      const url = uddgMatch ? decodeURIComponent(uddgMatch[1]) : rawUrl
+      return { title, url }
+    })
+  } catch {
+    return []
+  }
 }
 
 /** Normalize Reddit JSON post data */
@@ -76,7 +112,6 @@ export function extractYoutubeVideoId(urlOrId: string): string | null {
 export function parseRssFeedXml(xml: string, limit = 10) {
   const items: Array<{ title: string; link: string; description: string; pubDate?: string }> = []
   
-  // Try parsing RSS <item> tags
   const itemMatches = xml.matchAll(/<item[\s\S]*?<\/item>/gi)
   for (const match of itemMatches) {
     if (items.length >= limit) break
@@ -96,7 +131,6 @@ export function parseRssFeedXml(xml: string, limit = 10) {
     }
   }
 
-  // If no RSS items found, try Atom <entry> tags
   if (items.length === 0) {
     const entryMatches = xml.matchAll(/<entry[\s\S]*?<\/entry>/gi)
     for (const match of entryMatches) {
@@ -259,31 +293,9 @@ export function buildAgentReachTools(principal: AgentPrincipal) {
             count: videos.length,
             videos,
           }
-        } catch (error) {
-          // Fallback to DuckDuckGo YouTube search
-          try {
-            const ddgUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(`site:youtube.com ${query}`)}`
-            const res = await fetch(ddgUrl, {
-              headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
-              signal: AbortSignal.timeout(10000),
-            })
-            if (res.ok) {
-              const html = await res.text()
-              const matches = Array.from(html.matchAll(/<a\s+[^>]*class="[^"]*\bresult__a\b[^"]*"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi)).slice(0, limit)
-              const results = matches.map((m) => ({
-                title: cleanExtractedText(m[2]),
-                url: decodeURIComponent(m[1].match(/[?&]uddg=([^&]+)/)?.[1] || m[1]),
-              }))
-              return { ok: true as const, query, source: "DuckDuckGo YouTube Index", count: results.length, videos: results }
-            }
-          } catch {
-            // fallback ignore
-          }
-
-          return {
-            ok: false as const,
-            error: `YouTube search failed: ${error instanceof Error ? error.message : "Search error"}`,
-          }
+        } catch {
+          const results = await searchDomainIndex("youtube.com", query, limit)
+          return { ok: true as const, query, source: "DuckDuckGo YouTube Index", count: results.length, videos: results }
         }
       },
     }),
@@ -358,32 +370,13 @@ export function buildAgentReachTools(principal: AgentPrincipal) {
           })
 
           if (!response.ok) {
-            const ddgUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(`site:reddit.com ${subreddit ? `r/${subreddit} ` : ""}${query}`)}`
-            const ddgRes = await fetch(ddgUrl, {
-              headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
-              signal: AbortSignal.timeout(10000),
-            })
-
-            if (ddgRes.ok) {
-              const html = await ddgRes.text()
-              const titles = Array.from(html.matchAll(/<a\s+[^>]*class="[^"]*\bresult__a\b[^"]*"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi)).slice(0, limit)
-              const results = titles.map((m) => ({
-                title: cleanExtractedText(m[2]),
-                url: decodeURIComponent(m[1].match(/[?&]uddg=([^&]+)/)?.[1] || m[1]),
-              }))
-
-              return {
-                ok: true as const,
-                query,
-                source: "DuckDuckGo (Reddit Index)",
-                count: results.length,
-                results,
-              }
-            }
-
+            const results = await searchDomainIndex("reddit.com", `${subreddit ? `r/${subreddit} ` : ""}${query}`, limit)
             return {
-              ok: false as const,
-              error: `Reddit search temporarily rate-limited (HTTP ${response.status}).`,
+              ok: true as const,
+              query,
+              source: "DuckDuckGo (Reddit Index)",
+              count: results.length,
+              results,
             }
           }
 
@@ -427,7 +420,6 @@ export function buildAgentReachTools(principal: AgentPrincipal) {
           })
 
           if (!res.ok) {
-            // Fallback via Jina Reader
             const jinaRes = await fetch(`https://r.jina.ai/${url}`, { signal: AbortSignal.timeout(15000) })
             if (jinaRes.ok) {
               const text = await jinaRes.text()
@@ -475,30 +467,12 @@ export function buildAgentReachTools(principal: AgentPrincipal) {
       }),
       execute: async ({ query, limit = 5 }) => {
         try {
-          // 1. Try DuckDuckGo X/Twitter Index search (zero API fees, high reliability)
-          const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(`site:twitter.com OR site:x.com ${query}`)}`
-          const response = await fetch(searchUrl, {
-            headers: { "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36" },
-            signal: AbortSignal.timeout(12000),
-          })
-
-          if (response.ok) {
-            const html = await response.text()
-            const matches = Array.from(html.matchAll(/<a\s+[^>]*class="[^"]*\bresult__a\b[^"]*"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi)).slice(0, limit)
-            const tweets = matches.map((m) => ({
-              title: cleanExtractedText(m[2]),
-              url: decodeURIComponent(m[1].match(/[?&]uddg=([^&]+)/)?.[1] || m[1]),
-            }))
-
-            return {
-              ok: true as const,
-              query,
-              count: tweets.length,
-              tweets,
-            }
+          const tweets = await searchDomainIndex("twitter.com", query, limit)
+          if (tweets.length > 0) {
+            return { ok: true as const, query, count: tweets.length, tweets }
           }
-
-          return { ok: false as const, error: "Twitter search temporarily unavailable." }
+          const xTweets = await searchDomainIndex("x.com", query, limit)
+          return { ok: true as const, query, count: xTweets.length, tweets: xTweets }
         } catch (error) {
           return {
             ok: false as const,
@@ -508,7 +482,182 @@ export function buildAgentReachTools(principal: AgentPrincipal) {
       },
     }),
 
-    // 7. GitHub Repository & Code Intelligence
+    // 7. LinkedIn Search (Companies, Profiles & Job Postings)
+    searchLinkedIn: defineTool({
+      description:
+        "Search LinkedIn for supplier corporate profiles, distributor pages, executive backgrounds, or supply chain hiring trends.",
+      inputSchema: z.object({
+        query: z.string().describe("Company name, person title, or topic (e.g., 'Sysco Logistics Director' or 'DHL Supply Chain Australia')"),
+        type: z.enum(["company", "profile", "general"]).optional().default("general").describe("Search focus"),
+        limit: z.number().int().min(1).max(10).optional().default(5),
+      }),
+      execute: async ({ query, type = "general", limit = 5 }) => {
+        try {
+          let siteFilter = "linkedin.com"
+          if (type === "company") siteFilter = "linkedin.com/company"
+          if (type === "profile") siteFilter = "linkedin.com/in"
+
+          const results = await searchDomainIndex(siteFilter, query, limit)
+          return {
+            ok: true as const,
+            query,
+            type,
+            count: results.length,
+            results,
+          }
+        } catch (error) {
+          return {
+            ok: false as const,
+            error: `LinkedIn search failed: ${error instanceof Error ? error.message : "search error"}`,
+          }
+        }
+      },
+    }),
+
+    // 8. Instagram Search (Packaging Aesthetics, Venues & Brand Sentiment)
+    searchInstagram: defineTool({
+      description:
+        "Search Instagram for restaurant venues, food packaging visuals, brand accounts, and catering aesthetics.",
+      inputSchema: z.object({
+        query: z.string().describe("Brand name, venue handle, or product hashtag (e.g., 'artisan sourdough sydney' or 'sustainable food packaging')"),
+        limit: z.number().int().min(1).max(10).optional().default(5),
+      }),
+      execute: async ({ query, limit = 5 }) => {
+        try {
+          const results = await searchDomainIndex("instagram.com", query, limit)
+          return {
+            ok: true as const,
+            query,
+            count: results.length,
+            results,
+          }
+        } catch (error) {
+          return {
+            ok: false as const,
+            error: `Instagram search failed: ${error instanceof Error ? error.message : "search error"}`,
+          }
+        }
+      },
+    }),
+
+    // 9. Facebook Business & Supplier Groups Search
+    searchFacebook: defineTool({
+      description:
+        "Search Facebook for food supplier business pages, regional wholesale distributor pages, and industry trade groups.",
+      inputSchema: z.object({
+        query: z.string().describe("Supplier name, trade group keyword, or local wholesale hub"),
+        limit: z.number().int().min(1).max(10).optional().default(5),
+      }),
+      execute: async ({ query, limit = 5 }) => {
+        try {
+          const results = await searchDomainIndex("facebook.com", query, limit)
+          return {
+            ok: true as const,
+            query,
+            count: results.length,
+            results,
+          }
+        } catch (error) {
+          return {
+            ok: false as const,
+            error: `Facebook search failed: ${error instanceof Error ? error.message : "search error"}`,
+          }
+        }
+      },
+    }),
+
+    // 10. XiaoHongShu / RED (小红书) Consumer Sentiment Search
+    searchXiaoHongShu: defineTool({
+      description:
+        "Search XiaoHongShu (小红书 / RED) for consumer food & beverage reviews, trending packaged goods, and authentic user experiences.",
+      inputSchema: z.object({
+        query: z.string().describe("Product name, FMCG brand, or ingredient trend (e.g. '燕麦奶测评' or '预制菜口感')"),
+        limit: z.number().int().min(1).max(10).optional().default(5),
+      }),
+      execute: async ({ query, limit = 5 }) => {
+        try {
+          const results = await searchDomainIndex("xiaohongshu.com", query, limit)
+          return {
+            ok: true as const,
+            query,
+            count: results.length,
+            results,
+          }
+        } catch (error) {
+          return {
+            ok: false as const,
+            error: `XiaoHongShu search failed: ${error instanceof Error ? error.message : "search error"}`,
+          }
+        }
+      },
+    }),
+
+    // 11. TikTok Video & Trend Search
+    searchTikTok: defineTool({
+      description:
+        "Search TikTok for viral food trends, innovative restaurant concepts, kitchen hacks, and beverage recipes.",
+      inputSchema: z.object({
+        query: z.string().describe("Food trend or keyword (e.g., 'viral butter board' or 'matcha packaging design')"),
+        limit: z.number().int().min(1).max(10).optional().default(5),
+      }),
+      execute: async ({ query, limit = 5 }) => {
+        try {
+          const results = await searchDomainIndex("tiktok.com", query, limit)
+          return {
+            ok: true as const,
+            query,
+            count: results.length,
+            results,
+          }
+        } catch (error) {
+          return {
+            ok: false as const,
+            error: `TikTok search failed: ${error instanceof Error ? error.message : "search error"}`,
+          }
+        }
+      },
+    }),
+
+    // 12. Multi-Social Sentiment Radar (All-in-One Cross Platform Scan)
+    aggregateSocialSentiment: defineTool({
+      description:
+        "Scan multiple social networks concurrently (Reddit, X/Twitter, YouTube, LinkedIn, Instagram) for a brand, vendor, or ingredient and return a consolidated social brief.",
+      inputSchema: z.object({
+        target: z.string().describe("Brand, supplier, or product name to investigate"),
+        limitPerPlatform: z.number().int().min(1).max(5).optional().default(3),
+      }),
+      execute: async ({ target, limitPerPlatform = 3 }) => {
+        try {
+          const [reddit, twitter, youtube, linkedin, instagram] = await Promise.all([
+            searchDomainIndex("reddit.com", target, limitPerPlatform),
+            searchDomainIndex("twitter.com", target, limitPerPlatform),
+            searchDomainIndex("youtube.com", target, limitPerPlatform),
+            searchDomainIndex("linkedin.com/company", target, limitPerPlatform),
+            searchDomainIndex("instagram.com", target, limitPerPlatform),
+          ])
+
+          return {
+            ok: true as const,
+            target,
+            platforms: {
+              reddit: { count: reddit.length, results: reddit },
+              twitter: { count: twitter.length, results: twitter },
+              youtube: { count: youtube.length, results: youtube },
+              linkedin: { count: linkedin.length, results: linkedin },
+              instagram: { count: instagram.length, results: instagram },
+            },
+            totalFindings: reddit.length + twitter.length + youtube.length + linkedin.length + instagram.length,
+          }
+        } catch (error) {
+          return {
+            ok: false as const,
+            error: `Multi-social aggregation failed: ${error instanceof Error ? error.message : "network error"}`,
+          }
+        }
+      },
+    }),
+
+    // 13. GitHub Repository & Code Intelligence
     searchGithub: defineTool({
       description:
         "Search GitHub repositories, view stargazers, descriptions, topics, and latest updates for open-source supply chain, ERP, or developer tools.",
@@ -558,7 +707,7 @@ export function buildAgentReachTools(principal: AgentPrincipal) {
       },
     }),
 
-    // 8. RSS / Atom Feed Reader
+    // 14. RSS / Atom Feed Reader
     readRssFeed: defineTool({
       description:
         "Parse and read any RSS, Atom, or News XML feed for supply chain news, agricultural commodity bulletins, or regulatory updates.",
@@ -595,7 +744,7 @@ export function buildAgentReachTools(principal: AgentPrincipal) {
       },
     }),
 
-    // 9. V2EX Community & Node Intelligence
+    // 15. V2EX Community & Node Intelligence
     searchV2ex: defineTool({
       description:
         "Search or retrieve hot topics, developer discussions, and tech posts from V2EX.",
@@ -638,7 +787,7 @@ export function buildAgentReachTools(principal: AgentPrincipal) {
       },
     }),
 
-    // 10. Bilibili Video Search
+    // 16. Bilibili Video Search
     searchBilibili: defineTool({
       description:
         "Search Bilibili for manufacturing process videos, packaging demonstrations, industrial equipment teardowns, or technical tutorials.",
@@ -687,7 +836,7 @@ export function buildAgentReachTools(principal: AgentPrincipal) {
       },
     }),
 
-    // 11. Xueqiu (雪球) Financial Market & Commodity Sentiment
+    // 17. Xueqiu (雪球) Financial Market & Commodity Sentiment
     searchXueqiu: defineTool({
       description:
         "Search Xueqiu (雪球) for market intelligence, commodity producer stocks, agricultural trends, and trader sentiment.",
@@ -724,7 +873,7 @@ export function buildAgentReachTools(principal: AgentPrincipal) {
       },
     }),
 
-    // 12. Semantic Web Search (Exa MCP via mcporter)
+    // 18. Semantic Web Search (Exa MCP via mcporter)
     searchSemanticWeb: defineTool({
       description:
         "Perform deep AI semantic search across the entire internet powered by Exa MCP / mcporter.",
@@ -746,7 +895,6 @@ export function buildAgentReachTools(principal: AgentPrincipal) {
             result: stdout.slice(0, 15000),
           }
         } catch (mcpError) {
-          // Fallback to Jina Reader web search / DuckDuckGo
           try {
             const fallbackUrl = `https://s.jina.ai/${encodeURIComponent(query)}`
             const res = await fetch(fallbackUrl, { signal: AbortSignal.timeout(15000) })
@@ -766,7 +914,7 @@ export function buildAgentReachTools(principal: AgentPrincipal) {
       },
     }),
 
-    // 13. Agent Reach Diagnostics
+    // 19. Agent Reach Diagnostics
     agentReachDoctor: defineTool({
       description:
         "Run diagnostic checks across all Agent Reach web access and social scraping backends to verify status.",

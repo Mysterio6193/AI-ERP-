@@ -230,15 +230,15 @@ function openrouterProvider() {
         lastBody.includes("free-models-per-day") || lastBody.includes("openrouter_free_tier_daily")
       const googleKey = env("GEMINI_API_KEY") || env("GOOGLE_GENERATIVE_AI_API_KEY")
 
-      if (freeTierSpent && googleKey && customOptions?.body && typeof customOptions.body === "string") {
-        const crossProvider = env("AGENT_CROSS_PROVIDER_MODEL") || "gemini-3.5-flash"
+      if (googleKey && customOptions?.body && typeof customOptions.body === "string" && (freeTierSpent || lastReason === "unknown_model" || lastReason === "auth")) {
+        const crossProvider = env("AGENT_CROSS_PROVIDER_MODEL") || "gemini-2.5-flash"
 
         try {
           const parsed = JSON.parse(customOptions.body)
           parsed.model = crossProvider
 
           console.warn(
-            `[agent] OpenRouter free-model daily limit reached; falling back to Google (${crossProvider})`
+            `[agent] OpenRouter request failed (${lastReason}); falling back to Google Gemini (${crossProvider})`
           )
 
           /**

@@ -80,13 +80,28 @@ export async function GET(
     accountEmail = accountEmail || tokens.owner?.user?.person?.email || null
     accountName = accountName || tokens.owner?.user?.name || null
 
+    const companyId = await getActiveCompanyId(request).catch(() => null)
+
+    /**
+     * A company-scoped provider is connected once for everybody, so a second
+     * admin reconnecting it must replace the existing row rather than adding a
+     * parallel one keyed to their own user — two live gateways with no way to
+     * tell which one bills.
+     */
+    if (provider.scope === "company") {
+      await db.integrationConnection.deleteMany({
+        where: { provider: provider.id, scope: "company", companyId },
+      })
+    }
+
     await db.integrationConnection.upsert({
       where: { provider_userId: { provider: provider.id, userId: verdict.state.userId } },
       create: {
         provider: provider.id,
         category: provider.category,
+        scope: provider.scope,
         userId: verdict.state.userId,
-        companyId: await getActiveCompanyId(request).catch(() => null),
+        companyId,
         status: "connected",
         accountEmail,
         accountName,
@@ -99,6 +114,8 @@ export async function GET(
       },
       update: {
         status: "connected",
+        scope: provider.scope,
+        companyId,
         accountEmail,
         accountName,
         accessTokenEnc: encryptSecret(accessToken),

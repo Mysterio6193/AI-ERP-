@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
+import ReactMarkdown from "react-markdown"
 import { useChat } from "@ai-sdk/react"
 import {
   DefaultChatTransport,
@@ -8,24 +9,35 @@ import {
 } from "ai"
 import {
   AlertTriangle,
+  Bot,
   Check,
+  ChevronDown,
+  ChevronRight,
+  Copy,
   Cpu,
   FileText,
+  Globe,
   Loader2,
   Mic,
+  MicOff,
+  Paperclip,
+  RotateCcw,
+  Send,
+  Share2,
+  Sparkles,
+  User,
   Volume2,
   VolumeX,
-  Paperclip,
-  Send,
-  Sparkles,
   Wrench,
   X,
+  Youtube,
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 interface RuntimeInfo {
   mode: "gateway" | "local"
@@ -41,17 +53,36 @@ interface AgentChatProps {
   compact?: boolean
 }
 
-const DEFAULT_SUGGESTIONS = [
-  "How are we tracking today?",
-  "Who's overdue and by how much?",
-  "Which products are out of stock?",
-  "Show me the last 5 orders",
+const CATEGORIZED_SUGGESTIONS = [
+  {
+    category: "Market & Socials",
+    icon: Globe,
+    items: [
+      "Run a social sentiment scan on cold chain logistics on Reddit & Twitter",
+      "Extract and summarize YouTube transcript: https://www.youtube.com/watch?v=...",
+      "Search Reddit for common supplier delivery complaints",
+    ],
+  },
+  {
+    category: "Stock & Orders",
+    icon: Sparkles,
+    items: [
+      "Which products are below reorder level?",
+      "Show me the last 5 orders and their fulfillment status",
+      "What's currently out of stock?",
+    ],
+  },
+  {
+    category: "Finance & Invoices",
+    icon: FileText,
+    items: [
+      "Who's overdue on invoices and by how much?",
+      "Pull today's cashflow and business snapshot",
+      "Draft a chase email for the largest outstanding balance",
+    ],
+  },
 ]
 
-/**
- * The Web Speech API is not in TypeScript's DOM lib, and it is only present in
- * Chromium-based browsers. Both facts are handled here rather than at each use.
- */
 interface SpeechRecognitionLike {
   lang: string
   interimResults: boolean
@@ -64,58 +95,65 @@ interface SpeechRecognitionLike {
 }
 
 function getSpeechRecognition(): (new () => SpeechRecognitionLike) | null {
-  if (typeof window === "undefined") {
-    return null
-  }
-
+  if (typeof window === "undefined") return null
   const candidate = window as unknown as {
     SpeechRecognition?: new () => SpeechRecognitionLike
     webkitSpeechRecognition?: new () => SpeechRecognitionLike
   }
-
   return candidate.SpeechRecognition || candidate.webkitSpeechRecognition || null
 }
 
-/** Turns a tool name into something a human reads while it runs. */
-function toolLabel(toolName: string) {
-  const labels: Record<string, string> = {
-    searchProducts: "Searching the catalog",
-    getStock: "Checking stock",
-    listOrders: "Looking up orders",
-    getOrder: "Opening the order",
-    listInvoices: "Checking invoices",
-    quoteBasket: "Pricing the basket",
-    findCustomers: "Finding the customer",
-    getCustomer: "Reading the account",
-    listTasks: "Checking tasks",
-    businessSnapshot: "Pulling today's numbers",
-    createSalesOrder: "Creating the order",
-    createTask: "Creating a task",
-    completeTask: "Closing the task",
-    logCustomerNote: "Logging a note",
-    updateOrderStatus: "Updating the order",
-    recordPayment: "Recording the payment",
+function toolIconAndLabel(toolName: string) {
+  if (toolName.includes("Youtube")) return { label: "YouTube Intelligence", icon: Youtube }
+  if (toolName.includes("Reddit") || toolName.includes("Twitter") || toolName.includes("Social") || toolName.includes("LinkedIn")) {
+    return { label: `Socials · ${toolName}`, icon: Globe }
+  }
+  if (toolName.includes("Web") || toolName.includes("search")) {
+    return { label: `Web Intelligence · ${toolName}`, icon: Globe }
   }
 
-  return labels[toolName] || `Running ${toolName}`
+  const labels: Record<string, string> = {
+    searchProducts: "Searching the catalog",
+    getStock: "Checking stock levels",
+    listOrders: "Looking up orders",
+    getOrder: "Opening order details",
+    listInvoices: "Checking accounts & invoices",
+    quoteBasket: "Pricing quotation basket",
+    findCustomers: "Finding customer account",
+    getCustomer: "Reading account profile",
+    listTasks: "Checking operational tasks",
+    businessSnapshot: "Pulling business snapshot",
+    createSalesOrder: "Creating sales order",
+    createTask: "Creating task",
+    completeTask: "Closing task",
+    logCustomerNote: "Logging customer note",
+    updateOrderStatus: "Updating order status",
+    recordPayment: "Recording payment",
+    readCleanWebpage: "Reading clean webpage (Jina)",
+    getYoutubeTranscript: "Extracting YouTube transcript",
+    searchReddit: "Searching Reddit discussions",
+    searchTwitter: "Searching Twitter/X posts",
+    searchLinkedIn: "Searching LinkedIn company profiles",
+    searchInstagram: "Searching Instagram visuals",
+    searchTikTok: "Searching TikTok trends",
+    aggregateSocialSentiment: "Aggregating multi-social sentiment radar",
+    searchGithub: "Searching GitHub repositories",
+    readRssFeed: "Parsing RSS/Atom feed",
+    agentReachDoctor: "Running Agent Reach diagnostics",
+  }
+
+  return { label: labels[toolName] || `Executing ${toolName}`, icon: Wrench }
 }
 
-/**
- * Only ids OpenRouter actually serves. Two here had been retired upstream and
- * failed at request time rather than at selection, which reads as the agent
- * being broken rather than the model being gone.
- */
 const CHAT_MODEL_PRESETS = [
-  { label: "Auto / Purpose Default", value: "" },
-  { label: "MiniMax M3 (Free, 1M context)", value: "minimax/minimax-m3:free" },
-  { label: "MiniMax M2.7 (Free)", value: "minimax/minimax-m2.7:free" },
-  { label: "Stealth OX Alpha", value: "stealth/ox-alpha" },
-  { label: "GLM 5.2 (Free)", value: "z-ai/glm-5.2:free" },
-  { label: "Nemotron 3 Ultra 550B (Free)", value: "nvidia/nemotron-3-ultra-550b-a55b:free" },
-  { label: "Nemotron 3 Super 120B (Free)", value: "nvidia/nemotron-3-super-120b-a12b:free" },
-  { label: "Nemotron 3.5 Lightning (Free)", value: "nvidia/nemotron-3.5-lightning:free" },
-  { label: "DeepSeek Chat", value: "deepseek/deepseek-chat" },
-  { label: "Llama 3.3 70B", value: "meta-llama/llama-3.3-70b-instruct" },
+  { label: "Auto / Purpose Default", value: "", provider: "Smart Auto" },
+  { label: "Google Gemini 2.5 Flash", value: "google/gemini-2.5-flash", provider: "Google" },
+  { label: "DeepSeek V3 / Chat", value: "deepseek/deepseek-chat", provider: "DeepSeek" },
+  { label: "MiniMax M3 (Free)", value: "minimax/minimax-m3:free", provider: "MiniMax" },
+  { label: "Nemotron 3 Super 120B (Free)", value: "nvidia/nemotron-3-super-120b-a12b:free", provider: "NVIDIA" },
+  { label: "Nemotron 3.5 Lightning (Free)", value: "nvidia/nemotron-3.5-lightning:free", provider: "NVIDIA" },
+  { label: "Llama 3.3 70B", value: "meta-llama/llama-3.3-70b-instruct", provider: "Meta" },
+  { label: "Qwen 2.5 72B", value: "qwen/qwen-2.5-72b-instruct", provider: "Alibaba" },
 ]
 
 export function AgentChat({ threadKey, suggestions, pageContext, compact }: AgentChatProps) {
@@ -126,7 +164,10 @@ export function AgentChat({ threadKey, suggestions, pageContext, compact }: Agen
   const [scanningOcr, setScanningOcr] = useState(false)
   const [listening, setListening] = useState(false)
   const [recordingAudio, setRecordingAudio] = useState(false)
-  const [voiceSupported, setVoiceSupported] = useState(() =>
+  const [copiedIndex, setCopiedIndex] = useState<string | null>(null)
+  const [expandedTools, setExpandedTools] = useState<Record<string, boolean>>({})
+
+  const [voiceSupported] = useState(() =>
     typeof window !== "undefined" ? Boolean(getSpeechRecognition() || navigator?.mediaDevices?.getUserMedia) : false
   )
   const endRef = useRef<HTMLDivElement>(null)
@@ -135,13 +176,8 @@ export function AgentChat({ threadKey, suggestions, pageContext, compact }: Agen
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
 
-  // Reading replies aloud completes the hands-free loop dictation started:
-  // useful in a van or on a warehouse floor, where reading a screen is the
-  // actual barrier. Browser speech synthesis, so it needs no credential and no
-  // audio leaves the machine.
   const [speaking, setSpeaking] = useState(false)
-  const speechSupported =
-    typeof window !== "undefined" && typeof window.speechSynthesis !== "undefined"
+  const speechSupported = typeof window !== "undefined" && typeof window.speechSynthesis !== "undefined"
   const spokenRef = useRef<string | null>(null)
 
   const activeModelParam = selectedModel || undefined
@@ -163,25 +199,17 @@ export function AgentChat({ threadKey, suggestions, pageContext, compact }: Agen
   const busy = status === "submitted" || status === "streaming" || scanningOcr
 
   useEffect(() => {
-    if (!speaking || !speechSupported || busy) {
-      return
-    }
+    if (!speaking || !speechSupported || busy) return
 
     const last = messages[messages.length - 1]
-    if (!last || last.role !== "assistant") {
-      return
-    }
+    if (!last || last.role !== "assistant") return
 
     const text = (last.parts || [])
       .map((part) => (part.type === "text" ? part.text : ""))
       .join(" ")
       .trim()
 
-    // Only once per message, and only once it has stopped streaming —
-    // otherwise every token restarts the utterance.
-    if (!text || spokenRef.current === last.id) {
-      return
-    }
+    if (!text || spokenRef.current === last.id) return
 
     spokenRef.current = last.id
     window.speechSynthesis.cancel()
@@ -189,7 +217,6 @@ export function AgentChat({ threadKey, suggestions, pageContext, compact }: Agen
   }, [messages, busy, speaking, speechSupported])
 
   useEffect(() => {
-    // Never keep talking after the panel closes.
     return () => {
       if (typeof window !== "undefined" && window.speechSynthesis) {
         window.speechSynthesis.cancel()
@@ -203,12 +230,8 @@ export function AgentChat({ threadKey, suggestions, pageContext, compact }: Agen
     fetch(`/api/agent/chat${params}`)
       .then((response) => response.json())
       .then((payload) => {
-        if (!payload.success) {
-          return
-        }
-
+        if (!payload.success) return
         setRuntime(payload.data.runtime)
-
         if (payload.data.history?.length) {
           setMessages(payload.data.history)
         }
@@ -329,18 +352,29 @@ export function AgentChat({ threadKey, suggestions, pageContext, compact }: Agen
     }
   }
 
-  const promptSuggestions = useMemo(() => suggestions || DEFAULT_SUGGESTIONS, [suggestions])
+  function copyToClipboard(text: string, id: string) {
+    void navigator.clipboard.writeText(text)
+    setCopiedIndex(id)
+    setTimeout(() => setCopiedIndex(null), 2000)
+  }
+
+  function toggleToolDetails(key: string) {
+    setExpandedTools((prev) => ({ ...prev, [key]: !prev[key] }))
+  }
+
+  function handleResetChat() {
+    setMessages([])
+    setInput("")
+    setFiles(undefined)
+  }
 
   function submit(text: string) {
     const trimmed = text.trim()
     const hasFiles = Boolean(files?.length)
 
-    if ((!trimmed && !hasFiles) || busy) {
-      return
-    }
+    if ((!trimmed && !hasFiles) || busy) return
 
-    // A bare attachment still needs an instruction for the model to act on.
-    const prompt = trimmed || "Read this and tell me what it is, then draft whatever it implies."
+    const prompt = trimmed || "Read this attachment and summarize key findings, then draft actions."
 
     setInput("")
     void sendMessage({
@@ -355,302 +389,484 @@ export function AgentChat({ threadKey, suggestions, pageContext, compact }: Agen
   }
 
   return (
-    <div className="flex h-full flex-col">
-      {/* Model Selector Bar */}
-      <div className="mb-2 flex items-center justify-between gap-2 rounded-lg border bg-muted/40 px-2.5 py-1.5 text-xs">
-        <div className="flex items-center gap-1.5">
-          <Cpu className="h-3.5 w-3.5 text-muted-foreground" />
-          <span className="font-medium text-muted-foreground">Model:</span>
-        </div>
-        <select
-          value={selectedModel}
-          onChange={(e) => setSelectedModel(e.target.value)}
-          className="h-6 rounded border bg-background px-2 text-[11px] font-mono outline-none"
-        >
-          {CHAT_MODEL_PRESETS.map((preset) => (
-            <option key={preset.value} value={preset.value}>
-              {preset.label} {preset.value ? `(${preset.value.split("/")[1] || preset.value})` : ""}
-            </option>
-          ))}
-        </select>
-      </div>
-      {runtime && !runtime.configured ? (
-        <Card className="mb-4 border-amber-300 bg-amber-50 dark:bg-amber-950/30">
-          <CardContent className="flex gap-3 p-4 text-sm">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-            <div>
-              <p className="font-medium">No model configured</p>
-              <p className="text-muted-foreground">
-                Set <code className="font-mono">AI_GATEWAY_API_KEY</code>, or run Ollama and set{" "}
-                <code className="font-mono">AGENT_PROVIDER=local</code> to keep everything on this
-                machine.
-              </p>
+    <TooltipProvider>
+      <div className="flex h-full flex-col overflow-hidden bg-background">
+        {/* Top Controls Bar */}
+        <div className="flex items-center justify-between border-b bg-card/60 px-3 py-2 text-xs backdrop-blur-sm">
+          <div className="flex items-center gap-2">
+            <div className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10 text-primary">
+              <Bot className="h-3.5 w-3.5" />
             </div>
-          </CardContent>
-        </Card>
-      ) : null}
+            <span className="font-semibold tracking-tight">Hermes AI</span>
+            <span className="flex h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-emerald-500/20" title="Online" />
+          </div>
 
-      <div className="flex-1 space-y-4 overflow-y-auto pr-1">
-        {messages.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center gap-6 text-center">
-            <div className="rounded-full bg-muted p-4">
-              <Sparkles className="h-6 w-6 text-muted-foreground" />
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 rounded-md border bg-background/80 px-2 py-0.5 shadow-sm">
+              <Cpu className="h-3 w-3 text-muted-foreground" />
+              <select
+                value={selectedModel}
+                onChange={(e) => setSelectedModel(e.target.value)}
+                className="cursor-pointer bg-transparent text-[11px] font-medium outline-none"
+              >
+                {CHAT_MODEL_PRESETS.map((preset) => (
+                  <option key={preset.value} value={preset.value}>
+                    {preset.label}
+                  </option>
+                ))}
+              </select>
             </div>
-            <div className="grid w-full max-w-md gap-2">
-              {promptSuggestions.map((suggestion) => (
-                <button
-                  key={suggestion}
-                  onClick={() => submit(suggestion)}
-                  className="rounded-lg border bg-card px-4 py-2.5 text-left text-sm transition-colors hover:bg-accent"
+
+            {messages.length > 0 ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                    onClick={handleResetChat}
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>New Conversation</TooltipContent>
+              </Tooltip>
+            ) : null}
+          </div>
+        </div>
+
+        {/* Runtime Alert if not configured */}
+        {runtime && !runtime.configured ? (
+          <Card className="m-3 border-amber-300 bg-amber-50/80 dark:bg-amber-950/30">
+            <CardContent className="flex gap-3 p-3 text-xs">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+              <div>
+                <p className="font-medium">No cloud model key configured</p>
+                <p className="text-muted-foreground">
+                  Set <code className="font-mono">GEMINI_API_KEY</code> or <code className="font-mono">OPENROUTER_API_KEY</code> in <code className="font-mono">.env</code>.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {/* Message Thread Scroll Area */}
+        <div className="flex-1 space-y-4 overflow-y-auto p-4">
+          {messages.length === 0 ? (
+            <div className="flex h-full flex-col items-center justify-center space-y-6 py-8 text-center">
+              <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-tr from-primary/20 via-primary/10 to-transparent shadow-inner">
+                <Sparkles className="h-7 w-7 text-primary" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-semibold tracking-tight">How can Hermes help your supply chain?</h3>
+                <p className="text-xs text-muted-foreground">
+                  Ask about stock levels, summarize YouTube SOPs, search Reddit complaints, or automate workflows.
+                </p>
+              </div>
+
+              {/* Categorized Suggestion Grid */}
+              <div className="grid w-full max-w-2xl gap-3 text-left">
+                {suggestions ? (
+                  <div className="grid gap-2">
+                    {suggestions.map((suggestion) => (
+                      <button
+                        key={suggestion}
+                        onClick={() => submit(suggestion)}
+                        className="group flex items-center justify-between rounded-xl border bg-card/80 p-3 text-xs shadow-sm transition-all hover:border-primary/50 hover:bg-accent/40"
+                      >
+                        <span className="font-medium text-foreground group-hover:text-primary">{suggestion}</span>
+                        <ChevronRight className="h-3.5 w-3.5 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  CATEGORIZED_SUGGESTIONS.map((cat) => {
+                    const CatIcon = cat.icon
+                    return (
+                      <div key={cat.category} className="space-y-1.5">
+                        <div className="flex items-center gap-1.5 px-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                          <CatIcon className="h-3 w-3" />
+                          <span>{cat.category}</span>
+                        </div>
+                        <div className="grid gap-1.5 sm:grid-cols-2">
+                          {cat.items.map((item) => (
+                            <button
+                              key={item}
+                              onClick={() => submit(item)}
+                              className="group flex items-center justify-between rounded-lg border bg-card/60 p-2.5 text-xs text-left shadow-2xs transition-all hover:border-primary/40 hover:bg-accent/50"
+                            >
+                              <span className="line-clamp-2 text-foreground/90 group-hover:text-primary">{item}</span>
+                              <ChevronRight className="ml-1.5 h-3.5 w-3.5 shrink-0 text-muted-foreground/60 transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+            </div>
+          ) : null}
+
+          {/* Messages Mapping */}
+          {messages.map((message) => (
+            <div key={message.id} className="space-y-3">
+              {message.parts.map((part, index) => {
+                const key = `${message.id}-${index}`
+
+                // 1. Text Message Component
+                if (part.type === "text") {
+                  const isUser = message.role === "user"
+
+                  return (
+                    <div
+                      key={key}
+                      className={`group flex items-start gap-2.5 ${isUser ? "flex-row-reverse" : "flex-row"}`}
+                    >
+                      <div
+                        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg shadow-xs ${
+                          isUser ? "bg-primary text-primary-foreground" : "border bg-card text-primary"
+                        }`}
+                      >
+                        {isUser ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
+                      </div>
+
+                      <div className="relative max-w-[85%] space-y-1">
+                        <div
+                          className={`rounded-2xl px-4 py-3 text-xs leading-relaxed shadow-xs ${
+                            isUser
+                              ? "rounded-tr-xs bg-primary text-primary-foreground font-normal"
+                              : "rounded-tl-xs border bg-card text-card-foreground prose prose-xs dark:prose-invert max-w-none prose-p:my-1.5 prose-headings:my-2 prose-ul:my-1.5 prose-table:my-2"
+                          }`}
+                        >
+                          {isUser ? (
+                            <p className="whitespace-pre-wrap">{part.text}</p>
+                          ) : (
+                            <ReactMarkdown
+                              components={{
+                                a: ({ href, children }) => (
+                                  <a
+                                    href={href}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="font-medium text-primary underline underline-offset-2 hover:opacity-80"
+                                  >
+                                    {children}
+                                  </a>
+                                ),
+                                table: ({ children }) => (
+                                  <div className="my-2 overflow-x-auto rounded-lg border">
+                                    <table className="w-full text-left text-[11px]">{children}</table>
+                                  </div>
+                                ),
+                                th: ({ children }) => (
+                                  <th className="bg-muted/60 px-2.5 py-1.5 font-semibold text-foreground border-b">{children}</th>
+                                ),
+                                td: ({ children }) => (
+                                  <td className="px-2.5 py-1.5 border-b border-muted/40">{children}</td>
+                                ),
+                                code: ({ children }) => (
+                                  <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-foreground">
+                                    {children}
+                                  </code>
+                                ),
+                              }}
+                            >
+                              {part.text}
+                            </ReactMarkdown>
+                          )}
+                        </div>
+
+                        {!isUser ? (
+                          <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                              onClick={() => copyToClipboard(part.text, key)}
+                              title="Copy response"
+                            >
+                              {copiedIndex === key ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+                            </Button>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  )
+                }
+
+                // 2. File Attachment Component
+                if (part.type === "file") {
+                  const filePart = part as { url?: string; mediaType?: string; filename?: string }
+
+                  return filePart.mediaType?.startsWith("image/") ? (
+                    <div key={key} className="flex justify-end pr-9">
+                      <img
+                        src={filePart.url}
+                        alt={filePart.filename || "attachment"}
+                        className="max-h-48 rounded-xl border shadow-sm"
+                      />
+                    </div>
+                  ) : (
+                    <div key={key} className="flex justify-end pr-9">
+                      <div className="flex items-center gap-2 rounded-xl border bg-card px-3 py-2 text-xs shadow-xs">
+                        <FileText className="h-4 w-4 text-primary" />
+                        <span className="font-medium">{filePart.filename || "Attached Document"}</span>
+                      </div>
+                    </div>
+                  )
+                }
+
+                // 3. Tool Call & Execution Card
+                if (!part.type.startsWith("tool-")) return null
+
+                const toolPart = part as {
+                  type: string
+                  state?: string
+                  approval?: { id: string; isAutomatic?: boolean }
+                  args?: any
+                  output?: any
+                }
+                const toolName = toolPart.type.replace(/^tool-/, "")
+                const { label: toolTitle, icon: ToolIcon } = toolIconAndLabel(toolName)
+                const isExpanded = Boolean(expandedTools[key])
+
+                // Approval Gated Action
+                if (toolPart.state === "approval-requested" && toolPart.approval && !toolPart.approval.isAutomatic) {
+                  const approvalId = toolPart.approval.id
+
+                  return (
+                    <div key={key} className="pl-9">
+                      <Card className="max-w-[85%] border-amber-400 bg-amber-50/50 shadow-sm dark:bg-amber-950/20">
+                        <CardContent className="space-y-3 p-3.5">
+                          <div className="flex items-start gap-2.5">
+                            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                            <div>
+                              <p className="text-xs font-semibold text-foreground">{toolTitle} requires approval</p>
+                              <p className="text-[11px] text-muted-foreground">
+                                This action modifies platform state or exceeds autonomous policy boundaries.
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex gap-2 pt-1">
+                            <Button
+                              size="sm"
+                              className="h-7 bg-emerald-600 text-xs hover:bg-emerald-700"
+                              onClick={() => addToolApprovalResponse({ id: approvalId, approved: true })}
+                            >
+                              <Check className="mr-1 h-3.5 w-3.5" />
+                              Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs"
+                              onClick={() => addToolApprovalResponse({ id: approvalId, approved: false })}
+                            >
+                              <X className="mr-1 h-3.5 w-3.5" />
+                              Reject
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  )
+                }
+
+                const isRunning = toolPart.state !== "output-available" && toolPart.state !== "output-error"
+
+                return (
+                  <div key={key} className="pl-9">
+                    <div className="inline-flex flex-col rounded-lg border bg-card/60 px-3 py-1.5 text-xs shadow-2xs">
+                      <button
+                        onClick={() => toggleToolDetails(key)}
+                        className="flex items-center gap-2 text-left text-muted-foreground hover:text-foreground"
+                      >
+                        {isRunning ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                        ) : (
+                          <ToolIcon className="h-3.5 w-3.5 text-emerald-500" />
+                        )}
+                        <span className="font-mono text-[11px] font-medium text-foreground">{toolTitle}</span>
+                        <span className="text-[10px] text-muted-foreground">{isRunning ? "working..." : "done"}</span>
+                        {toolPart.args || toolPart.output ? (
+                          <ChevronDown className={`h-3 w-3 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
+                        ) : null}
+                      </button>
+
+                      {isExpanded && (toolPart.args || toolPart.output) ? (
+                        <div className="mt-2 border-t pt-1.5 font-mono text-[10px] text-muted-foreground">
+                          {toolPart.args ? (
+                            <div className="mb-1">
+                              <span className="font-bold text-foreground">Args:</span>{" "}
+                              {JSON.stringify(toolPart.args)}
+                            </div>
+                          ) : null}
+                          {toolPart.output ? (
+                            <div>
+                              <span className="font-bold text-foreground">Output:</span>{" "}
+                              <span className="line-clamp-4">{JSON.stringify(toolPart.output)}</span>
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          ))}
+
+          {error ? (
+            <div className="pl-9">
+              <div className="w-fit max-w-[85%] rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+                <div className="flex items-center gap-2 font-medium">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  <span>Execution Error</span>
+                </div>
+                <p className="mt-1 text-[11px] opacity-90">{error.message}</p>
+              </div>
+            </div>
+          ) : null}
+
+          {status === "submitted" ? (
+            <div className="flex items-center gap-2 pl-9 text-xs text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+              <span>Hermes is thinking & searching…</span>
+            </div>
+          ) : null}
+
+          <div ref={endRef} />
+        </div>
+
+        {/* Input & Action Area */}
+        <div className={`border-t bg-card/40 p-3 backdrop-blur-sm ${compact ? "p-2.5" : "p-3.5"}`}>
+          {files?.length ? (
+            <div className="flex flex-wrap gap-1.5 pb-2">
+              {Array.from(files).map((file) => (
+                <span
+                  key={file.name}
+                  className="flex items-center gap-1.5 rounded-full border bg-background px-2.5 py-0.5 text-xs shadow-2xs"
                 >
-                  {suggestion}
-                </button>
+                  <FileText className="h-3 w-3 text-primary" />
+                  <span className="max-w-[150px] truncate">{file.name}</span>
+                  <button
+                    onClick={() => setFiles(undefined)}
+                    className="rounded-full hover:bg-muted p-0.5"
+                  >
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                </span>
               ))}
             </div>
-          </div>
-        ) : null}
+          ) : null}
 
-        {messages.map((message) => (
-          <div key={message.id} className="space-y-2">
-            {message.parts.map((part, index) => {
-              const key = `${message.id}-${index}`
+          {scanningOcr ? (
+            <div className="flex items-center gap-2 pb-2 text-xs text-primary animate-pulse font-medium">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <span>Scanning document with Vision OCR & parsing line items...</span>
+            </div>
+          ) : null}
 
-              if (part.type === "text") {
-                return (
-                  <div
-                    key={key}
-                    className={
-                      message.role === "user"
-                        ? "ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-sm bg-primary px-4 py-2.5 text-sm text-primary-foreground"
-                        : "w-fit max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-bl-sm bg-muted px-4 py-2.5 text-sm"
-                    }
-                  >
-                    {part.text}
-                  </div>
-                )
-              }
-
-              if (part.type === "file") {
-                const filePart = part as { url?: string; mediaType?: string; filename?: string }
-
-                return filePart.mediaType?.startsWith("image/") ? (
-                  <img
-                    key={key}
-                    src={filePart.url}
-                    alt={filePart.filename || "attachment"}
-                    className="ml-auto max-h-48 rounded-lg border"
-                  />
-                ) : (
-                  <div
-                    key={key}
-                    className="ml-auto flex w-fit items-center gap-2 rounded-lg border bg-card px-3 py-2 text-xs"
-                  >
-                    <FileText className="h-3.5 w-3.5" />
-                    {filePart.filename || "Attachment"}
-                  </div>
-                )
-              }
-
-              if (!part.type.startsWith("tool-")) {
-                return null
-              }
-
-              const toolPart = part as {
-                type: string
-                state?: string
-                approval?: { id: string; isAutomatic?: boolean }
-              }
-              const toolName = toolPart.type.replace(/^tool-/, "")
-
-              if (
-                toolPart.state === "approval-requested" &&
-                toolPart.approval &&
-                !toolPart.approval.isAutomatic
-              ) {
-                const approvalId = toolPart.approval.id
-
-                return (
-                  <Card key={key} className="max-w-[85%] border-amber-300">
-                    <CardContent className="space-y-3 p-4">
-                      <div>
-                        <p className="text-sm font-medium">{toolLabel(toolName)} needs your approval</p>
-                        <p className="text-xs text-muted-foreground">
-                          This action is over the limit the agent can act on alone.
-                        </p>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          onClick={() => addToolApprovalResponse({ id: approvalId, approved: true })}
-                        >
-                          <Check className="mr-1 h-3.5 w-3.5" />
-                          Approve
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => addToolApprovalResponse({ id: approvalId, approved: false })}
-                        >
-                          <X className="mr-1 h-3.5 w-3.5" />
-                          Reject
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )
-              }
-
-              const running =
-                toolPart.state !== "output-available" && toolPart.state !== "output-error"
-
-              return (
-                <div key={key} className="flex items-center gap-2 text-xs text-muted-foreground">
-                  {running ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : (
-                    <Wrench className="h-3 w-3" />
-                  )}
-                  {toolLabel(toolName)}
-                  {running ? "…" : ""}
-                </div>
-              )
-            })}
-          </div>
-        ))}
-
-        {error ? (
-          <div className="w-fit max-w-[85%] rounded-2xl border border-destructive/40 bg-destructive/10 px-4 py-2.5 text-sm">
-            {error.message}
-          </div>
-        ) : null}
-
-        {status === "submitted" ? (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            Thinking…
-          </div>
-        ) : null}
-
-        <div ref={endRef} />
-      </div>
-
-      <div className={compact ? "pt-3" : "border-t pt-4"}>
-        {files?.length ? (
-          <div className="flex flex-wrap gap-2 pb-2">
-            {Array.from(files).map((file) => (
-              <span
-                key={file.name}
-                className="flex items-center gap-1.5 rounded-full border bg-card px-2.5 py-1 text-xs"
-              >
-                <FileText className="h-3 w-3" />
-                {file.name}
-              </span>
-            ))}
-            <button
-              onClick={() => {
-                setFiles(undefined)
-                if (fileInputRef.current) {
-                  fileInputRef.current.value = ""
-                }
-              }}
-              className="text-xs text-muted-foreground underline"
-            >
-              clear
-            </button>
-          </div>
-        ) : null}
-
-        {scanningOcr ? (
-          <div className="flex items-center gap-2 pb-2 text-xs text-muted-foreground">
-            <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-            <span>Scanning document with Vision OCR...</span>
-          </div>
-        ) : null}
-
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          accept="image/*,application/pdf"
-          className="hidden"
-          onChange={(event) => void handleFileAttachment(event.target.files)}
-        />
-
-        <div className="flex gap-2">
-          <Button
-            size="icon"
-            variant="outline"
-            className="h-11 w-11 shrink-0"
-            onClick={() => fileInputRef.current?.click()}
-            title="Attach a photo of an invoice, receipt or delivery docket"
-          >
-            <Paperclip className="h-4 w-4" />
-          </Button>
-          <Textarea
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault()
-                submit(input)
-              }
-            }}
-            placeholder={recordingAudio || listening ? "Listening to your voice..." : "Ask anything, or scan an invoice..."}
-            className={`max-h-40 min-h-[44px] resize-none ${
-              recordingAudio || listening ? "border-red-500/50 bg-red-500/5" : ""
-            }`}
-            rows={1}
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept="image/*,application/pdf"
+            className="hidden"
+            onChange={(event) => void handleFileAttachment(event.target.files)}
           />
-          {voiceSupported ? (
+
+          <div className="flex items-end gap-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="icon"
+                  variant="outline"
+                  className="h-10 w-10 shrink-0 rounded-xl"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Paperclip className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Attach invoice, receipt, or PDF</TooltipContent>
+            </Tooltip>
+
+            <div className="relative flex-1">
+              <Textarea
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault()
+                    submit(input)
+                  }
+                }}
+                placeholder={
+                  recordingAudio || listening
+                    ? "Listening to your voice..."
+                    : "Ask anything, scan an invoice, or search Reddit & YouTube..."
+                }
+                className={`max-h-36 min-h-[42px] resize-none rounded-xl border-input bg-background/90 px-3.5 py-2.5 text-xs shadow-2xs transition-colors focus-visible:ring-1 focus-visible:ring-primary ${
+                  recordingAudio || listening ? "border-red-500/60 bg-red-500/5 ring-1 ring-red-500/40" : ""
+                }`}
+                rows={1}
+              />
+            </div>
+
+            {voiceSupported ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant={listening || recordingAudio ? "destructive" : "outline"}
+                    className="h-10 w-10 shrink-0 rounded-xl"
+                    onClick={toggleVoice}
+                  >
+                    {listening || recordingAudio ? (
+                      <Mic className="h-4 w-4 animate-pulse" />
+                    ) : (
+                      <MicOff className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{listening || recordingAudio ? "Stop recording" : "Voice dictation"}</TooltipContent>
+              </Tooltip>
+            ) : null}
+
+            {speechSupported ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant={speaking ? "default" : "outline"}
+                    className="h-10 w-10 shrink-0 rounded-xl"
+                    onClick={() => {
+                      setSpeaking((current) => {
+                        if (current) window.speechSynthesis.cancel()
+                        spokenRef.current = messages[messages.length - 1]?.id ?? null
+                        return !current
+                      })
+                    }}
+                  >
+                    {speaking ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4 text-muted-foreground" />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{speaking ? "Mute auto-read aloud" : "Read replies aloud"}</TooltipContent>
+              </Tooltip>
+            ) : null}
+
             <Button
               size="icon"
-              variant={listening || recordingAudio ? "destructive" : "outline"}
-              className="h-11 w-11 shrink-0"
-              onClick={toggleVoice}
-              title={listening || recordingAudio ? "Stop recording" : "Record voice query"}
+              className="h-10 w-10 shrink-0 rounded-xl bg-primary shadow-xs hover:bg-primary/90"
+              disabled={busy || (!input.trim() && !files?.length)}
+              onClick={() => submit(input)}
             >
-              <Mic className={`h-4 w-4 ${listening || recordingAudio ? "animate-pulse" : ""}`} />
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             </Button>
-          ) : null}
-          {speechSupported ? (
-            <Button
-              size="icon"
-              variant={speaking ? "default" : "outline"}
-              className="h-11 w-11 shrink-0"
-              onClick={() => {
-                setSpeaking((current) => {
-                  if (current) window.speechSynthesis.cancel()
-                  // Don't read out whatever is already on screen when switched on.
-                  spokenRef.current = messages[messages.length - 1]?.id ?? null
-                  return !current
-                })
-              }}
-              title={speaking ? "Stop reading replies aloud" : "Read replies aloud"}
-            >
-              {speaking ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
-            </Button>
-          ) : null}
-          <Button
-            size="icon"
-            className="h-11 w-11 shrink-0"
-            disabled={busy || (!input.trim() && !files?.length)}
-            onClick={() => submit(input)}
-          >
-            <Send className="h-4 w-4" />
-          </Button>
-        </div>
-        {runtime ? (
-          <div className="pt-2">
-            <Badge
-              variant={runtime.configured ? "secondary" : "destructive"}
-              className="gap-1.5 text-[10px]"
-            >
-              <Cpu className="h-3 w-3" />
-              {runtime.mode === "local" ? "Local" : "Cloud"} · {runtime.model}
-            </Badge>
           </div>
-        ) : null}
+        </div>
       </div>
-    </div>
+    </TooltipProvider>
   )
 }

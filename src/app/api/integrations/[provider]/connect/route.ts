@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { requireAdminUser } from "@/lib/admin-auth"
 import { buildAuthorizeUrl, encodeState } from "@/lib/integrations/oauth"
+import { canManage } from "@/lib/integrations/lookup"
 import { getProvider, isProviderConfigured } from "@/lib/integrations/providers"
 
 /**
@@ -23,6 +24,19 @@ export async function GET(
 
   if (!provider) {
     return NextResponse.json({ success: false, error: `Unknown integration "${providerId}".` }, { status: 404 })
+  }
+
+  if (!canManage(provider, auth.user!.role)) {
+    // Stopped before the consent screen rather than after it: sending someone
+    // through a full OAuth grant and then refusing to save it wastes their time
+    // and leaves an authorised app they did not ask for.
+    return NextResponse.json(
+      {
+        success: false,
+        error: `${provider.name} is connected once for the whole company. Ask an admin to set it up.`,
+      },
+      { status: 403 }
+    )
   }
 
   if (!isProviderConfigured(provider)) {

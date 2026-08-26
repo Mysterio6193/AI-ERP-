@@ -27,6 +27,9 @@ interface ProviderRow {
   categoryLabel: string
   summary: string
   grants: string[]
+  scope: string
+  scopeLabel: string
+  canManage: boolean
   configured: boolean
   setupHint: string | null
   connection: {
@@ -184,6 +187,12 @@ export function ConnectedTools() {
                             ) : null}
                           </CardTitle>
                           <CardDescription className="text-xs">{provider.summary}</CardDescription>
+                          {/*
+                            Said on every card, connected or not: someone about
+                            to disconnect the company's gateway should know that
+                            is what they are doing before they click it.
+                          */}
+                          <p className="mt-1 text-[11px] text-muted-foreground">{provider.scopeLabel}</p>
                         </div>
                       </div>
                     </CardHeader>
@@ -208,6 +217,12 @@ export function ConnectedTools() {
                             ))}
                           </ul>
                         </div>
+                      ) : null}
+
+                      {!provider.canManage ? (
+                        <p className="text-muted-foreground">
+                          Shared across the company — an admin sets this one up.
+                        </p>
                       ) : null}
 
                       {provider.setupHint ? (
@@ -235,7 +250,7 @@ export function ConnectedTools() {
                               size="sm"
                               variant="ghost"
                               className="h-7 text-xs text-muted-foreground"
-                              disabled={busy === provider.id}
+                              disabled={busy === provider.id || !provider.canManage}
                               onClick={() => void disconnect(provider)}
                             >
                               {busy === provider.id ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
@@ -243,8 +258,13 @@ export function ConnectedTools() {
                             </Button>
                           </>
                         ) : (
-                          <Button size="sm" className="h-7 text-xs" disabled={!provider.configured} asChild={provider.configured}>
-                            {provider.configured ? (
+                          <Button
+                            size="sm"
+                            className="h-7 text-xs"
+                            disabled={!provider.configured || !provider.canManage}
+                            asChild={provider.configured && provider.canManage}
+                          >
+                            {provider.configured && provider.canManage ? (
                               <a href={`/api/integrations/${provider.id}/connect`}>
                                 Connect
                                 <ExternalLink className="ml-1 h-3 w-3" />

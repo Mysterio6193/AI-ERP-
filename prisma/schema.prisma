@@ -2207,9 +2207,14 @@ model IntegrationConnection {
 
   /// google_calendar, gmail, outlook, outlook_calendar, notion, slack…
   provider String
-  /// calendar, email, notes, messaging — what the tool is FOR, which is how the
-  /// settings page groups them and how features ask for "a calendar".
+  /// calendar, email, notes, messaging, payments — what the tool is FOR, which
+  /// is how the settings page groups them and how features ask for "a calendar".
   category String
+
+  /// "user" or "company". A mailbox belongs to a person; a payment gateway
+  /// belongs to the business and must outlive whoever connected it. The lookup
+  /// differs accordingly, so it is recorded rather than inferred.
+  scope String @default("user")
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -2239,9 +2244,12 @@ model IntegrationConnection {
   updatedAt DateTime @updatedAt
 
   /// One connection per provider per person; reconnecting replaces rather than
-  /// stacking up dead tokens nobody can tell apart.
+  /// stacking up dead tokens nobody can tell apart. Company-scoped providers
+  /// are deduplicated in code against companyId, since a partial unique index
+  /// cannot express "only when scope is company".
   @@unique([provider, userId])
   @@index([userId, category])
+  @@index([companyId, provider, scope])
 }
 
 model AccountingIntegration {
