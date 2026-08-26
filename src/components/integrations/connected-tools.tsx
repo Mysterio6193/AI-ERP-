@@ -42,17 +42,37 @@ export function ConnectedTools() {
   const { toast } = useToast()
   const [providers, setProviders] = useState<ProviderRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [encryptionHint, setEncryptionHint] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
+    setLoadError(null)
+
     try {
-      const result = await fetch("/api/integrations").then((response) => response.json())
-      if (result.success) {
+      const response = await fetch("/api/integrations")
+      const result = await response.json().catch(() => null)
+
+      if (result?.success) {
         setProviders(result.data.providers)
         setEncryptionHint(result.data.encryptionHint)
+        return
       }
+
+      /**
+       * Rendering nothing on failure was the bug: an empty section under a
+       * heading reads as "this product has no integrations", not as "the
+       * request failed". Say which it is.
+       */
+      setLoadError(
+        result?.error ||
+          (response.status === 401
+            ? "You need to sign in again to see your connected tools."
+            : `Could not load integrations (HTTP ${response.status}).`)
+      )
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Could not reach the server.")
     } finally {
       setLoading(false)
     }
@@ -102,6 +122,21 @@ export function ConnectedTools() {
       <div className="flex items-center gap-2 p-6 text-sm text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin" />
         Loading connected tools…
+      </div>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex items-start gap-2 rounded-lg border border-rose-300 bg-rose-50 p-3 text-xs text-rose-900 dark:border-rose-800 dark:bg-rose-950 dark:text-rose-200">
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+        <div className="space-y-2">
+          <p>{loadError}</p>
+          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => void load()}>
+            <RefreshCw className="mr-1 h-3 w-3" />
+            Try again
+          </Button>
+        </div>
       </div>
     )
   }

@@ -51,6 +51,7 @@ import { buildAutonomousAiTools } from "./autonomous-ai"
 import { buildSimulationAiTools } from "./simulation-ai"
 import { buildAutonomousDecisionTools } from "./autonomous-decision"
 import { buildXaiBotTools } from "./xai-bot-tools"
+import { buildAgentReachTools } from "./agent-reach"
 import { TOOL_NAMES } from "./define"
 
 /**
@@ -421,6 +422,21 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
     roles: ["admin", "sales", "warehouse"],
     alwaysApprove: true,
   },
+
+  // Agent Reach & Multi-Platform Web Access
+  getYoutubeTranscript: { risk: "read" },
+  searchYoutube: { risk: "read" },
+  readCleanWebpage: { risk: "read" },
+  searchReddit: { risk: "read" },
+  getRedditThread: { risk: "read" },
+  searchTwitter: { risk: "read" },
+  searchGithub: { risk: "read" },
+  readRssFeed: { risk: "read" },
+  searchV2ex: { risk: "read" },
+  searchBilibili: { risk: "read" },
+  searchXueqiu: { risk: "read" },
+  searchSemanticWeb: { risk: "read" },
+  agentReachDoctor: { risk: "read" },
 }
 
 export function buildTools(principal: AgentPrincipal, channel?: string): ToolSet {
@@ -486,6 +502,7 @@ export function buildTools(principal: AgentPrincipal, channel?: string): ToolSet
     buildSimulationAiTools(principal),
     buildAutonomousDecisionTools(principal),
     buildXaiBotTools(principal),
+    buildAgentReachTools(principal),
   ]
 
   const assembled = Object.assign({}, ...builders) as ToolSet
