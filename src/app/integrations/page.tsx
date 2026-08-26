@@ -37,6 +37,7 @@ import {
 import { AppShell } from "@/components/layout/app-shell"
 import { CalendarFeed } from "@/components/integrations/calendar-feed"
 import { ConnectedTools } from "@/components/integrations/connected-tools"
+import { MailboxConnect } from "@/components/integrations/mailbox-connect"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -312,6 +313,13 @@ export default function IntegrationsPage() {
             wanting the schedule in the calendar already open on the desk.
           */}
           <CalendarFeed />
+
+          {/*
+            Also here rather than buried in server config: an admin can change
+            the sending mailbox without shell access, and it is proven before it
+            is stored.
+          */}
+          <MailboxConnect />
 
           <ConnectedTools />
         </section>

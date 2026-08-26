@@ -2245,6 +2245,11 @@ model IntegrationConnection {
   /// What was actually granted, which is not always what was asked for.
   scopes String?
 
+  /// Non-secret settings for a connection made with credentials rather than
+  /// OAuth — an SMTP host, port and username. The password never goes here;
+  /// it lives encrypted in accessTokenEnc like any other credential.
+  configJson String?
+
   lastSyncAt DateTime?
   lastError  String?
 

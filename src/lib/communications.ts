@@ -1,6 +1,7 @@
 import nodemailer from "nodemailer"
 
 import { db } from "@/lib/db"
+import { loadSmtpConnection } from "@/lib/integrations/smtp"
 import { sendTelegramMessage } from "@/lib/agent/channels/telegram"
 import {
   buildDocumentEmailMessage,
@@ -17,7 +18,30 @@ function parseSmtpSecure() {
   return raw === "1" || raw === "true" || raw === "yes"
 }
 
-async function getTransporter() {
+/**
+ * The mail transport, preferring what an admin connected in the app.
+ *
+ * A mailbox connected through Integrations wins over server configuration,
+ * because it was verified at the moment it was saved and can be changed by
+ * someone who does not have shell access. Environment variables remain the
+ * fallback so existing deployments keep working untouched.
+ *
+ * Not cached across companies: a deployment serving more than one entity sends
+ * from a different mailbox for each, and one cached transporter would quietly
+ * send every company's invoices from whichever one warmed the cache first.
+ */
+async function getTransporter(companyId: string | null = null) {
+  const connected = await loadSmtpConnection(companyId).catch(() => null)
+
+  if (connected) {
+    return nodemailer.createTransport({
+      host: connected.config.host,
+      port: connected.config.port,
+      secure: connected.config.secure,
+      auth: { user: connected.config.user, pass: connected.password },
+    })
+  }
+
   if (transporterPromise) {
     return transporterPromise
   }
@@ -68,11 +92,18 @@ export async function sendCommunicationMessage(input: {
    */
   companyId?: string | null
 }) {
-  const company = sanitizeCompanyBranding(
-    input.companyId
-      ? await db.company.findUnique({ where: { id: input.companyId } })
-      : await db.company.findFirst()
-  )
+  const companyRecord = input.companyId
+    ? await db.company.findUnique({ where: { id: input.companyId } })
+    : await db.company.findFirst()
+
+  const company = sanitizeCompanyBranding(companyRecord)
+
+  // A connected mailbox names its own sender, and using anything else gets the
+  // message rejected by providers that check the From matches the account.
+  const connectedSender = await loadSmtpConnection(companyRecord?.id ?? null)
+    .then((connection) => connection?.config)
+    .catch(() => null)
+
   const deliveryMethod = input.method || "email"
   const documentNumber = input.documentNumber || input.documentId || "Document"
   const subject =
@@ -86,8 +117,10 @@ export async function sendCommunicationMessage(input: {
       ? buildDocumentEmailMessage(company, input.documentType, documentNumber)
       : `Please review ${documentNumber} from ${getCompanyDisplayName(company)}.`)
 
-  const fromName = process.env.SMTP_FROM_NAME || getCompanyDisplayName(company)
+  const fromName =
+    connectedSender?.fromName || process.env.SMTP_FROM_NAME || getCompanyDisplayName(company)
   const fromEmail =
+    connectedSender?.fromEmail ||
     process.env.SMTP_FROM_EMAIL ||
     getCompanyEmail(company) ||
     process.env.SMTP_USER ||
@@ -98,7 +131,8 @@ export async function sendCommunicationMessage(input: {
   let failureReason: string | null = null
 
   if (deliveryMethod === "email") {
-    const transporter = await getTransporter()
+    // Sent from this company's own connected mailbox where there is one.
+    const transporter = await getTransporter(companyRecord?.id ?? null)
 
     if (transporter) {
       try {
@@ -123,7 +157,7 @@ export async function sendCommunicationMessage(input: {
       // looks sent and reaches nobody is worse than one that visibly failed.
       status = "failed"
       failureReason =
-        "No mail transport configured. Set SMTP_HOST, SMTP_USER and SMTP_PASS to send email."
+        "No mailbox connected. Connect one under Integrations, or set SMTP_HOST, SMTP_USER and SMTP_PASS."
       console.warn(
         `[COMMUNICATION] ${failureReason} ${input.documentType || "Message"} for ${input.to} was recorded but not sent.`
       )
