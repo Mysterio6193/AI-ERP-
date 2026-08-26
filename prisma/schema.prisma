@@ -98,6 +98,7 @@ model Company {
   commerceSettings       CommerceSettings?
 
   supplierInvoices SupplierInvoice[]
+  integrationConnections IntegrationConnection[]
 }
 
 // ============================================
@@ -136,6 +137,7 @@ model User {
   assignedCases      Case[]           @relation("CaseAssignee")
 
   confirmedEndUserProducts EndUserProduct[] @relation("EndUserProductConfirmedBy")
+  integrationConnections IntegrationConnection[]
 }
 
 // ============================================
@@ -2186,6 +2188,60 @@ model ReconciliationSession {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+/// A staff member's connection to an outside tool — their calendar, their
+/// mailbox, the workspace they keep notes in.
+///
+/// Deliberately per-user rather than per-company. A calendar belongs to a
+/// person: two people at the same company connect their own, and revoking one
+/// must not disconnect the other. Company-wide services (an accounting ledger,
+/// a payment gateway) stay in AccountingIntegration, where one connection
+/// serves everybody.
+///
+/// Tokens are stored encrypted. A refresh token is not a session — it is a
+/// long-lived key to someone's mail that keeps working until they revoke it, so
+/// a database dump must not be enough to read anyone's inbox.
+model IntegrationConnection {
+  id String @id @default(cuid())
+
+  /// google_calendar, gmail, outlook, outlook_calendar, notion, slack…
+  provider String
+  /// calendar, email, notes, messaging — what the tool is FOR, which is how the
+  /// settings page groups them and how features ask for "a calendar".
+  category String
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  status String @default("connected") // connected, expired, revoked, error
+
+  /// Which account this actually is, shown so somebody who connected the wrong
+  /// one of their two Google accounts can see that at a glance.
+  accountEmail String?
+  accountName  String?
+
+  /// Encrypted at rest — never read these directly, go through the helper.
+  accessTokenEnc  String?
+  refreshTokenEnc String?
+  expiresAt       DateTime?
+
+  /// What was actually granted, which is not always what was asked for.
+  scopes String?
+
+  lastSyncAt DateTime?
+  lastError  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// One connection per provider per person; reconnecting replaces rather than
+  /// stacking up dead tokens nobody can tell apart.
+  @@unique([provider, userId])
+  @@index([userId, category])
 }
 
 model AccountingIntegration {

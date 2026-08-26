@@ -3,14 +3,19 @@
 import { useCallback, useEffect, useState } from "react"
 import {
   AlertTriangle,
+  BarChart3,
   Check,
   Copy,
   Cpu,
   Link2,
   Loader2,
+  Mail,
+  Mic,
   RefreshCw,
+  ScanLine,
   Send,
   Trash2,
+  X,
 } from "lucide-react"
 
 import { AppShell } from "@/components/layout/app-shell"
@@ -403,49 +408,49 @@ export default function AgentSettingsPage() {
 
                 <div className="grid gap-2 sm:grid-cols-2">
                   <div className="rounded-lg border p-2.5">
-                    <p className="text-[11px] font-medium text-muted-foreground">💬 Operations / Chat Copilot</p>
+                    <p className="text-[11px] font-medium text-muted-foreground">Operations / Chat Copilot</p>
                     <p className="mt-1 font-mono text-xs font-semibold">{runtime.model}</p>
                     <p className="text-[10px] text-muted-foreground">AGENT_MODEL / AGENT_MODEL_CHAT</p>
                   </div>
 
                   <div className="rounded-lg border p-2.5">
-                    <p className="text-[11px] font-medium text-muted-foreground">📱 Telegram Staff Bot</p>
+                    <p className="text-[11px] font-medium text-muted-foreground">Telegram Staff Bot</p>
                     <p className="mt-1 font-mono text-xs font-semibold">{runtime.telegramModel || runtime.model}</p>
                     <p className="text-[10px] text-muted-foreground">AGENT_MODEL_TELEGRAM</p>
                   </div>
 
                   <div className="rounded-lg border p-2.5">
-                    <p className="text-[11px] font-medium text-muted-foreground">📦 Autonomous Replenishment</p>
+                    <p className="text-[11px] font-medium text-muted-foreground">Autonomous Replenishment</p>
                     <p className="mt-1 font-mono text-xs font-semibold">{runtime.replenishmentModel || runtime.model}</p>
                     <p className="text-[10px] text-muted-foreground">AGENT_MODEL_REPLENISHMENT</p>
                   </div>
 
                   <div className="rounded-lg border p-2.5">
-                    <p className="text-[11px] font-medium text-muted-foreground">⚡ Fast Triage / Summaries</p>
+                    <p className="text-[11px] font-medium text-muted-foreground">Fast Triage / Summaries</p>
                     <p className="mt-1 font-mono text-xs font-semibold">{runtime.fastModel || runtime.model}</p>
                     <p className="text-[10px] text-muted-foreground">AGENT_MODEL_FAST / AGENT_FAST_MODEL</p>
                   </div>
 
                   <div className="rounded-lg border p-2.5">
-                    <p className="text-[11px] font-medium text-muted-foreground">✉️ Inbound Email & Leads</p>
+                    <p className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground"><Mail className="h-3 w-3" />Inbound email and leads</p>
                     <p className="mt-1 font-mono text-xs font-semibold">{runtime.emailModel || runtime.model}</p>
                     <p className="text-[10px] text-muted-foreground">AGENT_MODEL_EMAIL</p>
                   </div>
 
                   <div className="rounded-lg border p-2.5">
-                    <p className="text-[11px] font-medium text-muted-foreground">📊 Finance & Ledger Analysis</p>
+                    <p className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground"><BarChart3 className="h-3 w-3" />Finance and ledger analysis</p>
                     <p className="mt-1 font-mono text-xs font-semibold">{runtime.financeModel || runtime.model}</p>
                     <p className="text-[10px] text-muted-foreground">AGENT_MODEL_FINANCE</p>
                   </div>
 
                   <div className="rounded-lg border p-2.5">
-                    <p className="text-[11px] font-medium text-muted-foreground">👁️ Vision OCR & Document Scanner</p>
+                    <p className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground"><ScanLine className="h-3 w-3" />Vision OCR and document scanning</p>
                     <p className="mt-1 font-mono text-xs font-semibold">{runtime.ocrModel || "google/gemini-2.0-flash-001"}</p>
                     <p className="text-[10px] text-muted-foreground">AGENT_MODEL_OCR / AGENT_OCR_MODEL</p>
                   </div>
 
                   <div className="rounded-lg border p-2.5">
-                    <p className="text-[11px] font-medium text-muted-foreground">🎙️ Speech-to-Text & Voice Notes</p>
+                    <p className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground"><Mic className="h-3 w-3" />Speech to text and voice notes</p>
                     <p className="mt-1 font-mono text-xs font-semibold">{runtime.voiceModel || "openai/whisper-large-v3"}</p>
                     <p className="text-[10px] text-muted-foreground">AGENT_MODEL_VOICE / AGENT_VOICE_MODEL</p>
                   </div>
@@ -503,7 +508,7 @@ export default function AgentSettingsPage() {
                             disabled={demoBusy}
                             onClick={() => void decideDemo(approval.proposalId, true)}
                           >
-                            ✅ Approve
+                            <Check className="mr-1 h-3 w-3" />Approve
                           </Button>
                           <Button
                             size="sm"
@@ -512,7 +517,7 @@ export default function AgentSettingsPage() {
                             disabled={demoBusy}
                             onClick={() => void decideDemo(approval.proposalId, false)}
                           >
-                            ❌ Reject
+                            <X className="mr-1 h-3 w-3" />Reject
                           </Button>
                         </div>
                       </div>

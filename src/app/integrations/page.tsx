@@ -35,6 +35,7 @@ import {
 } from "lucide-react"
 
 import { AppShell } from "@/components/layout/app-shell"
+import { ConnectedTools } from "@/components/integrations/connected-tools"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -275,10 +276,9 @@ export default function IntegrationsPage() {
           <div>
             <div className="flex items-center gap-2.5">
               <h1 className="text-2xl font-bold tracking-tight">Integrations & Connectors</h1>
-              <Badge className="bg-emerald-100 text-emerald-800 font-medium">Production Ready</Badge>
             </div>
             <p className="text-sm text-muted-foreground mt-1">
-              Connect Telegram agents, Stripe payments, Xero accounting, carriers, and webhooks in seconds.
+              Your calendar, mailbox and notes alongside the ledger, payment and carrier connections.
             </p>
           </div>
 
@@ -292,6 +292,21 @@ export default function IntegrationsPage() {
             </Button>
           </div>
         </div>
+
+        {/*
+          Personal tools first: this is what someone comes to this page to do,
+          and the ledger and carrier connections below are set up once and then
+          forgotten about.
+        */}
+        <section className="space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight">Your tools</h2>
+            <p className="text-sm text-muted-foreground">
+              Connected to your own account, not the company&apos;s. Disconnecting affects only you.
+            </p>
+          </div>
+          <ConnectedTools />
+        </section>
 
         {/* Hero Section: 1-Click Telegram QR Connect */}
         <div className="space-y-3">
