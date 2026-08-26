@@ -2814,6 +2814,11 @@ model Lead {
   email        String?
   phone        String?
   suburb       String?
+  /// Both offered by the importer and both commonly the only location a
+  /// trade-show list carries — a lead with neither cannot be given to a rep by
+  /// territory, which is the first thing anyone does with a new list.
+  state        String?
+  postcode     String?
   industry     String?
 
   source String  @default("inbound") // inbound, referral, trade_show, cold_call, website, campaign

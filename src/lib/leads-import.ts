@@ -675,6 +675,8 @@ export async function importLeads(options: ImportOptions): Promise<ImportSummary
       email: email || null,
       phone: phone || null,
       suburb: read(row, "suburb") || null,
+      state: read(row, "state") || null,
+      postcode: read(row, "postcode") || null,
       industry: read(row, "industry") || null,
       source: read(row, "source") || options.defaultSource || "import",
       notes: read(row, "notes") || null,

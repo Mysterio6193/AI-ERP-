@@ -32,7 +32,7 @@ async function api(path: string, init?: RequestInit) {
 }
 
 async function suggestions() {
-  const tools = buildPurchasingTools({ kind: "staff", role: "admin", userId: "probe" } as never) as Record<string, { execute: Function }>
+  const tools = buildPurchasingTools({ kind: "staff", role: "admin", userId: "probe" } as never) as Record<string, { execute: (input: unknown, options: unknown) => Promise<unknown> }>
   const out = await tools.reorderSuggestions.execute({ limit: 50 }, {} as never)
   return (out as Array<Record<string, unknown>>).find((r) => r.productId === productId)
 }
