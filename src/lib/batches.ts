@@ -68,10 +68,35 @@ export async function allocateFefo(input: {
     orderBy: [{ expiryDate: "asc" }, { receivedAt: "asc" }],
   })
 
+  return selectFefo(batches, round(input.quantity))
+}
+
+/** The shape selectFefo needs, so it can be reasoned about without a database. */
+export interface SelectableBatch {
+  id: string
+  batchCode: string
+  quantity: number
+  reserved: number
+  expiryDate: Date | null
+  status: string
+  holdReason?: string | null
+}
+
+/**
+ * Which lots to ship, oldest-expiring first.
+ *
+ * Pure, and separated from the query because this is the decision that has to
+ * be right: shipping a quarantined lot because it happened to expire soonest is
+ * a recall, not a bug report. The caller supplies batches already ordered by
+ * expiry, then received date — a lot with no expiry sorts last, which is what
+ * we want, since something that can go off should leave before something that
+ * cannot.
+ */
+export function selectFefo(batches: SelectableBatch[], quantity: number): AllocationResult {
   const allocations: BatchAllocation[] = []
   const blocked: AllocationResult["blocked"] = []
 
-  let remaining = round(input.quantity)
+  let remaining = quantity
 
   for (const batch of batches) {
     const free = batch.quantity - batch.reserved
@@ -82,7 +107,8 @@ export async function allocateFefo(input: {
 
     if (batch.status !== "available") {
       // Recorded rather than silently skipped: "we have 400 but can only ship
-      // 250" is the answer someone needs, along with why.
+      // 250" is the answer someone needs, along with why. A hold is never
+      // stepped over just because that lot expires first.
       blocked.push({
         batchCode: batch.batchCode,
         quantity: free,

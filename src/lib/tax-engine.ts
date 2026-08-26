@@ -132,16 +132,37 @@ export function calculateTax(params: {
 // Extract GST from inclusive amount
 // ============================================
 
+/**
+ * Split a tax-inclusive price into base and tax.
+ *
+ * The two returned figures always add back to the amount given. That was not
+ * true before: the tax was rounded to cents while the base was derived from the
+ * unrounded value, so $100 at 10% came back as 90.90909090909091 plus 9.09 —
+ * neither reconciling to 100 nor to each other, and carrying float noise
+ * wherever it was used.
+ *
+ * Rounding the tax and deriving the base from the rounded figure keeps the sum
+ * exact, which is what a credit note or a receipt has to show.
+ */
 export function extractGSTFromInclusive(
     inclusiveAmount: number,
     gstRate: number,
     country: CountryCode = "AU"
 ): { baseAmount: number; taxAmount: number } {
-    const taxAmount = inclusiveAmount - (inclusiveAmount / (1 + gstRate / 100))
-    return {
-        baseAmount: inclusiveAmount - taxAmount,
-        taxAmount: Math.round(taxAmount * 100) / 100,
+    if (gstRate === 0) {
+        return { baseAmount: round2(inclusiveAmount), taxAmount: 0 }
     }
+
+    const taxAmount = round2(inclusiveAmount - inclusiveAmount / (1 + gstRate / 100))
+
+    return {
+        baseAmount: round2(inclusiveAmount - taxAmount),
+        taxAmount,
+    }
+}
+
+function round2(value: number): number {
+    return Math.round(value * 100) / 100
 }
 
 // ============================================

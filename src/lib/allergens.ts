@@ -51,6 +51,68 @@ export function parseAllergens(json: string | null): string[] {
   }
 }
 
+/**
+ * Free-from claims, and every allergen each one rules out.
+ *
+ * "Nut free" covers peanuts as well as tree nuts. Peanuts are legumes, so the
+ * botany says otherwise, but nobody reading a pack makes that distinction and
+ * peanut is the more dangerous of the two — checking only tree nuts would let a
+ * peanut through a nut-free claim, which is the exact failure this file exists
+ * to prevent.
+ *
+ * Claims are matched against a normalised name, so "Gluten Free", "gluten-free"
+ * and "GLUTEN  FREE" are one rule rather than three near-identical entries that
+ * drift apart as people add to them.
+ */
+const FREE_FROM_CLAIMS: Array<{ claim: string; rules_out: readonly string[] }> = [
+  { claim: "gluten free", rules_out: ["gluten", "wheat"] },
+  { claim: "wheat free", rules_out: ["wheat"] },
+  { claim: "dairy free", rules_out: ["milk"] },
+  { claim: "milk free", rules_out: ["milk"] },
+  { claim: "nut free", rules_out: ["treenut", "peanut"] },
+  { claim: "peanut free", rules_out: ["peanut"] },
+  { claim: "egg free", rules_out: ["egg"] },
+  { claim: "soy free", rules_out: ["soy"] },
+  { claim: "sesame free", rules_out: ["sesame"] },
+  // A vegan claim is a free-from claim about every animal allergen at once.
+  { claim: "vegan", rules_out: ["milk", "egg", "fish", "crustacean", "mollusc"] },
+]
+
+/** Hyphens, extra spaces and case are not different claims. */
+function normaliseProductName(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()
+}
+
+/**
+ * Claims on the pack that the recipe contradicts.
+ *
+ * Separate from a missing declaration because it is worse: a missing allergen
+ * is an incomplete label, while a contradicted claim actively tells somebody
+ * the thing that will hurt them is not in there.
+ */
+export function findClaimContradictions(
+  productName: string,
+  sources: Map<string, string[]>
+): string[] {
+  const name = normaliseProductName(productName)
+  const contradictions: string[] = []
+
+  for (const { claim, rules_out } of FREE_FROM_CLAIMS) {
+    if (!name.includes(claim)) continue
+
+    for (const allergen of rules_out) {
+      const from = sources.get(allergen)
+      if (!from || from.length === 0) continue
+
+      contradictions.push(
+        `"${productName}" claims ${claim} but the recipe contains ${allergen} via ${[...new Set(from)].join(", ")}`
+      )
+    }
+  }
+
+  return contradictions
+}
+
 export interface AllergenFinding {
   allergen: string
   /** Ingredients that bring it in. */
@@ -127,22 +189,7 @@ export async function checkBomAllergens(bomId: string): Promise<AllergenCheck | 
   // A free-from claim in the name that the recipe contradicts. This is the
   // failure that hurts people, so it is called out separately from a missing
   // declaration.
-  const contradictions: string[] = []
-  const name = bom.product.name.toLowerCase()
-
-  for (const [claim, allergen] of [
-    ["gluten free", "gluten"],
-    ["gluten-free", "gluten"],
-    ["dairy free", "milk"],
-    ["dairy-free", "milk"],
-    ["nut free", "treenut"],
-  ] as const) {
-    if (name.includes(claim) && sources.has(allergen)) {
-      contradictions.push(
-        `"${bom.product.name}" claims ${claim} but the recipe contains ${allergen} via ${(sources.get(allergen) || []).join(", ")}`
-      )
-    }
-  }
+  const contradictions = findClaimContradictions(bom.product.name, sources)
 
   return {
     ok: problems.length === 0 && contradictions.length === 0,
