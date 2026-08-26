@@ -130,10 +130,16 @@ function openrouterProvider() {
       if (options?.body && typeof options.body === "string") {
         try {
           const parsed = JSON.parse(options.body)
+          if (parsed.model) {
+            const alias = HERMES_MODEL_ALIASES[parsed.model.toLowerCase()]
+            if (alias) {
+              parsed.model = alias
+            }
+          }
           if (!parsed.max_tokens || parsed.max_tokens < 1500) {
             parsed.max_tokens = 2048
-            customOptions = { ...options, body: JSON.stringify(parsed) }
           }
+          customOptions = { ...options, body: JSON.stringify(parsed) }
         } catch {}
       }
 
@@ -200,7 +206,7 @@ function openrouterProvider() {
        */
       // A different model, not another attempt at the same one: the reason we
       // are here is that the primary is rate-limited or out of capacity.
-      const fallback = env("AGENT_FALLBACK_MODEL") || "minimax/minimax-m2.7:free"
+      const fallback = env("AGENT_FALLBACK_MODEL") || "google/gemma-4-26b-a4b-it:free"
 
       if (fallback && fallback !== model && customOptions?.body && typeof customOptions.body === "string") {
         try {
@@ -217,25 +223,16 @@ function openrouterProvider() {
       }
 
       /**
-       * The whole free tier is capped, not just this model.
-       *
-       * OpenRouter counts free-model requests per account per day, so once that
-       * is spent every ":free" id returns 429 and swapping between them cannot
-       * help — the fallback above is trying doors in a building that is shut.
-       * Google bills separately and has its own key, so when one is configured
-       * it is the only thing that keeps the agent answering until the daily
-       * window rolls over.
+       * Cross-provider fallback to Google Gemini when OpenRouter fails.
        */
-      const freeTierSpent =
-        lastBody.includes("free-models-per-day") || lastBody.includes("openrouter_free_tier_daily")
       const googleKey = env("GEMINI_API_KEY") || env("GOOGLE_GENERATIVE_AI_API_KEY")
 
-      if (googleKey && customOptions?.body && typeof customOptions.body === "string" && (freeTierSpent || lastReason === "unknown_model" || lastReason === "auth")) {
+      if (googleKey && customOptions?.body && typeof customOptions.body === "string") {
         const crossProvider = env("AGENT_CROSS_PROVIDER_MODEL") || "gemini-2.5-flash"
 
         try {
           const parsed = JSON.parse(customOptions.body)
-          parsed.model = crossProvider
+          parsed.model = crossProvider.replace(/^google\//, "")
 
           console.warn(
             `[agent] OpenRouter request failed (${lastReason}); falling back to Google Gemini (${crossProvider})`
@@ -326,6 +323,11 @@ export const HERMES_MODEL_ALIASES: Record<string, string> = {
   "hermes-3-405b": "nousresearch/hermes-3-llama-3.1-405b",
   "hermes-2-pro": "nousresearch/hermes-2-pro-llama-3-8b",
   "deephermes": "nousresearch/deephermes-3-llama-3-8b-preview",
+  "stealth/ox-alpha": "google/gemma-4-26b-a4b-it:free",
+  "ox-alpha": "google/gemma-4-26b-a4b-it:free",
+  "stealth": "google/gemma-4-26b-a4b-it:free",
+  "gemma-free": "google/gemma-4-26b-a4b-it:free",
+  "gemma": "google/gemma-4-26b-a4b-it:free",
 }
 
 export function getModelId(target?: ModelTier | string | ResolveModelOptions): string {

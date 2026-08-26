@@ -43,6 +43,12 @@ const PUBLIC_API_ROUTES = [
   // requires one reports the app as down whenever auth is misconfigured, which
   // is exactly when you need it to answer.
   "/api/health",
+
+  // Calendar subscription feeds. A calendar client cannot send an Authorization
+  // header — Google, Outlook and Apple all just fetch the URL — so the random
+  // token in the path is the credential, checked by the route itself. Requiring
+  // a session here would make the feature impossible rather than secure.
+  "/api/calendar",
 ]
 
 /**

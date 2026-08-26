@@ -35,6 +35,7 @@ import {
 } from "lucide-react"
 
 import { AppShell } from "@/components/layout/app-shell"
+import { CalendarFeed } from "@/components/integrations/calendar-feed"
 import { ConnectedTools } from "@/components/integrations/connected-tools"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -305,6 +306,13 @@ export default function IntegrationsPage() {
               Connected to your own account, not the company&apos;s. Disconnecting affects only you.
             </p>
           </div>
+          {/*
+            Listed first because it is the one that works today: no application
+            to register, nothing to approve, and it covers the common case of
+            wanting the schedule in the calendar already open on the desk.
+          */}
+          <CalendarFeed />
+
           <ConnectedTools />
         </section>
 

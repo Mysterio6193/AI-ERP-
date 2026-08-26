@@ -138,6 +138,14 @@ model User {
 
   confirmedEndUserProducts EndUserProduct[] @relation("EndUserProductConfirmedBy")
   integrationConnections IntegrationConnection[]
+
+  /// Secret URL for this person's calendar subscription.
+  ///
+  /// Calendar apps cannot send an Authorization header, so the token in the URL
+  /// is the credential — the same way Google's own "secret address in iCal
+  /// format" works. Long, random, and regenerable, because the only way to
+  /// revoke a leaked feed URL is to issue a new one.
+  calendarFeedToken String? @unique
 }
 
 // ============================================
