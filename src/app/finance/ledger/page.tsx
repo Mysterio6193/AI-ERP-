@@ -24,6 +24,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { formatCurrency, formatDate } from "@/lib/types"
+import { describeLoadError, fetchList } from "@/lib/client/fetch-list"
+import { LoadError } from "@/components/ui/load-error"
 
 interface AccountRow {
   id: string
@@ -63,16 +65,16 @@ const typeColors: Record<string, string> = {
   expense: "bg-rose-100 text-rose-700",
 }
 
-async function fetchJson(path: string) {
-  const response = await fetch(path)
-  const payload = await response.json()
-  return payload.success ? payload.data || [] : []
-}
+// Throws on failure rather than returning an empty list, so a page
+// cannot show "nothing here" when it means "could not ask".
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const fetchJson = (path: string) => fetchList<any>(path)
 
 export default function LedgerPage() {
   const [accounts, setAccounts] = useState<AccountRow[]>([])
   const [journals, setJournals] = useState<JournalRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
     description: "",
@@ -96,6 +98,10 @@ export default function LedgerPage() {
           debitAccountId: current.debitAccountId || nextAccounts[0]?.id || "",
           creditAccountId: current.creditAccountId || nextAccounts[1]?.id || nextAccounts[0]?.id || "",
         }))
+      } catch (error) {
+        // The helper throws now, so a failed load lands here instead of
+        // painting an empty ledger that looks like real data.
+        setLoadError(describeLoadError(error))
       } finally {
         setLoading(false)
       }
@@ -173,6 +179,8 @@ export default function LedgerPage() {
   return (
     <AppShell title="General Ledger" breadcrumbs={[{ label: "Finance", href: "/finance" }, { label: "General Ledger" }]}>
       <div className="space-y-6">
+        {loadError ? <LoadError message={loadError} /> : null}
+
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">General Ledger</h1>

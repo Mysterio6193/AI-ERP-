@@ -25,6 +25,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { formatCurrency, formatDate } from "@/lib/types"
+import { describeLoadError, fetchList } from "@/lib/client/fetch-list"
+import { LoadError } from "@/components/ui/load-error"
 
 interface BankAccountRow {
   id: string
@@ -73,11 +75,10 @@ interface DocumentRow {
   createdAt: string
 }
 
-async function fetchJson(path: string) {
-  const response = await fetch(path)
-  const payload = await response.json()
-  return payload.success ? payload.data || [] : []
-}
+// Throws on failure rather than returning an empty list, so a page
+// cannot show "nothing here" when it means "could not ask".
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const fetchJson = (path: string) => fetchList<any>(path)
 
 export default function BankingPage() {
   const [accounts, setAccounts] = useState<BankAccountRow[]>([])
@@ -85,6 +86,7 @@ export default function BankingPage() {
   const [sessions, setSessions] = useState<SessionRow[]>([])
   const [documents, setDocuments] = useState<DocumentRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [savingAccount, setSavingAccount] = useState(false)
   const [savingTransaction, setSavingTransaction] = useState(false)
   const [savingDocument, setSavingDocument] = useState(false)
@@ -127,6 +129,10 @@ export default function BankingPage() {
           ...current,
           bankAccountId: current.bankAccountId || nextAccounts[0]?.id || "",
         }))
+      } catch (error) {
+        // The helper throws now, so a failed load lands here instead of
+        // painting an empty ledger that looks like real data.
+        setLoadError(describeLoadError(error))
       } finally {
         setLoading(false)
       }
@@ -227,6 +233,8 @@ export default function BankingPage() {
   return (
     <AppShell title="Banking & Reconciliation" breadcrumbs={[{ label: "Finance", href: "/finance" }, { label: "Banking" }]}>
       <div className="space-y-6">
+        {loadError ? <LoadError message={loadError} /> : null}
+
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Banking & Reconciliation</h1>
           <p className="text-muted-foreground">
