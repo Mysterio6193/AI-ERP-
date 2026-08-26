@@ -33,7 +33,9 @@ Hermes Agent Reasoning & Autonomy Philosophy:
 
 9. Match The Output To The Question: Generate a spreadsheet, CSV or PDF only when a file is actually asked for, or when the answer is genuinely a table of many rows. A single figure, a yes or no, or a short list belongs in the message itself. Exporting a file for a one-line question wastes the reader's time and hides the answer.
 
-10. Direct Staff Messaging & Alerts: You can send private direct messages, directives, and alerts to individual staff members (Antonio Russo, Tony Marchetti, Maria Esposito, Sam Nguyen, Riccardo Moretti) using sendDirectStaffMessage or sendStaffAlert. The system automatically routes to their Telegram DM, email, and dashboard tasks. NEVER claim "I am currently unable to send direct private messages to individual staff members via Telegram".`
+10. Direct Staff Messaging & Alerts: You can send private direct messages, directives, and alerts to individual staff members (Antonio Russo, Tony Marchetti, Maria Esposito, Sam Nguyen, Riccardo Moretti) using sendDirectStaffMessage or sendStaffAlert. The system automatically routes to their Telegram DM, email, and dashboard tasks. NEVER claim "I am currently unable to send direct private messages to individual staff members via Telegram".
+
+11. Multi-Platform Web & Social Intelligence (Agent Reach): You have direct, live tools to extract YouTube video transcripts (getYoutubeTranscript, searchYoutube), search Reddit threads and comments (searchReddit, getRedditThread), search Twitter/X posts (searchTwitter), search LinkedIn profiles (searchLinkedIn), inspect public Instagram profiles, bios, and post snippets without login (searchInstagram, getInstagramProfile), search Facebook groups (searchFacebook), search TikTok (searchTikTok), and aggregate multi-platform sentiment radar (aggregateSocialSentiment). NEVER claim "I cannot access social media or Instagram" — execute the relevant tool immediately and report your findings directly to the user.`
 
 export const CUSTOMER_INSTRUCTIONS = `You take orders and answer account questions for customers of a B2B food wholesaler.
 
@@ -116,6 +118,7 @@ export const SALES_TOOLS = [
   "createOpportunity", "updateOpportunity", "convertLead",
   "salesforceCustomer360", "salesforceOpportunityPipeline", "salesforceLeadScoring",
   "ecommerceChannelPerformance",
+  "searchLinkedIn", "searchInstagram", "getInstagramProfile", "searchTwitter", "searchReddit", "searchWeb",
   "sendDirectStaffMessage", "sendStaffAlert", "routeDepartmentUpdate", "sendEmail", "draftEmail",
   "recallMemories", "remember",
 ]
@@ -245,6 +248,7 @@ export const MARKETING_TOOLS = [
   "recordConsent", "attributeCampaign",
   "findCustomers", "getCustomer", "lapsedAccounts", "customerHealthAudit",
   "draftCommunication", "searchKnowledge",
+  "getYoutubeTranscript", "searchYoutube", "readCleanWebpage", "searchReddit", "getRedditThread", "searchTwitter", "searchLinkedIn", "searchInstagram", "getInstagramProfile", "searchFacebook", "searchXiaoHongShu", "searchTikTok", "aggregateSocialSentiment", "searchWeb",
   "listLeads", "createLead", "updateLead",
   "listTasks", "createTask",
   "sendDirectStaffMessage", "sendStaffAlert",
@@ -287,6 +291,7 @@ export const OPS_TOOLS = [
   "listBoms", "mfgMultiLevelBomExplosion", "mfgCapacityAndShiftScheduler", "mfgBatchYieldAndWastage", "mfgHaccpQualityGate", "mfgOeeAndMachinePerformance", "createProductionOrder", "listProductionOrders",
   "listDeliveryRoutes", "createDeliveryRoute", "listReturns", "createCustomerReturn", "listPriceLists", "assignCustomerPriceList",
   "planTask", "scratchpadNote", "scanDocument", "sendDocument", "generateDocumentPdf", "generateReportPdf", "executeCalculation", "runDataAnalysis", "fetchWebPage", "searchWeb", "searchKnowledge", "generateDiagram", "listMcpServers", "callMcpTool", "callGenericApi", "delegateToAgent", "sendStaffAlert", "sendDirectStaffMessage", "routeDepartmentUpdate",
+  "getYoutubeTranscript", "searchYoutube", "readCleanWebpage", "searchReddit", "getRedditThread", "searchTwitter", "searchLinkedIn", "searchInstagram", "getInstagramProfile", "searchFacebook", "searchXiaoHongShu", "searchTikTok", "aggregateSocialSentiment", "searchGithub", "readRssFeed", "searchV2ex", "searchBilibili", "searchXueqiu", "searchSemanticWeb", "agentReachDoctor",
   "listAgentChannels", "generateMorningBriefing", "sendMorningGreeting", "listGroupChannels", "updateGroupChannel", "postToGroupChannel",
   "spawnAgentTask", "agentSwarm", "agentHandoff", "broadcastToAgents", "listAvailableAgents",
   "setReminder", "createRecurringReport", "createWorkflow", "translateText", "generateQrCode", "summarizeThread", "createChecklist",

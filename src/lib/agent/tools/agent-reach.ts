@@ -65,6 +65,24 @@ async function searchDomainIndex(site: string, query: string, limit = 5) {
     if (!res.ok) return []
 
     const html = await res.text()
+    const resultBlocks = Array.from(
+      html.matchAll(/<div[^>]*class="[^"]*\bresult__body\b[^"]*"[\s\S]*?<\/div>\s*<\/div>/gi)
+    ).slice(0, limit)
+
+    if (resultBlocks.length > 0) {
+      return resultBlocks.map((block) => {
+        const titleMatch = block[0].match(/<a\s+[^>]*class="[^"]*\bresult__a\b[^"]*"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/i)
+        const snippetMatch = block[0].match(/<a\s+[^>]*class="[^"]*\bresult__snippet\b[^"]*"[^>]*>([\s\S]*?)<\/a>/i) ||
+                             block[0].match(/<div\s+[^>]*class="[^"]*\bresult__snippet\b[^"]*"[^>]*>([\s\S]*?)<\/div>/i)
+        const title = titleMatch ? cleanExtractedText(titleMatch[2]) : "Untitled"
+        const rawUrl = titleMatch ? titleMatch[1] : ""
+        const uddgMatch = rawUrl.match(/[?&]uddg=([^&]+)/)
+        const url = uddgMatch ? decodeURIComponent(uddgMatch[1]) : rawUrl
+        const snippet = snippetMatch ? cleanExtractedText(snippetMatch[1]) : ""
+        return { title, snippet, url }
+      })
+    }
+
     const matches = Array.from(
       html.matchAll(/<a\s+[^>]*class="[^"]*\bresult__a\b[^"]*"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi)
     ).slice(0, limit)
@@ -74,7 +92,7 @@ async function searchDomainIndex(site: string, query: string, limit = 5) {
       const rawUrl = m[1]
       const uddgMatch = rawUrl.match(/[?&]uddg=([^&]+)/)
       const url = uddgMatch ? decodeURIComponent(uddgMatch[1]) : rawUrl
-      return { title, url }
+      return { title, snippet: "", url }
     })
   } catch {
     return []
@@ -517,7 +535,7 @@ export function buildAgentReachTools(principal: AgentPrincipal) {
     // 8. Instagram Search (Packaging Aesthetics, Venues & Brand Sentiment)
     searchInstagram: defineTool({
       description:
-        "Search Instagram for restaurant venues, food packaging visuals, brand accounts, and catering aesthetics.",
+        "Search Instagram for restaurant venues, food packaging visuals, brand accounts, and catering aesthetics without requiring login.",
       inputSchema: z.object({
         query: z.string().describe("Brand name, venue handle, or product hashtag (e.g., 'artisan sourdough sydney' or 'sustainable food packaging')"),
         limit: z.number().int().min(1).max(10).optional().default(5),
@@ -536,6 +554,46 @@ export function buildAgentReachTools(principal: AgentPrincipal) {
             ok: false as const,
             error: `Instagram search failed: ${error instanceof Error ? error.message : "search error"}`,
           }
+        }
+      },
+    }),
+
+    // 8.1. Get Instagram Public Profile & Post Snippets (No Login Required)
+    getInstagramProfile: defineTool({
+      description:
+        "Extract public profile bio, follower count estimates, recent post snippets, and business category for an Instagram handle without needing a login.",
+      inputSchema: z.object({
+        handle: z.string().describe("Instagram username or profile URL (e.g. 'rdmpizzaaustralia' or '@rdmpizzaaustralia')"),
+      }),
+      execute: async ({ handle }) => {
+        const cleanHandle = handle
+          .replace(/^@/, "")
+          .replace(/https?:\/\/(?:www\.)?instagram\.com\//, "")
+          .replace(/\/.*$/, "")
+          .trim()
+        const profileUrl = `https://www.instagram.com/${cleanHandle}/`
+
+        // 1. Try Jina Reader bypass
+        let jinaBio = ""
+        try {
+          const jinaRes = await fetch(`https://r.jina.ai/${profileUrl}`, {
+            headers: { "User-Agent": "SupplySure-Reach-Agent/1.0" },
+            signal: AbortSignal.timeout(10000),
+          })
+          if (jinaRes.ok) {
+            jinaBio = await jinaRes.text()
+          }
+        } catch {}
+
+        // 2. Search Index Snippets
+        const indexResults = await searchDomainIndex("instagram.com", cleanHandle, 6)
+
+        return {
+          ok: true as const,
+          handle: cleanHandle,
+          profileUrl,
+          directSnippet: jinaBio ? cleanExtractedText(jinaBio).slice(0, 4000) : undefined,
+          indexedPostsAndSnippets: indexResults,
         }
       },
     }),

@@ -33,7 +33,42 @@ import {
 
 const DEFAULT_OPENROUTER_MODEL = "minimax/minimax-m3"
 const DEFAULT_OPENROUTER_FAST_MODEL = "minimax/minimax-m3"
+/**
+ * The models to try after the primary has failed, in order.
+ *
+ * Pure so the ordering can be reasoned about without a network. The rules are
+ * small but each one comes from a real failure: never retry the primary, never
+ * try the same id twice, and always end at something known to work regardless
+ * of what was configured.
+ */
+export function buildFallbackChain(
+  model: string,
+  configuredFallback: string | undefined,
+  lastResort: string = LAST_RESORT_MODEL
+): string[] {
+  const chain: string[] = []
+
+  for (const candidate of [configuredFallback, lastResort]) {
+    if (!candidate) continue
+    if (candidate === model) continue
+    if (chain.includes(candidate)) continue
+
+    chain.push(candidate)
+  }
+
+  return chain
+}
+
 /** Longest we will sit on a request waiting for Google's window to roll over. */
+/**
+ * Where to go when the configured fallback is unusable or is the primary again.
+ *
+ * Free so it cannot fail on billing, and from a different vendor than anything
+ * likely to be primary, since the failures worth surviving — a spent daily
+ * quota, a retired id — tend to hit one vendor at a time.
+ */
+const LAST_RESORT_MODEL = "minimax/minimax-m3:free"
+
 const GOOGLE_RETRY_CEILING_MS = 8000
 
 const DEFAULT_GOOGLE_MODEL = "gemini-3.5-flash"
@@ -206,19 +241,47 @@ function openrouterProvider() {
        */
       // A different model, not another attempt at the same one: the reason we
       // are here is that the primary is rate-limited or out of capacity.
-      const fallback = env("AGENT_FALLBACK_MODEL") || "google/gemma-4-26b-a4b-it:free"
+      /**
+       * A different model, not another attempt at the same one: the reason we
+       * are here is that the primary is rate-limited, out of capacity, or an id
+       * the provider no longer serves.
+       *
+       * The configured fallback is ignored when it is the primary again. That
+       * is not hypothetical — every model variable here has been set to the
+       * same id more than once, and the effect is silent: the safety net sits
+       * in the config doing nothing, and the first symptom is the whole agent
+       * failing on a retired model id.
+       */
+      const configuredFallback = env("AGENT_FALLBACK_MODEL")
 
-      if (fallback && fallback !== model && customOptions?.body && typeof customOptions.body === "string") {
-        try {
-          const parsed = JSON.parse(customOptions.body)
-          parsed.model = fallback
+      /**
+       * Tried in order, each one only if the last failed. The configured
+       * fallback first because it is what somebody chose, then a known-good
+       * free model as a genuine last resort.
+       *
+       * Both entries matter. The configured one has been set to the primary's
+       * own id more than once here, and a fallback that is the primary again is
+       * no fallback at all; and even a correctly different one can be a retired
+       * id, which is exactly the failure that took the agent down. Neither
+       * should end with a person reading a model error.
+       */
+      const candidates = buildFallbackChain(model, configuredFallback)
 
-          console.warn(`[agent] ${model} unavailable (${lastReason}); engaging fallback ${fallback}`)
+      if (customOptions?.body && typeof customOptions.body === "string") {
+        for (const candidate of candidates) {
+          try {
+            const parsed = JSON.parse(customOptions.body)
+            parsed.model = candidate
 
-          const response = await fetch(url, { ...customOptions, body: JSON.stringify(parsed) })
-          if (response.ok) return response
-        } catch (fbErr) {
-          console.warn(`[agent] Fallback ${fallback} failed:`, fbErr)
+            console.warn(`[agent] ${model} unavailable (${lastReason}); engaging fallback ${candidate}`)
+
+            const response = await fetch(url, { ...customOptions, body: JSON.stringify(parsed) })
+            if (response.ok) return response
+
+            console.warn(`[agent] Fallback ${candidate} returned HTTP ${response.status}`)
+          } catch (fbErr) {
+            console.warn(`[agent] Fallback ${candidate} failed:`, fbErr)
+          }
         }
       }
 

@@ -432,6 +432,7 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
   searchTwitter: { risk: "read" },
   searchLinkedIn: { risk: "read" },
   searchInstagram: { risk: "read" },
+  getInstagramProfile: { risk: "read" },
   searchFacebook: { risk: "read" },
   searchXiaoHongShu: { risk: "read" },
   searchTikTok: { risk: "read" },
