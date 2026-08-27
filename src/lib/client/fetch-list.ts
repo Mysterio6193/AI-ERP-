@@ -1,3 +1,5 @@
+import { handleSessionExpiry } from "@/lib/client/session-expiry"
+
 /**
  * Fetch a list, distinguishing "nothing there" from "could not ask".
  *
@@ -24,6 +26,9 @@ export async function fetchList<T = unknown>(path: string): Promise<T[]> {
   }
 
   if (response.status === 401) {
+    // Sends them to sign in rather than leaving them reading an empty screen
+    // that never explains why it is empty.
+    handleSessionExpiry(response.status)
     throw new Error("Your session has expired. Sign in again to see this.")
   }
 

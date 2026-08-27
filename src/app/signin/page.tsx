@@ -10,6 +10,11 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
 export default function AdminSigninPage() {
+  // Read from the URL directly rather than useSearchParams, which would need a
+  // Suspense boundary around a page that is otherwise entirely static.
+  const expired =
+    typeof window !== "undefined" && new URLSearchParams(window.location.search).get("reason") === "expired"
+
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [checkingSetup, setCheckingSetup] = useState(true)
@@ -102,6 +107,18 @@ export default function AdminSigninPage() {
             <CardDescription>
               Use your staff account to access the admin dashboard and live operating modules.
             </CardDescription>
+
+            {/*
+              Says why they are here. Being bounced to a login with no
+              explanation reads as the app losing your work, when in fact the
+              session simply ended.
+            */}
+            {expired ? (
+              <p className="rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900">
+                Your session has ended, so you were signed out. Sign in again to carry on where you
+                left off.
+              </p>
+            ) : null}
           </CardHeader>
           <CardContent>
             <form className="space-y-4" onSubmit={handleSubmit}>

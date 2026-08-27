@@ -46,6 +46,7 @@ import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatCurrency, formatCurrencyShort, formatDate } from "@/lib/types"
 import { truncateLabel } from "@/lib/truncate"
+import { handleSessionExpiry } from "@/lib/client/session-expiry"
 
 interface OrderItemLite {
   productId: string
@@ -422,6 +423,11 @@ async function fetchCollection<T>(path: string): Promise<{ rows: T[]; failed: bo
     const payload = await response.json()
 
     if (!payload?.success) {
+      // A 401 here means the session is gone, not that the business had a quiet
+      // day. Sending them to sign in beats a dashboard of zeros that never says
+      // why — which is exactly what a deleted user saw.
+      handleSessionExpiry(response.status)
+
       console.error(`Failed to fetch ${path}:`, payload?.error ?? response.status)
       return { rows: [], failed: true }
     }
