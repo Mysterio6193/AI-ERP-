@@ -1,6 +1,7 @@
 import { allocateFefo, consumeBatches, receiveBatch } from "@/lib/batches"
 import { db } from "@/lib/db"
 import { nextDocumentNumber } from "@/lib/numbering"
+import { postProductionRun } from "@/lib/ledger"
 
 /**
  * Production.
@@ -425,6 +426,20 @@ export async function completeProductionOrder(input: {
       },
     })
   })
+
+  /**
+   * Move the value in the ledger too: components out, finished goods in.
+   *
+   * Outside the transaction for the same reason as the batch below — a
+   * chart-of-accounts problem should not roll back a run that physically
+   * happened. postJournal is idempotent per production order, so a retry
+   * cannot double-post it.
+   */
+  try {
+    await postProductionRun(db, order.id, input.userId ?? null)
+  } catch (error) {
+    console.error(`Production ${order.id} completed but did not post to the ledger:`, error)
+  }
 
   // Land the output as a tracked lot, outside the transaction so a batching
   // problem cannot roll back a completed run. Without this the batch code

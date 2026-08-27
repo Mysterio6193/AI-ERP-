@@ -317,3 +317,64 @@ export async function postPurchaseReceipt(
     ],
   })
 }
+
+/**
+ * Completing a production run: materials become finished goods.
+ *
+ * Both sides are inventory, so this does not change the balance sheet total —
+ * it moves value from the components consumed into the product made. Posting it
+ * matters anyway, because without it the ledger says the business still holds
+ * flour it has already baked, and the finished stock it can sell appears
+ * nowhere. Cost of production is the weighted-average material cost the run
+ * already computed, so the ledger and the stock valuation agree.
+ *
+ *   DR Inventory (finished goods)   materialCost
+ *   CR Inventory (components)       materialCost
+ *
+ * The two legs use the same control account, which is correct for a single
+ * inventory account and is why this is written as one entry rather than two:
+ * a same-account transfer that nets to zero is still the honest record of what
+ * happened, and it keeps the run auditable against its movements.
+ */
+export async function postProductionRun(
+  db: DbClient,
+  productionOrderId: string,
+  postedBy?: string | null
+) {
+  const order = await db.productionOrder.findUnique({
+    where: { id: productionOrderId },
+    select: {
+      id: true,
+      orderNumber: true,
+      companyId: true,
+      materialCost: true,
+      completedAt: true,
+      product: { select: { name: true } },
+    },
+  })
+
+  if (!order) {
+    return { ok: true as const, skipped: true as const, reason: "Production order not found" }
+  }
+
+  const cost = Number(order.materialCost ?? 0)
+
+  if (cost <= 0) {
+    // A run that consumed nothing has nothing to move. Common for a first run
+    // against components with no cost recorded yet.
+    return { ok: true as const, skipped: true as const, reason: "No material cost to post" }
+  }
+
+  return postJournal(db, {
+    companyId: order.companyId,
+    date: order.completedAt ?? undefined,
+    description: `Production ${order.orderNumber} — ${order.product?.name ?? "product"}`,
+    referenceType: "production_run",
+    referenceId: order.id,
+    postedBy,
+    lines: [
+      { accountCode: ACCOUNTS.inventory, debit: cost, description: "Finished goods" },
+      { accountCode: ACCOUNTS.inventory, credit: cost, description: "Components consumed" },
+    ],
+  })
+}
