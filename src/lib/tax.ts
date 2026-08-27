@@ -156,3 +156,34 @@ export function computeLineTax(
     breakdown,
   }
 }
+
+/**
+ * The rate a new product or line should start on.
+ *
+ * Settings win, then the company's own rate. Neither is a literal, which is the
+ * point: creating a product used to fall back to `|| 10`, so a business on any
+ * other rate got 10% on everything it added — and that then propagated into
+ * purchase orders, which read the rate off the product.
+ *
+ * Returns null rather than guessing when nothing is configured. A caller that
+ * cannot find a rate should say so; inventing one is how the wrong number gets
+ * onto an invoice quietly.
+ */
+export async function resolveDefaultTaxRate(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  db: any,
+  settings: SettingsOf<"tax">,
+  companyId?: string | null
+): Promise<number | null> {
+  if (settings.defaultRate !== null && settings.defaultRate !== undefined) {
+    return settings.defaultRate
+  }
+
+  const company = await db.company.findFirst(
+    companyId
+      ? { where: { id: companyId }, select: { gstRate: true } }
+      : { select: { gstRate: true } }
+  )
+
+  return company?.gstRate ?? null
+}

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAdminUser } from "@/lib/admin-auth"
 import { db } from "@/lib/db"
+import { getSettings } from "@/lib/settings/service"
+import { resolveDefaultTaxRate } from "@/lib/tax"
+import { getActiveCompanyId } from "@/lib/active-company"
 
 // GET /api/products - List all products with optional filters
 export async function GET(request: NextRequest) {
@@ -119,6 +122,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const defaultRate = await resolveDefaultTaxRate(
+      db,
+      await getSettings("tax"),
+      await getActiveCompanyId(request).catch(() => null)
+    )
+
     const product = await db.product.create({
       data: {
         sku,
@@ -133,7 +142,10 @@ export async function POST(request: NextRequest) {
         wholesalePrice: parseFloat(wholesalePrice) || 0,
         retailPrice: retailPrice ? parseFloat(retailPrice) : null,
         minMargin: parseFloat(minMargin) || 20,
-        gstRate: gstExempt ? 0 : (parseFloat(gstRate) || 10),
+        // Resolved from settings, then the company's own rate — never a
+        // literal. A business on any other rate used to get 10% on every
+        // product it created, which then propagated into purchase orders.
+        gstRate: gstExempt ? 0 : (parseFloat(gstRate) || defaultRate || 0),
         gstExempt: gstExempt || false,
         barcode,
         imageUrl: imageUrl || null,

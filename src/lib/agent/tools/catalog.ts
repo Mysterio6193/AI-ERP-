@@ -6,6 +6,8 @@ import type { AgentPrincipal } from "../context"
 import { defineTool } from "./define"
 import { findProducts, isStaff, money } from "./shared"
 import { availableQuantity } from "@/lib/reservations"
+import { getSettings } from "@/lib/settings/service"
+import { resolveDefaultTaxRate } from "@/lib/tax"
 
 /** Products, stock and pricing. Available to staff and customers alike. */
 
@@ -156,6 +158,13 @@ export function buildCatalogTools(principal: AgentPrincipal) {
         brand: z.string().optional(),
       }),
       execute: async (input) => {
+        /**
+         * Without this the product took the schema's own default of 10%, which
+         * is right for Australia and wrong everywhere else — and it propagates,
+         * because purchase orders read the rate off the product.
+         */
+        const defaultRate = await resolveDefaultTaxRate(db, await getSettings("tax"))
+
         const product = await db.product.create({
           data: {
             sku: input.sku.trim().toUpperCase(),
@@ -167,6 +176,7 @@ export function buildCatalogTools(principal: AgentPrincipal) {
             retailPrice: input.retailPrice || null,
             minMargin: input.minMargin ?? 20,
             gstExempt: input.gstExempt ?? false,
+            gstRate: input.gstExempt ? 0 : (defaultRate ?? 0),
             shelfLifeDays: input.shelfLifeDays || null,
             storageTemp: input.storageTemp || null,
             brand: input.brand || null,
