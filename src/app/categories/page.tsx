@@ -9,6 +9,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { LoadError } from "@/components/ui/load-error"
+import { describeLoadError } from "@/lib/client/fetch-list"
 import {
   Select,
   SelectContent,
@@ -28,17 +30,27 @@ interface CategoryRow {
 async function fetchCategories() {
   const response = await fetch("/api/categories")
   const payload = await response.json()
-  return payload.success ? payload.data || [] : []
+  // Throwing rather than returning [] — a failed request must not be
+  // indistinguishable from a genuinely empty list.
+  if (!payload?.success) {
+    throw new Error(payload?.error || `Could not load this data (HTTP ${response.status}).`)
+  }
+
+  return payload.data || []
 }
 
 export default function CategoriesPage() {
   const [categories, setCategories] = useState<CategoryRow[]>([])
+  // A failed load must not look like a business with no categories.
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [form, setForm] = useState({ name: "", description: "", parentId: "root" })
 
   useEffect(() => {
     let ignore = false
-    fetchCategories().then((data) => {
+    fetchCategories()
+      .catch((error) => { setLoadError(describeLoadError(error)); return [] })
+      .then((data) => {
       if (!ignore) {
         setCategories(data)
       }
@@ -49,7 +61,7 @@ export default function CategoriesPage() {
   }, [])
 
   const reload = useCallback(async () => {
-    const data = await fetchCategories()
+    const data = await fetchCategories().catch((error) => { setLoadError(describeLoadError(error)); return [] })
     setCategories(data)
   }, [])
 
@@ -87,6 +99,8 @@ export default function CategoriesPage() {
   return (
     <AppShell title="Categories" breadcrumbs={[{ label: "Categories" }]}>
       <div className="space-y-6">
+        {loadError ? <LoadError message={loadError} /> : null}
+
         <div className="flex items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Categories & Subcategories</h1>

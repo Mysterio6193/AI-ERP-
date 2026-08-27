@@ -26,6 +26,8 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { LoadError } from "@/components/ui/load-error"
+import { describeLoadError } from "@/lib/client/fetch-list"
 import {
   periodLabel,
   withinPeriod,
@@ -49,6 +51,7 @@ interface DashboardData {
 export default function ReportsPage() {
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [period, setPeriod] = useState<ReportPeriod>("month")
 
   useEffect(() => {
@@ -77,7 +80,13 @@ export default function ReportsPage() {
         // dependencies and in the export filename, and every period produced
         // identical figures. Anything dated is now filtered to the window.
         const allOrders = ordersData.data || []
-        const allInvoices = invoicesData.success ? invoicesData.data || [] : []
+        // A failed invoice feed used to read as no invoices, which on a report
+        // is a revenue figure of zero rather than an unknown one.
+        if (!invoicesData?.success) {
+          throw new Error(invoicesData?.error || "Could not load invoices for this report.")
+        }
+
+        const allInvoices = invoicesData.data || []
 
         const orders = allOrders.filter((order: any) =>
           withinPeriod(order.orderDate ?? order.createdAt, period)
@@ -164,7 +173,10 @@ export default function ReportsPage() {
         })
       }
     } catch (error) {
+      // Shown, not just logged: a report that silently renders zeros is read as
+      // a bad month rather than a failed request.
       console.error("Error fetching dashboard data:", error)
+      setLoadError(describeLoadError(error))
     } finally {
       setLoading(false)
     }
@@ -177,6 +189,8 @@ export default function ReportsPage() {
   return (
     <AppShell title="Reports" breadcrumbs={[{ label: "Reports" }]}>
       <div className="space-y-6">
+        {loadError ? <LoadError message={loadError} /> : null}
+
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>

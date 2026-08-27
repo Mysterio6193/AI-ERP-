@@ -408,14 +408,28 @@ function MetricCard({
   )
 }
 
-async function fetchCollection<T>(path: string) {
+/**
+ * Load one collection for the dashboard.
+ *
+ * Returns the rows and, separately, whether the ask failed. The old shape
+ * returned `[]` for both "nothing there" and "could not ask", so a dashboard
+ * that could not reach the server rendered as a business that did nothing
+ * today — on the first screen anyone sees each morning.
+ */
+async function fetchCollection<T>(path: string): Promise<{ rows: T[]; failed: boolean }> {
   try {
     const response = await fetch(path, { cache: "no-store" })
     const payload = await response.json()
-    return payload?.success ? ((payload.data as T[]) || []) : []
+
+    if (!payload?.success) {
+      console.error(`Failed to fetch ${path}:`, payload?.error ?? response.status)
+      return { rows: [], failed: true }
+    }
+
+    return { rows: (payload.data as T[]) || [], failed: false }
   } catch (error) {
     console.error(`Failed to fetch ${path}:`, error)
-    return [] as T[]
+    return { rows: [], failed: true }
   }
 }
 
@@ -752,7 +766,7 @@ export default function DashboardPage() {
     try {
       setError(null)
 
-      const [orders, customers, inventory, invoices, pickLists, routes] = await Promise.all([
+      const results = await Promise.all([
         fetchCollection<OrderLite>("/api/orders"),
         fetchCollection<CustomerLite>("/api/customers"),
         fetchCollection<InventoryLite>("/api/inventory"),
@@ -761,7 +775,34 @@ export default function DashboardPage() {
         fetchCollection<RouteLite>("/api/routes"),
       ])
 
-      setData(buildDashboardData({ orders, customers, inventory, invoices, pickLists, routes }))
+      const [orders, customers, inventory, invoices, pickLists, routes] = results
+
+      /**
+       * One failed feed makes every figure below it wrong, not merely
+       * incomplete — today's sales read as zero rather than unknown. The
+       * dashboard still renders what it did get, and says the rest is missing,
+       * because a blank screen is less useful than a flagged partial one.
+       */
+      const failed = results.filter((result) => result.failed).length
+
+      if (failed > 0) {
+        setError(
+          failed === results.length
+            ? "Could not load the dashboard. The figures below are not real — nothing was reached."
+            : `${failed} of ${results.length} feeds could not be loaded, so some figures below are understated.`
+        )
+      }
+
+      setData(
+        buildDashboardData({
+          orders: orders.rows,
+          customers: customers.rows,
+          inventory: inventory.rows,
+          invoices: invoices.rows,
+          pickLists: pickLists.rows,
+          routes: routes.rows,
+        })
+      )
       setLastUpdatedAt(new Date())
     } catch (refreshError) {
       console.error(refreshError)

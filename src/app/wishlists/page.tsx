@@ -7,6 +7,8 @@ import { AppShell } from "@/components/layout/app-shell"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { LoadError } from "@/components/ui/load-error"
+import { describeLoadError } from "@/lib/client/fetch-list"
 
 interface WishlistRow {
   id: string
@@ -34,15 +36,25 @@ async function fetchWishlists(search = "") {
   const query = search ? `?search=${encodeURIComponent(search)}` : ""
   const response = await fetch(`/api/wishlists${query}`)
   const payload = await response.json()
-  return payload.success ? payload.data || [] : []
+  // Throwing rather than returning [] — a failed request must not be
+  // indistinguishable from a genuinely empty list.
+  if (!payload?.success) {
+    throw new Error(payload?.error || `Could not load this data (HTTP ${response.status}).`)
+  }
+
+  return payload.data || []
 }
 
 export default function WishlistsPage() {
   const [search, setSearch] = useState("")
   const [wishlists, setWishlists] = useState<WishlistRow[]>([])
+  // A failed load must not look like nobody has a wishlist.
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
-    void fetchWishlists().then(setWishlists)
+    void fetchWishlists()
+      .then(setWishlists)
+      .catch((error) => setLoadError(describeLoadError(error)))
   }, [])
 
   const summary = useMemo(() => ({
@@ -53,7 +65,7 @@ export default function WishlistsPage() {
 
   async function handleSearch(value: string) {
     setSearch(value)
-    setWishlists(await fetchWishlists(value))
+    setWishlists(await fetchWishlists(value).catch((error) => { setLoadError(describeLoadError(error)); return [] }))
   }
 
   async function deleteWishlist(id: string) {
@@ -69,6 +81,8 @@ export default function WishlistsPage() {
   return (
     <AppShell title="Customer Wishlists" breadcrumbs={[{ label: "Wishlists" }]}>
       <div className="space-y-6">
+        {loadError ? <LoadError message={loadError} /> : null}
+
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Customer Wishlists</h1>
           <p className="text-muted-foreground">See what B2B and B2C customers are saving for later, and use it for merchandising or sales follow-up.</p>

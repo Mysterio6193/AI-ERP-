@@ -24,6 +24,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { ACCOUNT_TYPES, formatCurrency } from "@/lib/types"
+import { LoadError } from "@/components/ui/load-error"
+import { describeLoadError } from "@/lib/client/fetch-list"
 
 interface AccountRow {
   id: string
@@ -48,12 +50,19 @@ const typeColors: Record<string, string> = {
 async function fetchAccounts() {
   const response = await fetch("/api/accounting/chart-of-accounts")
   const payload = await response.json()
-  return payload.success ? payload.data || [] : []
+  // Throwing rather than returning [] — a failed request must not be
+  // indistinguishable from a genuinely empty list.
+  if (!payload?.success) {
+    throw new Error(payload?.error || `Could not load this data (HTTP ${response.status}).`)
+  }
+
+  return payload.data || []
 }
 
 export default function ChartOfAccountsPage() {
   const [accounts, setAccounts] = useState<AccountRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
     code: "",
@@ -67,6 +76,8 @@ export default function ChartOfAccountsPage() {
     async function load() {
       try {
         setAccounts(await fetchAccounts())
+      } catch (error) {
+        setLoadError(describeLoadError(error))
       } finally {
         setLoading(false)
       }
@@ -119,6 +130,8 @@ export default function ChartOfAccountsPage() {
       breadcrumbs={[{ label: "Finance", href: "/finance" }, { label: "Chart of Accounts" }]}
     >
       <div className="space-y-6">
+        {loadError ? <LoadError message={loadError} /> : null}
+
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Chart of Accounts</h1>
