@@ -9,7 +9,15 @@ import dynamic from "next/dynamic"
 import { AppShell } from "@/components/layout/app-shell"
 import { SendDocumentModal } from "@/components/modals/SendDocumentModal"
 import { COMMERCE_CHANNEL_COLORS, COMMERCE_CHANNEL_LABELS, normalizeCommerceChannel } from "@/lib/commerce"
-import SalesOrderPDF from "@/components/documents/SalesOrderPDF"
+/**
+ * Loaded on demand, not on page view.
+ *
+ * The download link below was already behind next/dynamic, but this static
+ * import defeated it: it pulls @react-pdf/renderer — about 1.5MB of client
+ * JavaScript — into this page's bundle for every visitor, and almost nobody
+ * opening a list of orders is about to generate a PDF.
+ */
+const SalesOrderPDF = dynamic(() => import("@/components/documents/SalesOrderPDF"), { ssr: false })
 
 const SalesOrderPdfDownloadLink = dynamic(
   () => import("@/components/documents/SalesOrderPdfDownloadLink"),

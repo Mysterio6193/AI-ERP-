@@ -8,7 +8,15 @@ import {
 import dynamic from "next/dynamic"
 import { AppShell } from "@/components/layout/app-shell"
 import { SendDocumentModal } from "@/components/modals/SendDocumentModal"
-import InvoicePDF from "@/components/documents/InvoicePDF"
+/**
+ * Loaded on demand, not on page view.
+ *
+ * The download link below was already behind next/dynamic, but this static
+ * import defeated it: it pulls @react-pdf/renderer — about 1.5MB of client
+ * JavaScript — into this page's bundle for every visitor, and almost nobody
+ * opening a list of invoices is about to generate a PDF.
+ */
+const InvoicePDF = dynamic(() => import("@/components/documents/InvoicePDF"), { ssr: false })
 import { Checkbox } from "@/components/ui/checkbox"
 
 const InvoicePdfDownloadLink = dynamic(
