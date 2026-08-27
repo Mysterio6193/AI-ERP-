@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/hooks/use-toast"
+import { CompanyManager } from "@/components/settings/company-manager"
 
 interface NamespaceMeta {
   namespace: string
@@ -398,12 +399,21 @@ export default function BusinessSettingsPage() {
 
         <Tabs value={active} onValueChange={setActive}>
           <TabsList>
+            {/*
+              Companies sit alongside the settings namespaces rather than inside
+              one: an entity is not a preference, it is who the invoice is from.
+            */}
+            <TabsTrigger value="__companies">Companies</TabsTrigger>
             {namespaces.map((entry) => (
               <TabsTrigger key={entry.namespace} value={entry.namespace}>
                 {entry.label}
               </TabsTrigger>
             ))}
           </TabsList>
+
+          <TabsContent value="__companies" className="mt-4">
+            <CompanyManager />
+          </TabsContent>
 
           <TabsContent value={active} className="mt-4">
             <Card>

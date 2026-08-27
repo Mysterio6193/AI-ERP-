@@ -55,14 +55,34 @@ export async function listCompaniesForUser(userId: string | null, role?: string)
 
   const user = await db.user.findUnique({
     where: { id: userId },
-    select: { companyId: true },
+    select: {
+      companyId: true,
+      // Explicit grants, for people who work across entities. Before this a
+      // non-admin could reach exactly one company and an admin all of them,
+      // with nothing in between — so anyone spanning two arms of the group had
+      // to be made an admin to do their job.
+      companyAccess: { select: { companyId: true } },
+    },
   })
 
-  if (!user?.companyId) {
+  if (!user) {
+    return []
+  }
+
+  const ids = new Set<string>(user.companyAccess.map((row) => row.companyId))
+  if (user.companyId) ids.add(user.companyId)
+
+  if (ids.size === 0) {
+    // No home entity and no grants. One company is better than none — without
+    // it every scoped page has nothing to read — so fall back to the oldest.
     return db.company.findMany({ orderBy: { createdAt: "asc" }, take: 1, select: SELECT })
   }
 
-  return db.company.findMany({ where: { id: user.companyId }, select: SELECT })
+  return db.company.findMany({
+    where: { id: { in: [...ids] } },
+    orderBy: { createdAt: "asc" },
+    select: SELECT,
+  })
 }
 
 export async function getActiveCompany(request: NextRequest): Promise<ActiveCompany | null> {

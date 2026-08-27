@@ -14,6 +14,30 @@ datasource db {
 // Company & Multi-Tenancy
 // ============================================
 
+/// Which entities a staff member may act as.
+///
+/// `User.companyId` is a single value, so before this a non-admin could see
+/// exactly one entity and an admin saw everything — no middle. A group with a
+/// manufacturing arm and a retail arm has people who work across both, and they
+/// were forced to choose or be given full admin.
+///
+/// `User.companyId` stays as the default selection; this decides what they may
+/// switch to.
+model UserCompany {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, companyId])
+  @@index([companyId])
+}
+
 model Company {
   id          String  @id @default(cuid())
   name        String
@@ -99,6 +123,8 @@ model Company {
 
   supplierInvoices SupplierInvoice[]
   integrationConnections IntegrationConnection[]
+  userAccess UserCompany[]
+  tradesAsCustomer Customer[] @relation("InternalTrade")
 }
 
 // ============================================
@@ -146,6 +172,7 @@ model User {
   /// format" works. Long, random, and regenerable, because the only way to
   /// revoke a leaked feed URL is to issue a new one.
   calendarFeedToken String? @unique
+  companyAccess UserCompany[]
 }
 
 // ============================================
@@ -847,6 +874,15 @@ model Customer {
   // Company
   companyId String?
   company   Company? @relation(fields: [companyId], references: [id])
+
+  /// Set when this "customer" is another entity in the same group.
+  ///
+  /// RDM Manufacturing selling to RDM Retail is an ordinary sale in every other
+  /// respect, and without a marker a group total counts that revenue twice —
+  /// once where it was earned and once where it was bought. This is what makes
+  /// intercompany trade removable from a consolidated figure.
+  internalCompanyId String?
+  internalCompany   Company? @relation("InternalTrade", fields: [internalCompanyId], references: [id])
 
   // Relations
   locations          CustomerLocation[]
