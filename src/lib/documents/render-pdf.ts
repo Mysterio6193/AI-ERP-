@@ -6,6 +6,8 @@ import InvoicePDF from "@/components/documents/InvoicePDF"
 import SalesOrderPDF from "@/components/documents/SalesOrderPDF"
 import CustomerStatementPDF from "@/components/documents/CustomerStatementPDF"
 import { buildCustomerStatement } from "@/lib/customer-statements"
+import { canRaiseInvoices } from "@/lib/companies"
+import { looksLikePlaceholder } from "@/lib/placeholder-detect"
 
 /**
  * The entity a document belongs to.
@@ -53,6 +55,35 @@ export async function renderInvoicePdfBuffer(invoiceIdOrNumber: string): Promise
   }
 
   const company = await companyForDocument(invoice.companyId)
+
+  /**
+   * An invoice is a request for money, and it names the account to send it to.
+   * Rendering one whose payment details are missing or invented produces a
+   * document that either cannot be paid or pays a stranger — and the person who
+   * finds out is the customer, after the transfer.
+   *
+   * Refusing here is abrupt, and that is the point: it is recoverable in a
+   * minute on the settings page, where sending the wrong details is not
+   * recoverable at all.
+   */
+  const billing = canRaiseInvoices(company ?? {})
+
+  if (!billing.ok) {
+    throw new Error(
+      `${company?.name ?? "This company"} cannot raise invoices yet — it is missing its ${billing.missing.join(", ")}. ` +
+        `Add them under Settings → Business → Companies.`
+    )
+  }
+
+  for (const [label, value] of [["BSB", company?.bsb], ["account number", company?.accountNumber]] as const) {
+    const check = looksLikePlaceholder(value)
+    if (check.suspicious) {
+      throw new Error(
+        `${company?.name ?? "This company"}'s ${label} looks made up (${check.reason}). ` +
+          `An invoice would ask the customer to pay an account that is not yours.`
+      )
+    }
+  }
 
   const populatedInvoice = {
     ...invoice,

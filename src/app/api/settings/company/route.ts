@@ -5,6 +5,7 @@ import { sanitizeCompanyBranding } from "@/lib/company-branding"
 import { ROLE_SETS } from "@/lib/permissions"
 
 import { getActiveCompany, getActiveCompanyId } from "@/lib/active-company"
+import { validateCompany } from "@/lib/companies"
 
 // GET is intentionally public (see middleware): the driver app reads branding
 // before sign-in. Every mutating method below requires an admin.
@@ -150,6 +151,27 @@ export async function PUT(request: NextRequest) {
             baseCurrency: body.baseCurrency || "AUD",
             setupComplete: body.setupComplete ?? true,
             onboardingStep: typeof body.onboardingStep === "number" ? body.onboardingStep : 0,
+        }
+
+        /**
+         * Refuse invented payment details rather than warning about them.
+         *
+         * This is the last gate before an ABN and a bank account become what a
+         * customer reads on an invoice. Every company in this system was
+         * carrying a fabricated pair — 012-345 / 55667788 is a sequential BSB
+         * with a repeating-pair account — and an invoice built on those asks a
+         * real customer to send real money to an account that either bounces or
+         * belongs to somebody else. Neither failure is noticed here; both are
+         * noticed by the customer.
+         */
+        const merged = { ...(existingCompany ?? {}), ...data } as Record<string, unknown>
+        const verdict = validateCompany(merged)
+
+        if (!verdict.ok) {
+            return NextResponse.json(
+                { success: false, error: verdict.error, field: verdict.field },
+                { status: 400 }
+            )
         }
 
         const company = existingCompany
