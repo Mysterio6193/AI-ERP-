@@ -7,9 +7,27 @@ import SalesOrderPDF from "@/components/documents/SalesOrderPDF"
 import CustomerStatementPDF from "@/components/documents/CustomerStatementPDF"
 import { buildCustomerStatement } from "@/lib/customer-statements"
 
+/**
+ * The entity a document belongs to.
+ *
+ * Every renderer here used to fetch `company.findFirst()` alongside the
+ * document, ignoring the document's own `companyId`. On a group billing from
+ * more than one entity that prints the wrong company's name, ABN and **bank
+ * details** — so an invoice raised by the retail arm asked customers to pay the
+ * manufacturing arm's account. The fallback stays for records predating
+ * multi-entity, but the document's own company wins.
+ */
+async function companyForDocument(companyId: string | null | undefined) {
+  if (companyId) {
+    const owned = await db.company.findUnique({ where: { id: companyId } })
+    if (owned) return owned
+  }
+
+  return db.company.findFirst({ orderBy: { createdAt: "asc" } })
+}
+
 export async function renderInvoicePdfBuffer(invoiceIdOrNumber: string): Promise<{ buffer: Buffer; fileName: string } | null> {
-  const [invoice, company] = await Promise.all([
-    db.invoice.findFirst({
+  const invoice = await db.invoice.findFirst({
       where: {
         OR: [{ id: invoiceIdOrNumber }, { invoiceNumber: invoiceIdOrNumber }],
       },
@@ -28,13 +46,13 @@ export async function renderInvoicePdfBuffer(invoiceIdOrNumber: string): Promise
         // bills, which is already included above.
         payments: true,
       },
-    }),
-    db.company.findFirst(),
-  ])
+    })
 
   if (!invoice) {
     return null
   }
+
+  const company = await companyForDocument(invoice.companyId)
 
   const populatedInvoice = {
     ...invoice,
@@ -64,8 +82,7 @@ export async function renderInvoicePdfBuffer(invoiceIdOrNumber: string): Promise
 }
 
 export async function renderSalesOrderPdfBuffer(orderIdOrNumber: string): Promise<{ buffer: Buffer; fileName: string } | null> {
-  const [order, company] = await Promise.all([
-    db.salesOrder.findFirst({
+  const order = await db.salesOrder.findFirst({
       where: {
         OR: [{ id: orderIdOrNumber }, { orderNumber: orderIdOrNumber }],
       },
@@ -77,13 +94,13 @@ export async function renderSalesOrderPdfBuffer(orderIdOrNumber: string): Promis
           include: { product: true },
         },
       },
-    }),
-    db.company.findFirst(),
-  ])
+    })
 
   if (!order) {
     return null
   }
+
+  const company = await companyForDocument(order.companyId)
 
   const docElement = React.createElement(SalesOrderPDF, {
     order,
@@ -100,8 +117,7 @@ export async function renderSalesOrderPdfBuffer(orderIdOrNumber: string): Promis
 }
 
 export async function renderCustomerStatementPdfBuffer(customerIdOrName: string): Promise<{ buffer: Buffer; fileName: string } | null> {
-  const [customer, company] = await Promise.all([
-    db.customer.findFirst({
+  const customer = await db.customer.findFirst({
       where: {
         OR: [{ id: customerIdOrName }, { name: { contains: customerIdOrName, mode: "insensitive" } }],
       },
@@ -119,13 +135,13 @@ export async function renderCustomerStatementPdfBuffer(customerIdOrName: string)
           take: 50,
         },
       },
-    }),
-    db.company.findFirst(),
-  ])
+    })
 
   if (!customer) {
     return null
   }
+
+  const company = await companyForDocument(customer.companyId)
 
   // The component takes a built statement, not raw rows. Building it here
   // rather than passing loose arrays means the PDF, the screen and the API all
@@ -153,8 +169,17 @@ export async function renderCustomReportPdfBuffer(options: {
   rows: Array<Array<string | number | boolean | null>>
   summaryCards?: Array<{ label: string; value: string | number }>
   fileName?: string
+  /**
+   * Whose report this is. Without it the renderer took `findFirst()`, so on a
+   * group with more than one entity a report from the retail arm printed the
+   * manufacturing arm's name — the wrong company on a document sent outside.
+   */
+  companyId?: string | null
 }): Promise<{ buffer: Buffer; fileName: string }> {
-  const company = await db.company.findFirst()
+  const company = options.companyId
+    ? await db.company.findUnique({ where: { id: options.companyId } })
+    : await db.company.findFirst({ orderBy: { createdAt: "asc" } })
+
   const CustomReportPDF = (await import("@/components/documents/CustomReportPDF")).default
 
   const docElement = React.createElement(CustomReportPDF, {
@@ -163,7 +188,9 @@ export async function renderCustomReportPdfBuffer(options: {
     headers: options.headers,
     rows: options.rows,
     summaryCards: options.summaryCards,
-    companyName: company?.name || "SupplySure OS Wholesale Distribution",
+    // No product name standing in for a business. A report headed with the
+    // software's name rather than the company's looks like a demo.
+    companyName: company?.name ?? "",
   })
 
   const blob = await pdf(docElement as any).toBlob()

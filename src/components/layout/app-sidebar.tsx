@@ -102,13 +102,6 @@ const navItems: NavItem[] = [
     roles: ["admin", "sales", "warehouse", "accounts", "driver"],
     group: "Overview",
   },
-  {
-    label: "Grok Bot",
-    href: "/grok-bot",
-    icon: Zap,
-    roles: ["admin", "sales", "warehouse", "accounts", "driver"],
-    group: "Overview",
-  },
 
   // Sales Group
   {

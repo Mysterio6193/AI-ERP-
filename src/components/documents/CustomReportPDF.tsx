@@ -148,7 +148,12 @@ export default function CustomReportPDF({
   headers,
   rows,
   summaryCards,
-  companyName = "RDM Pizza Australia (RDM Manufacturing Pty Ltd)",
+  /**
+   * No tenant's name as a default. A report that silently prints one business's
+   * name because the caller forgot to pass it is worse than one that visibly
+   * has no header — the second gets fixed, the first gets sent to a customer.
+   */
+  companyName = "",
 }: CustomReportPDFProps) {
   const dateStr = format(new Date(), "dd MMM yyyy, HH:mm")
 
