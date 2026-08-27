@@ -67,7 +67,6 @@ const typeColors: Record<string, string> = {
 
 // Throws on failure rather than returning an empty list, so a page
 // cannot show "nothing here" when it means "could not ask".
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const fetchJson = (path: string) => fetchList<any>(path)
 
 export default function LedgerPage() {

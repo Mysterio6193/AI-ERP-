@@ -177,12 +177,10 @@ export async function PUT(request: NextRequest) {
         const company = existingCompany
             ? await db.company.update({
                 where: { id: existingCompany.id },
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 data: data as any,
             })
             : await db.company.create({
                 // First-run creation still needs every field, defaults included.
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 data: data as any,
             })
 

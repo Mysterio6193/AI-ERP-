@@ -613,7 +613,6 @@ export default function AgentSettingsPage() {
                   */}
                   {qr ? (
                     <>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={qr}
                         alt={`QR code linking ${codeFor ?? "your account"} to Telegram`}
