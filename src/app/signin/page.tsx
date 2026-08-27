@@ -93,11 +93,18 @@ export default function AdminSigninPage() {
         <div className="space-y-6">
           <div className="apple-eyebrow">SupplySure OS</div>
           <div className="max-w-2xl space-y-4">
+            {/*
+              Says what the system is for, not what it is like. The previous
+              copy sold a "clarity"-forward "Apple-inspired control surface" to
+              people who already work here and are trying to sign in — nobody
+              reading this screen is deciding whether to buy it.
+            */}
             <h1 className="text-[40px] font-semibold tracking-[-0.04em] text-white md:text-[56px]">
-              Operations software, presented with more clarity.
+              Orders, stock, deliveries and invoices.
             </h1>
             <p className="max-w-xl text-[17px] text-white/72">
-              Sign in to manage commerce, inventory, customers, finance, and fulfilment from one Apple-inspired control surface.
+              Sign in to place and track orders, check stock, plan runs and manage what customers
+              owe.
             </p>
           </div>
         </div>

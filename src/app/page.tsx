@@ -840,9 +840,15 @@ export default function DashboardPage() {
               </Badge>
             </div>
             <div>
-              <h1 className="text-[36px] font-semibold tracking-[-0.04em] text-white md:text-[52px]">Operations command center</h1>
+              {/*
+                Was "Operations command center" — aspirational, and American
+                spelling in a business that writes "fulfilment" everywhere else.
+                A heading on the screen somebody opens each morning should name
+                the day, not the software.
+              */}
+              <h1 className="text-[36px] font-semibold tracking-[-0.04em] text-white md:text-[52px]">Today</h1>
               <p className="max-w-2xl text-[17px] text-white/70">
-                Orders, warehouse, delivery, and receivables, on one screen.
+                Orders, warehouse, delivery and receivables.
               </p>
             </div>
             <p className="text-xs uppercase tracking-[0.08em] text-white/46">

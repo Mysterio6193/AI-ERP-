@@ -245,7 +245,7 @@ export default function IntegrationsPage() {
       id: "myob",
       name: "MYOB Business",
       category: "Accounting",
-      desc: "Seamless ledger export and sync for Australian GST, payroll reporting, and BAS compliance.",
+      desc: "Export the ledger to MYOB for GST, payroll reporting and BAS.",
       icon: Layers,
       color: "from-purple-500/10 to-pink-500/10 border-purple-200",
       accent: "text-purple-600 bg-purple-50",
