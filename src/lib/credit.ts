@@ -98,6 +98,20 @@ export async function checkCreditForOrder(
     return { ok: false, reason: "Customer not found" }
   }
 
+  return decideCredit(exposure, orderTotal)
+}
+
+/**
+ * Whether this order fits, given what the customer already owes.
+ *
+ * Pure, and separated from the lookup because both ways of being wrong are
+ * expensive and neither is visible: refusing a good customer costs the order
+ * and the relationship, while letting a bad one through costs the money. The
+ * order of the checks is the decision — a stopped account is refused before
+ * anything about limits is considered, because a stopped account is not a
+ * question about headroom.
+ */
+export function decideCredit(exposure: CreditExposure, orderTotal: number): CreditCheckResult {
   if (exposure.status === "stopped") {
     return { ok: false, reason: "This account is stopped and cannot place orders.", exposure }
   }
@@ -117,6 +131,8 @@ export async function checkCreditForOrder(
   const projected = round(exposure.total + Number(orderTotal || 0))
 
   if (projected > exposure.limit) {
+    // Naming the two halves matters: "you have no credit left" reads as a
+    // dispute when most of it is orders they have not been invoiced for yet.
     const detail =
       exposure.openOrders > 0
         ? ` (${exposure.invoiced.toFixed(2)} invoiced plus ${exposure.openOrders.toFixed(2)} in orders not yet invoiced)`

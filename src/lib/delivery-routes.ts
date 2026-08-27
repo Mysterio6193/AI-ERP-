@@ -29,11 +29,27 @@ function formatDateToken(value: Date) {
   return `${year}${month}${day}`
 }
 
-function getRouteDate(order: { deliveryDate?: Date | null; requiredDate?: Date | null; orderDate: Date }) {
+/**
+ * Which day a delivery belongs on.
+ *
+ * A requested delivery date wins over the date the customer needs it by, which
+ * wins over the day they ordered. Falling through to the order date is what
+ * stops an order with no dates disappearing from every run — it lands today
+ * rather than nowhere.
+ */
+export function getRouteDate(order: { deliveryDate?: Date | null; requiredDate?: Date | null; orderDate: Date }) {
   return startOfDay(order.deliveryDate || order.requiredDate || order.orderDate)
 }
 
-function pickLocation(
+/**
+ * Where to actually deliver.
+ *
+ * An explicit location wins, then the shipping address, then the default, then
+ * whatever exists. The order matters: billing and delivery addresses differ for
+ * most trade customers, and defaulting to the wrong one sends a pallet to an
+ * accounts office.
+ */
+export function pickLocation(
   locations: CustomerLocation[],
   locationId?: string | null
 ) {
@@ -46,13 +62,21 @@ function pickLocation(
   )
 }
 
-function deriveDeliveryStatusFromOrder(status: string) {
+/**
+ * The delivery's state, derived from the order's.
+ *
+ * Anything not yet dispatched is pending — deliberately conservative, because
+ * marking a delivery further along than the goods actually are is how a driver
+ * is sent for stock still on the shelf.
+ */
+export function deriveDeliveryStatusFromOrder(status: string) {
   if (status === "delivered") return "delivered"
   if (status === "dispatched") return "en_route"
   return "pending"
 }
 
-function buildRouteName(routeDate: Date, warehouseName?: string | null) {
+/** What a run is called on a manifest a driver reads. */
+export function buildRouteName(routeDate: Date, warehouseName?: string | null) {
   const dateLabel = routeDate.toLocaleDateString("en-AU", {
     day: "2-digit",
     month: "short",

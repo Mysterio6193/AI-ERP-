@@ -110,7 +110,27 @@ export async function convertToBase(input: {
     return { ok: false as const, error: "Product not found" }
   }
 
-  const wanted = (input.unitCode || "").trim().toUpperCase()
+  return convertWithUnits(units, input.quantity, input.unitCode)
+}
+
+/**
+ * Turn an order quantity into base units, given the packing levels.
+ *
+ * Pure, and separated from the lookup because this is the arithmetic that
+ * decides how much physically leaves the building. Ten pallets and ten boxes
+ * differ by a factor of sixty; getting it wrong is a truck with the wrong load
+ * on it, and no error message anywhere.
+ */
+export function convertWithUnits(
+  units: ResolvedUnit[],
+  quantity: number,
+  unitCode?: string | null
+): Conversion | { ok: false; error: string } {
+  if (!units.length) {
+    return { ok: false as const, error: "Product not found" }
+  }
+
+  const wanted = (unitCode || "").trim().toUpperCase()
 
   const unit = wanted
     ? units.find((candidate) => candidate.code === wanted || candidate.name.toUpperCase() === wanted)
@@ -119,13 +139,13 @@ export async function convertToBase(input: {
   if (!unit) {
     return {
       ok: false as const,
-      error: `"${input.unitCode}" is not a unit for this product. Available: ${units
+      error: `"${unitCode}" is not a unit for this product. Available: ${units
         .map((candidate) => candidate.code)
         .join(", ")}`,
     }
   }
 
-  const exact = input.quantity * unit.factor
+  const exact = quantity * unit.factor
   const baseQuantity = Math.round(exact)
 
   const conversion: Conversion = {
@@ -133,9 +153,12 @@ export async function convertToBase(input: {
     baseQuantity,
     unit,
     unitPrice: unit.price,
-    lineTotal: Number((input.quantity * unit.price).toFixed(2)),
+    lineTotal: Number((quantity * unit.price).toFixed(2)),
   }
 
+  // Said out loud rather than silently shipping a different number. You cannot
+  // pick two thirds of a carton, and quietly sending 40 for an order of 40.5 is
+  // how a short delivery becomes an argument.
   if (Math.abs(exact - baseQuantity) > 0.001) {
     conversion.rounded = { requested: exact, actual: baseQuantity }
   }
@@ -145,19 +168,28 @@ export async function convertToBase(input: {
 
 /** Renders a base quantity in the largest whole packing level, then the remainder. */
 export async function describeQuantity(productId: string, baseQuantity: number) {
-  const units = await unitsForProduct(productId)
-  const descending = [...units].sort((a, b) => b.factor - a.factor)
+  return describeWithUnits(await unitsForProduct(productId), baseQuantity)
+}
 
+/**
+ * Render a base quantity the way a person would say it.
+ *
+ * "3 pallets + 12 boxes", not "192". A picker reads this off a sheet, so it has
+ * to match how the stock is actually stacked.
+ */
+export function describeWithUnits(units: ResolvedUnit[], baseQuantity: number): string {
+  if (!units.length) return String(baseQuantity)
+
+  const descending = [...units].sort((a, b) => b.factor - a.factor)
+  const base = units.find((unit) => unit.isBase) || units[0]
   const largest = descending.find((unit) => unit.factor > 1 && baseQuantity >= unit.factor)
 
   if (!largest) {
-    const base = units.find((unit) => unit.isBase) || units[0]
     return `${baseQuantity} ${base.name}`
   }
 
   const whole = Math.floor(baseQuantity / largest.factor)
   const remainder = baseQuantity - whole * largest.factor
-  const base = units.find((unit) => unit.isBase) || units[0]
 
   return remainder > 0
     ? `${whole} ${largest.name} + ${remainder} ${base.name}`
