@@ -593,7 +593,9 @@ export function AppSidebar({ user }: AppSidebarProps) {
                       setSwitching(true)
 
                       try {
-                        const response = await fetch("/api/companies", {
+                        // Switching moved to its own endpoint; POST /api/companies
+                        // now creates an entity rather than changing between them.
+                        const response = await fetch("/api/companies/switch", {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
                           body: JSON.stringify({ companyId: entity.id }),
