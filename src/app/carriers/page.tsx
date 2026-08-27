@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/hooks/use-toast"
+import { formatCurrency } from "@/lib/types"
 
 interface Zone {
   id: string
@@ -109,7 +110,8 @@ const MATCH_LABEL: Record<string, string> = {
 }
 
 function money(value: number | null) {
-  return value === null ? "—" : `$${value.toFixed(2)}`
+  // Was the one page formatting money differently from the other five.
+  return value === null ? "—" : formatCurrency(value)
 }
 
 export default function CarriersPage() {

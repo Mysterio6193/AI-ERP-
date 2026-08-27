@@ -28,6 +28,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
+import { formatCurrency } from "@/lib/types"
 
 interface Account {
   customer: {
@@ -156,7 +157,8 @@ const USAGE_TONE: Record<string, string> = {
 }
 
 function money(value: number) {
-  return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  // Follows the company's country rather than assuming a dollar sign.
+  return formatCurrency(value)
 }
 
 const HEALTH_TONE: Record<string, string> = {

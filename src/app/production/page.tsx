@@ -53,6 +53,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
+import { formatCurrency } from "@/lib/types"
 
 interface RecipeLine {
   id: string
@@ -139,7 +140,8 @@ const STATUS_TONE: Record<string, "default" | "secondary" | "outline" | "destruc
 }
 
 function money(value: number) {
-  return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  // Follows the company's country rather than assuming a dollar sign.
+  return formatCurrency(value)
 }
 
 export default function ProductionPage() {

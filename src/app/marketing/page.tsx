@@ -21,6 +21,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/hooks/use-toast"
+import { formatCurrency } from "@/lib/types"
 
 interface CampaignRow {
   id: string
@@ -147,7 +148,8 @@ const AUDIENCE_PRESETS: Array<{
 ]
 
 function money(value: number) {
-  return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  // Follows the company's country rather than assuming a dollar sign.
+  return formatCurrency(value)
 }
 
 const STATUS_TONE: Record<string, string> = {

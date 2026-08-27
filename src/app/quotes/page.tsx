@@ -54,6 +54,9 @@ const statusColors: Record<string, string> = {
 }
 
 export default function QuotesPage() {
+    // The rate a new line starts on, from settings rather than a literal 10.
+    const [defaultTaxRate, setDefaultTaxRate] = useState(0)
+
     const [quotes, setQuotes] = useState<Quote[]>([])
     const [customers, setCustomers] = useState<Customer[]>([])
     const [products, setProducts] = useState<Product[]>([])
@@ -76,6 +79,15 @@ export default function QuotesPage() {
     }
 
     useEffect(() => {
+        void fetch("/api/settings/tax")
+            .then((response) => response.json())
+            .then((result) => {
+                if (result?.success) setDefaultTaxRate(Number(result.data?.defaultRate ?? 0) || 0)
+            })
+            .catch(() => {
+                // Zero is the safe failure: visibly wrong gets corrected.
+            })
+
         const fetchData = async () => {
             setLoading(true)
 
@@ -110,7 +122,7 @@ export default function QuotesPage() {
             ...prev,
             items: [...prev.items, {
                 productId: "", productName: "", sku: "",
-                quantity: 1, unitPrice: 0, discount: 0, taxRate: 10, total: 0,
+                quantity: 1, unitPrice: 0, discount: 0, taxRate: defaultTaxRate, total: 0,
             }],
         }))
     }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
   Camera,
   Check,
@@ -24,24 +24,45 @@ import { useToast } from "@/hooks/use-toast"
 import type { ExtractedDocument } from "@/lib/ocr/engine"
 
 /**
- * Scanning needs a model that can see. DeepSeek Chat cannot, and the Nemotron
- * VL model that used to lead this list no longer exists on OpenRouter — it was
- * the only free vision option here, so every scan against it was failing on a
- * model id the provider no longer serves.
+ * Fallback only — the live list comes from /api/agent/models, filtered to models
+ * that can see. Scanning needs vision, and the model that used to lead this list
+ * was retired upstream, so every scan failed on an id the provider no longer
+ * serves.
  */
-const OCR_MODEL_PRESETS = [
+const FALLBACK_OCR_PRESETS = [
   { label: "MiniMax M3 (Free, vision)", value: "minimax/minimax-m3:free" },
   { label: "Gemini 2.5 Flash", value: "google/gemini-2.5-flash" },
 ]
 
 export default function DocumentScanPage() {
+  const [ocrPresets, setOcrPresets] = useState(FALLBACK_OCR_PRESETS)
   const { toast } = useToast()
   const [file, setFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [scanning, setScanning] = useState(false)
-  const [selectedModel, setSelectedModel] = useState(OCR_MODEL_PRESETS[0].value)
+  const [selectedModel, setSelectedModel] = useState(FALLBACK_OCR_PRESETS[0].value)
   const [customModel, setCustomModel] = useState("")
   const [result, setResult] = useState<ExtractedDocument | null>(null)
+
+  useEffect(() => {
+    void fetch("/api/agent/models")
+      .then((response) => response.json())
+      .then((payload) => {
+        // Only models that can read an image; the rest cannot scan anything.
+        const vision = (payload?.data?.models ?? []).filter((m: { vision: boolean }) => m.vision)
+        if (vision.length === 0) return
+
+        setOcrPresets(
+          vision.map((m: { id: string; label: string; free: boolean }) => ({
+            label: m.free ? `${m.label} (Free)` : m.label,
+            value: m.id,
+          }))
+        )
+      })
+      .catch(() => {
+        // Fallback list stands.
+      })
+  }, [])
   const [creatingPo, setCreatingPo] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -203,7 +224,7 @@ export default function DocumentScanPage() {
                     <p className="text-xs font-medium">Vision OCR Model</p>
                   </div>
                   <div className="flex flex-wrap gap-1">
-                    {OCR_MODEL_PRESETS.map((preset) => (
+                    {ocrPresets.map((preset) => (
                       <button
                         key={preset.value}
                         type="button"

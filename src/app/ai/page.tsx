@@ -22,6 +22,7 @@ import { AppShell } from "@/components/layout/app-shell"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { formatCurrency } from "@/lib/types"
 
 /**
  * The dashboard.
@@ -77,7 +78,8 @@ interface Briefing {
 }
 
 function money(value: number) {
-  return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  // Follows the company's country rather than assuming a dollar sign.
+  return formatCurrency(value)
 }
 
 export default function AiDashboardPage() {

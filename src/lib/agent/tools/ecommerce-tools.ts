@@ -4,6 +4,8 @@ import { db } from "@/lib/db"
 import type { AgentPrincipal } from "../context"
 import { defineTool } from "./define"
 import { isStaff, money } from "./shared"
+import { getSettings } from "@/lib/settings/service"
+import { computeLineTax } from "@/lib/tax"
 
 /**
  * Shopify, WooCommerce & Multi-Channel E-Commerce Suite.
@@ -104,6 +106,10 @@ export function buildEcommerceTools(principal: AgentPrincipal) {
           total: number
         }> = []
 
+        // Read once for the order rather than per line: the rate is a company
+        // setting, not a property of each product.
+        const taxSettings = await getSettings("tax")
+
         for (const item of items) {
           const product = await db.product.findUnique({ where: { sku: item.sku } })
           if (!product) {
@@ -114,13 +120,27 @@ export function buildEcommerceTools(principal: AgentPrincipal) {
           const lineTotal = price * item.quantity
           subtotal += lineTotal
 
+          /**
+           * Resolved from settings rather than assuming ten percent.
+           *
+           * This path wrote a literal 10 and multiplied by 1.1, so a business
+           * on any other rate got silently wrong tax on every order the agent
+           * placed — and the tax settings screen appeared to work while
+           * changing nothing here.
+           */
+          const lineTax = computeLineTax(
+            lineTotal,
+            { product: { gstExempt: product.gstExempt, gstRate: product.gstRate } },
+            taxSettings
+          )
+
           orderLineData.push({
             productId: product.id,
             quantity: item.quantity,
             unitPrice: price,
-            taxRate: product.gstExempt ? 0 : 10,
-            taxAmount: product.gstExempt ? 0 : lineTotal * 0.1,
-            total: product.gstExempt ? lineTotal : lineTotal * 1.1,
+            taxRate: lineTax.rate,
+            taxAmount: lineTax.taxAmount,
+            total: lineTotal + lineTax.taxAmount,
           })
         }
 

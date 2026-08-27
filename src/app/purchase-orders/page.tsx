@@ -56,6 +56,14 @@ const statusColors: Record<string, string> = {
 }
 
 export default function PurchaseOrdersPage() {
+    /**
+     * The rate a new line starts on, from settings rather than a literal 10.
+     *
+     * A business on any other rate had to correct every line by hand, and the
+     * tax settings screen appeared to work while changing nothing here.
+     */
+    const [defaultTaxRate, setDefaultTaxRate] = useState(0)
+
     const [orders, setOrders] = useState<PurchaseOrder[]>([])
     const [suppliers, setSuppliers] = useState<Supplier[]>([])
     const [products, setProducts] = useState<Product[]>([])
@@ -82,6 +90,16 @@ export default function PurchaseOrdersPage() {
     }
 
     useEffect(() => {
+        void fetch("/api/settings/tax")
+            .then((response) => response.json())
+            .then((result) => {
+                if (result?.success) setDefaultTaxRate(Number(result.data?.defaultRate ?? 0) || 0)
+            })
+            .catch(() => {
+                // Leaving it at zero is the safe failure: a visibly wrong zero
+                // gets corrected, where a silently assumed ten does not.
+            })
+
         const fetchData = async () => {
             setLoading(true)
 
@@ -116,7 +134,7 @@ export default function PurchaseOrdersPage() {
             ...prev,
             items: [...prev.items, {
                 productId: "", productName: "", sku: "",
-                quantity: 1, receivedQty: 0, unitCost: 0, taxRate: 10, total: 0,
+                quantity: 1, receivedQty: 0, unitCost: 0, taxRate: defaultTaxRate, total: 0,
             }],
         }))
     }

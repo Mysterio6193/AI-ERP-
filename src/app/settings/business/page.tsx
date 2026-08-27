@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/hooks/use-toast"
 import { CompanyManager } from "@/components/settings/company-manager"
+import { formatCurrency } from "@/lib/types"
 
 interface NamespaceMeta {
   namespace: string
@@ -29,8 +30,8 @@ interface NamespacePayload {
   canWrite: boolean
 }
 
-const money = (value: number) =>
-  `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+// Follows the company's country rather than assuming a dollar sign.
+const money = (value: number) => formatCurrency(value)
 
 /**
  * Renders what a setting will actually do.

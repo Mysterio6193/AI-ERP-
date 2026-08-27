@@ -145,18 +145,20 @@ function toolIconAndLabel(toolName: string) {
   return { label: labels[toolName] || `Executing ${toolName}`, icon: Wrench }
 }
 
-const CHAT_MODEL_PRESETS = [
+/**
+ * Fallback only. The live list comes from /api/agent/models, which asks the
+ * provider what it actually serves — hand-written lists here have gone stale
+ * twice, and a retired id fails at request time rather than at selection, which
+ * reads as the agent being broken rather than the model being gone.
+ */
+const FALLBACK_MODEL_PRESETS = [
   { label: "Auto / Purpose Default", value: "", provider: "Smart Auto" },
-  { label: "Google Gemini 2.5 Flash", value: "google/gemini-2.5-flash", provider: "Google" },
-  { label: "DeepSeek V3 / Chat", value: "deepseek/deepseek-chat", provider: "DeepSeek" },
   { label: "MiniMax M3 (Free)", value: "minimax/minimax-m3:free", provider: "MiniMax" },
-  { label: "Nemotron 3 Super 120B (Free)", value: "nvidia/nemotron-3-super-120b-a12b:free", provider: "NVIDIA" },
-  { label: "Nemotron 3.5 Lightning (Free)", value: "nvidia/nemotron-3.5-lightning:free", provider: "NVIDIA" },
-  { label: "Llama 3.3 70B", value: "meta-llama/llama-3.3-70b-instruct", provider: "Meta" },
-  { label: "Qwen 2.5 72B", value: "qwen/qwen-2.5-72b-instruct", provider: "Alibaba" },
+  { label: "Gemma 4 26B (Free)", value: "google/gemma-4-26b-a4b-it:free", provider: "Google" },
 ]
 
 export function AgentChat({ threadKey, suggestions, pageContext, compact }: AgentChatProps) {
+  const [modelPresets, setModelPresets] = useState(FALLBACK_MODEL_PRESETS)
   const [input, setInput] = useState("")
   const [runtime, setRuntime] = useState<RuntimeInfo | null>(null)
   const [selectedModel, setSelectedModel] = useState("")
@@ -199,6 +201,25 @@ export function AgentChat({ threadKey, suggestions, pageContext, compact }: Agen
   const busy = status === "submitted" || status === "streaming" || scanningOcr
 
   useEffect(() => {
+    void fetch("/api/agent/models")
+      .then((response) => response.json())
+      .then((result) => {
+        const models = result?.data?.models ?? []
+        if (models.length === 0) return
+
+        setModelPresets([
+          { label: "Auto / Purpose Default", value: "", provider: "Smart Auto" },
+          ...models.map((model: { id: string; label: string; free: boolean }) => ({
+            label: model.free ? `${model.label} (Free)` : model.label,
+            value: model.id,
+            provider: model.id.split("/")[0],
+          })),
+        ])
+      })
+      .catch(() => {
+        // Keeps the fallback, which beats an empty dropdown.
+      })
+
     if (!speaking || !speechSupported || busy) return
 
     const last = messages[messages.length - 1]
@@ -409,7 +430,7 @@ export function AgentChat({ threadKey, suggestions, pageContext, compact }: Agen
                 onChange={(e) => setSelectedModel(e.target.value)}
                 className="cursor-pointer bg-transparent text-[11px] font-medium outline-none"
               >
-                {CHAT_MODEL_PRESETS.map((preset) => (
+                {modelPresets.map((preset) => (
                   <option key={preset.value} value={preset.value}>
                     {preset.label}
                   </option>

@@ -22,6 +22,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/hooks/use-toast"
+import { formatCurrency } from "@/lib/types"
 
 interface FocusItem {
   reason: "task_overdue" | "case_open" | "account_lapsing" | "invoice_overdue"
@@ -118,7 +119,8 @@ function nextStage(stage: string) {
 }
 
 function money(value: number) {
-  return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  // Follows the company's country rather than assuming a dollar sign.
+  return formatCurrency(value)
 }
 
 export default function CrmPage() {

@@ -419,8 +419,14 @@ export type AccountType = (typeof ACCOUNT_TYPES)[number]["value"]
 // Currency Formatting (Multi-Country)
 // ============================================
 
-export const CURRENCY = "AUD"
-export const CURRENCY_SYMBOL = "$"
+/**
+ * Currency is derived from the company's country, never stated.
+ *
+ * There were `CURRENCY = "AUD"` and `CURRENCY_SYMBOL = "$"` constants here,
+ * unused but sitting next to CURRENCY_MAP as an invitation — the first thing
+ * anyone reaches for when they need a dollar sign, and the reason six pages
+ * ended up hardcoding one. Use formatCurrency below, which follows the country.
+ */
 
 export const formatCurrency = (amount: number, country: CountryCode = "AU"): string => {
   const config = CURRENCY_MAP[country]
