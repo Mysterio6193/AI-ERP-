@@ -848,7 +848,7 @@ export default function DashboardPage() {
               */}
               <h1 className="text-[36px] font-semibold tracking-[-0.04em] text-white md:text-[52px]">Today</h1>
               <p className="max-w-2xl text-[17px] text-white/70">
-                Orders, warehouse, delivery and receivables.
+                Orders, warehouse, delivery and receivables. Ask the assistant to handle any of it.
               </p>
             </div>
             <p className="text-xs uppercase tracking-[0.08em] text-white/46">

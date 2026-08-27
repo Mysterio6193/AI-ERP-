@@ -171,7 +171,7 @@ export function SendDocumentModal({
                             id="to"
                             value={to}
                             onChange={(e) => setTo(e.target.value)}
-                            placeholder={method === "email" ? "customer@example.com" : "+1 234 567 890"}
+                            placeholder={method === "email" ? "customer@example.com" : "+61 4XX XXX XXX"}
                         />
                     </div>
 

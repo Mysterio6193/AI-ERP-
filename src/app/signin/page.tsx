@@ -94,17 +94,22 @@ export default function AdminSigninPage() {
           <div className="apple-eyebrow">SupplySure OS</div>
           <div className="max-w-2xl space-y-4">
             {/*
-              Says what the system is for, not what it is like. The previous
-              copy sold a "clarity"-forward "Apple-inspired control surface" to
-              people who already work here and are trying to sign in — nobody
-              reading this screen is deciding whether to buy it.
+              Two failure modes to stay between. The old copy sold an
+              "Apple-inspired control surface" to people who already work here
+              and are trying to sign in. Replacing it with a plain list of
+              modules then went too far the other way and described an ordinary
+              ERP, which this is not — the assistant can run any of it.
+              
+              Everything claimed here is checkable: the tool count is the
+              registry, and it genuinely does stop and ask above a value
+              threshold rather than acting on everything.
             */}
             <h1 className="text-[40px] font-semibold tracking-[-0.04em] text-white md:text-[56px]">
-              Orders, stock, deliveries and invoices.
+              Run it, or ask it to.
             </h1>
             <p className="max-w-xl text-[17px] text-white/72">
-              Sign in to place and track orders, check stock, plan runs and manage what customers
-              owe.
+              Orders, stock, deliveries and invoices — and an assistant that can do any of them with
+              you, from here or over Telegram. It asks before anything above your limit.
             </p>
           </div>
         </div>
