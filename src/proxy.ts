@@ -116,7 +116,7 @@ function hasCredential(request: NextRequest) {
   )
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl
 
   if (isStaticAsset(pathname)) {
