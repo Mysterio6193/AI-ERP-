@@ -53,7 +53,7 @@ export default function ErrorBoundary({
             Try again
           </button>
           <a
-            href="/"
+            href="/erp"
             className="inline-flex items-center rounded px-3 py-1.5 text-xs font-medium underline underline-offset-2"
           >
             Back to the dashboard

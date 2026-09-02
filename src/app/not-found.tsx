@@ -23,7 +23,7 @@ export default function NotFound() {
           </p>
         </div>
 
-        <Link href="/" className="inline-block text-sm underline underline-offset-2">
+        <Link href="/erp" className="inline-block text-sm underline underline-offset-2">
           Back to the dashboard
         </Link>
       </div>

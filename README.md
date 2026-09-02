@@ -203,6 +203,30 @@ Located in `apps/driver-app/`, the driver interface is a dedicated, responsive P
 
 ---
 
+## 🤝 OpenBot
+
+[OpenBot](https://github.com/CopilotKit/OpenBot) is vendored as a git submodule at `apps/openbot/`. It is a **separate stack**, not a page inside the ERP: it brings its own Docker Compose, its own PostgreSQL and its own UI server, and it hosts AI coworkers that each get a browser, files and tools of their own.
+
+The landing page at `/` is a launcher with two doors — the ERP at `/erp`, and OpenBot at whatever `OPENBOT_URL` points to (`http://localhost:3010` by default).
+
+```bash
+# 1. Fetch the submodule (or clone this repo with --recurse-submodules)
+npm run openbot:init
+
+# 2. Configure it — it needs a CopilotKit Intelligence licence and a model key
+cd apps/openbot && cp .env.example .env
+
+# 3. Start it (requires Docker and Bun 1.3+)
+bun install && bun run dev
+```
+
+> [!WARNING]
+> OpenBot's API server defaults to port `3001`, which is the same port the driver app uses. Change `PORT`/`SERVER_PORT` in `apps/openbot/.env` before running both at once.
+
+Full setup, including the three keys you actually have to supply, is in `apps/openbot/README.md`.
+
+---
+
 ## 🚀 Quickstart
 
 ### Prerequisites
@@ -212,8 +236,8 @@ Located in `apps/driver-app/`, the driver interface is a dedicated, responsive P
 ### Installation
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/Mysterio6193/AI-ERP-.git
+# 1. Clone the repository (--recurse-submodules also fetches OpenBot)
+git clone --recurse-submodules https://github.com/Mysterio6193/AI-ERP-.git
 cd AI-ERP-
 
 # 2. Install dependencies for all apps
@@ -230,6 +254,7 @@ npm run db:generate
 # 5. Start development servers
 npm run dev          # Starts Core ERP on http://localhost:3000
 npm run dev:driver   # Starts Driver App on http://localhost:3001
+npm run openbot:dev  # Optional: starts OpenBot on http://localhost:3010
 ```
 
 > [!TIP]

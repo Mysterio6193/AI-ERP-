@@ -1,0 +1,3 @@
+[submodule "apps/openbot"]
+	path = apps/openbot
+	url = https://github.com/CopilotKit/OpenBot.git

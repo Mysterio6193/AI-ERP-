@@ -97,7 +97,7 @@ const navItems: NavItem[] = [
   // Dashboard
   {
     label: "Dashboard",
-    href: "/",
+    href: "/erp",
     icon: LayoutDashboard,
     roles: ["admin", "sales", "warehouse", "accounts", "driver"],
     group: "Overview",
@@ -544,7 +544,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
   return (
     <Sidebar className="border-r-0 bg-black text-white">
       <SidebarHeader className="border-b border-white/8 p-5">
-        <Link href="/" className="flex items-center gap-3">
+        <Link href="/erp" className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/6 backdrop-blur">
             <Building2 className="h-5 w-5 text-white" />
           </div>
