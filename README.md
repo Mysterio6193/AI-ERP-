@@ -209,21 +209,49 @@ Located in `apps/driver-app/`, the driver interface is a dedicated, responsive P
 
 The landing page at `/` is a launcher with two doors — the ERP at `/erp`, and OpenBot at whatever `OPENBOT_URL` points to (`http://localhost:3010` by default).
 
+### Prerequisites
+
+- **Docker**, running — Compose brings up OpenBot's own PostgreSQL and the bot containers.
+- **Bun** 1.3+.
+- A **CopilotKit** account (free tier is enough) and a **model key**.
+
+### Setup
+
 ```bash
 # 1. Fetch the submodule (or clone this repo with --recurse-submodules)
 npm run openbot:init
 
-# 2. Configure it — it needs a CopilotKit Intelligence licence and a model key
-cd apps/openbot && cp .env.example .env
+# 2. Create its .env and install its dependencies
+cd apps/openbot && cp .env.example .env && bun install
 
-# 3. Start it (requires Docker and Bun 1.3+)
-bun install && bun run dev
+# 3. Fetch the CopilotKit credentials — these sign in as you, so run them yourself
+npx --yes copilotkit@latest login
+npx --yes copilotkit@latest project select   # prints the cpk-... runtime key
+npx --yes copilotkit@latest license --write  # writes COPILOTKIT_LICENSE_TOKEN into .env
+
+# 4. Fill the three values nothing can generate for you, in apps/openbot/.env:
+#      INTELLIGENCE_API_KEY      the cpk-... key from step 3
+#      COPILOTKIT_LICENSE_TOKEN  written by step 3
+#      OPENAI_API_KEY            your model credential
+#    The other seven blanks in .env.example are generated or already correct.
+
+# 5. Start it
+npm run openbot:start
 ```
 
-> [!WARNING]
-> OpenBot's API server defaults to port `3001`, which is the same port the driver app uses. Change `PORT`/`SERVER_PORT` in `apps/openbot/.env` before running both at once.
+### Ports
 
-Full setup, including the three keys you actually have to supply, is in `apps/openbot/README.md`.
+OpenBot ships defaults that collide with this repo, so `apps/openbot/.env` moves three of them. A fresh `cp .env.example .env` will **not** have these — `.env` is not committed — so reapply them:
+
+| Setting | Default | Here | Why |
+|---|---|---|---|
+| `PORT` / `SERVER_PORT` | `3001` | `3011` | `3001` is the driver app |
+| `POSTGRES_PORT` | `5432` | `5433` | `5432` is the ERP's embedded cluster |
+| `APP_PORT` | `3010` | `3010` | unchanged — this is what `OPENBOT_URL` points at |
+
+Also replace the public placeholder `KEY_ENCRYPTION_KEY` with `openssl rand -base64 32`.
+
+Full setup and every variable is documented in `apps/openbot/README.md` and `apps/openbot/prompt.txt`.
 
 ---
 
@@ -254,7 +282,7 @@ npm run db:generate
 # 5. Start development servers
 npm run dev          # Starts Core ERP on http://localhost:3000
 npm run dev:driver   # Starts Driver App on http://localhost:3001
-npm run openbot:dev  # Optional: starts OpenBot on http://localhost:3010
+npm run openbot:start # Optional: starts OpenBot on http://localhost:3010
 ```
 
 > [!TIP]

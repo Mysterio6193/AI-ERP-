@@ -10,6 +10,7 @@
     "start": "sh ./scripts/start-production.sh",
     "start:driver": "npm --prefix apps/driver-app run start",
     "openbot:init": "git submodule update --init apps/openbot",
+    "openbot:start": "cd apps/openbot && bash scripts/start.sh",
     "openbot:dev": "cd apps/openbot && bun run dev",
     "lint": "eslint .",
     "typecheck:driver": "npx tsc -p apps/driver-app/tsconfig.json --noEmit",

@@ -1,17 +1,17 @@
 import Link from "next/link"
 import { ArrowUpRight, Bot, Building2 } from "lucide-react"
 
+import { OpenbotStatus } from "@/components/openbot-status"
+import { OPENBOT_URL } from "@/lib/openbot"
+
 /**
  * The landing page is a launcher, not a dashboard.
  *
- * Two things run here now: the ERP itself, which lives in this Next.js app,
- * and OpenBot, which is a separate stack in `apps/openbot` with its own
- * Docker Compose, PostgreSQL and UI server. They cannot share a process, so
- * this page sends you to whichever one you actually want.
+ * Two modules run here: the ERP itself, which lives in this Next.js app, and
+ * OpenBot, which is the submodule at `apps/openbot` with its own Docker
+ * Compose, PostgreSQL and UI server. They cannot share a process, so this page
+ * sends you to whichever one you actually want.
  */
-
-/** Where the OpenBot UI answers. `APP_PORT` in apps/openbot/.env defaults to 3010. */
-const OPENBOT_URL = process.env.OPENBOT_URL ?? "http://localhost:3010"
 
 export default function HomePage() {
   return (
@@ -25,7 +25,7 @@ export default function HomePage() {
             SupplySure OS
           </h1>
           <p className="mt-2 max-w-xl text-[15px] leading-relaxed text-neutral-500">
-            Two systems live here. Pick the one you need.
+            Two modules live here. Pick the one you need.
           </p>
         </header>
 
@@ -47,33 +47,40 @@ export default function HomePage() {
             tagline="AI coworkers with a computer of their own"
             description="A separate stack in apps/openbot: each bot gets its own browser, files and tools, with every action decided before it happens and recorded after."
             action="Open OpenBot"
+            status={<OpenbotStatus />}
           />
         </div>
 
         {/*
-          OpenBot is a submodule with its own Docker Compose and its own
-          PostgreSQL, so the link above is dead until somebody starts it. Say
-          how, rather than leaving a card that just fails to load.
+          OpenBot has its own Docker Compose and its own PostgreSQL, so the card
+          above links to a port nobody has started yet on a fresh machine. Say
+          how to start it, rather than leaving a link that fails silently.
         */}
         <section className="mt-10 rounded-2xl border border-neutral-200 bg-white p-6">
           <h2 className="text-[13px] font-semibold uppercase tracking-[0.1em] text-neutral-400">
             Starting OpenBot
           </h2>
           <p className="mt-3 text-[14px] leading-relaxed text-neutral-600">
-            OpenBot does not run with the ERP. It is a git submodule, and it needs Docker, Bun,
-            a CopilotKit Intelligence licence and a model key of its own before it will start.
+            OpenBot does not start with the ERP. It needs Docker running, Bun, and three
+            credentials of its own: a CopilotKit Intelligence key, a licence token, and a model key.
           </p>
           <pre className="mt-4 overflow-x-auto rounded-xl bg-neutral-950 px-4 py-3.5 text-[12.5px] leading-relaxed text-neutral-100">
-            <code>{`git submodule update --init apps/openbot
-cd apps/openbot && cp .env.example .env
-# fill in the three keys .env.example marks as yours
-bun install && bun run dev`}</code>
+            <code>{`npm run openbot:init                          # fetch the submodule
+
+# these sign in as you, so run them yourself
+npx --yes copilotkit@latest login
+npx --yes copilotkit@latest project select    # prints the cpk-... key
+npx --yes copilotkit@latest license --write
+
+# put the cpk-... key and your model key in apps/openbot/.env,
+# then start everything
+npm run openbot:start`}</code>
           </pre>
-          <p className="mt-3 text-[13px] text-neutral-500">
+          <p className="mt-3 text-[13px] leading-relaxed text-neutral-500">
             It serves the UI on <code className="text-neutral-700">{OPENBOT_URL}</code>. Set{" "}
             <code className="text-neutral-700">OPENBOT_URL</code> in this app&apos;s{" "}
-            <code className="text-neutral-700">.env</code> if you run it somewhere else. Full setup
-            lives in <code className="text-neutral-700">apps/openbot/README.md</code>.
+            <code className="text-neutral-700">.env</code> if you run it somewhere else. The port
+            table and the rest of the setup are in the README.
           </p>
         </section>
       </div>
@@ -89,6 +96,7 @@ interface LauncherCardProps {
   description: string
   action: string
   external?: boolean
+  status?: React.ReactNode
 }
 
 function LauncherCard({
@@ -99,11 +107,15 @@ function LauncherCard({
   description,
   action,
   external = false,
+  status,
 }: LauncherCardProps) {
   const body = (
     <>
-      <div className="mb-5 flex h-10 w-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-900 transition-colors group-hover:bg-black group-hover:text-white">
-        {icon}
+      <div className="mb-5 flex items-start justify-between">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-900 transition-colors group-hover:bg-black group-hover:text-white">
+          {icon}
+        </div>
+        {status}
       </div>
       <h2 className="text-[20px] font-semibold tracking-[-0.02em] text-neutral-900">{title}</h2>
       <p className="mt-0.5 text-[13px] text-neutral-500">{tagline}</p>
