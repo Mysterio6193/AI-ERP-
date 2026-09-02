@@ -12,6 +12,8 @@
     "openbot:init": "git submodule update --init apps/openbot",
     "openbot:start": "cd apps/openbot && bash scripts/start.sh",
     "openbot:dev": "cd apps/openbot && bun run dev",
+    "openbot:demo": "npx tsx scripts/openbot-demo/server.ts",
+    "openbot:demo:ui": "cd apps/openbot/app && SERVER_PORT=3011 APP_PORT=3010 bun run dev",
     "lint": "eslint .",
     "typecheck:driver": "npx tsc -p apps/driver-app/tsconfig.json --noEmit",
     "db:push": "prisma db push",

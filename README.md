@@ -251,6 +251,21 @@ OpenBot ships defaults that collide with this repo, so `apps/openbot/.env` moves
 
 Also replace the public placeholder `KEY_ENCRYPTION_KEY` with `openssl rand -base64 32`.
 
+### Demo mode (no Docker, no credentials)
+
+To show the OpenBot interface without standing up the real stack, `scripts/openbot-demo/` serves
+invented data in the shape of OpenBot's own API types. Two terminals:
+
+```bash
+npm run openbot:demo     # stand-in API on 3011
+npm run openbot:demo:ui  # OpenBot's real UI on 3010, proxied to it
+```
+
+Every screen renders — roster, transcripts with tool calls, agents, skills. **Nothing behind it is
+real**: no model runs, nothing is stored, and the conversations in `scripts/openbot-demo/data.ts`
+were written by hand. Edit that file to change what the demo shows. It is for showing the product,
+never for anything that matters.
+
 Full setup and every variable is documented in `apps/openbot/README.md` and `apps/openbot/prompt.txt`.
 
 ---
