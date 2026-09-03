@@ -21,7 +21,10 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
-import type { ExtractedDocument } from "@/lib/ocr/engine"
+import type { ExtractedDocument, ExtractedLineItem } from "@/lib/ocr/engine"
+
+type ScanLineItem = ExtractedLineItem & { rowId: string }
+type ScanResult = Omit<ExtractedDocument, "items"> & { items: ScanLineItem[] }
 
 /**
  * Fallback only — the live list comes from /api/agent/models, filtered to models
@@ -42,7 +45,7 @@ export default function DocumentScanPage() {
   const [scanning, setScanning] = useState(false)
   const [selectedModel, setSelectedModel] = useState(FALLBACK_OCR_PRESETS[0].value)
   const [customModel, setCustomModel] = useState("")
-  const [result, setResult] = useState<ExtractedDocument | null>(null)
+  const [result, setResult] = useState<ScanResult | null>(null)
 
   useEffect(() => {
     void fetch("/api/agent/models")
@@ -90,7 +93,11 @@ export default function DocumentScanPage() {
 
       const payload = await response.json()
       if (payload.success) {
-        setResult(payload.data)
+        const data: ExtractedDocument = payload.data
+        setResult({
+          ...data,
+          items: (data.items || []).map((item) => ({ ...item, rowId: crypto.randomUUID() })),
+        })
         toast({
           title: "OCR Extraction Complete",
           description: `Extracted ${payload.data.items?.length || 0} line items from ${payload.data.vendorName || "document"}.`,
@@ -346,8 +353,8 @@ export default function DocumentScanPage() {
                             </tr>
                           </thead>
                           <tbody className="divide-y">
-                            {result.items?.map((item, idx) => (
-                              <tr key={idx} className="hover:bg-muted/20">
+                            {result.items?.map((item) => (
+                              <tr key={item.rowId} className="hover:bg-muted/20">
                                 <td className="p-2">
                                   <p className="font-medium">{item.description}</p>
                                   {item.matchedProductName ? (

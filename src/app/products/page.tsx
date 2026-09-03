@@ -616,6 +616,7 @@ export default function ProductsPage() {
                         size="sm"
                         onClick={() => {
                           const newVariant: Variant = {
+                            id: crypto.randomUUID(),
                             sku: `${formData.sku}-${formData.variants.length + 1}`,
                             name: "",
                             status: "active",
@@ -647,7 +648,7 @@ export default function ProductsPage() {
                             </TableRow>
                           ) : (
                             formData.variants.map((variant, index) => (
-                              <TableRow key={index}>
+                              <TableRow key={variant.id ?? index}>
                                 <TableCell>
                                   <Input
                                     value={variant.sku}
