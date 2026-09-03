@@ -141,9 +141,18 @@ export async function runScheduledAgent(definitionId: string) {
       return { delivered: false, channel: null, reason: "Delivery threw" }
     })
 
+    // "Nothing worth reporting" is a quiet day, not a failure - the run still
+    // succeeded, it just had nothing to say. Anything else undelivered (no
+    // channel to reach, transport down, delivery threw) means the run did
+    // real work that never reached anyone, which is not a success.
+    const deliveryFailed = !delivery.delivered && delivery.reason !== "Nothing worth reporting"
+
     await db.agentDefinition.update({
       where: { id: definition.id },
-      data: { lastRunStatus: "succeeded", lastRunError: null },
+      data: {
+        lastRunStatus: deliveryFailed ? "failed" : "succeeded",
+        lastRunError: deliveryFailed ? delivery.reason || "Delivery failed" : null,
+      },
     })
 
     return {

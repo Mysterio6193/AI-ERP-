@@ -171,7 +171,16 @@ export async function applyOrderStatus(
           newValues: JSON.stringify({ status: next, reason: check.reason }),
         },
       })
-      .catch(() => undefined)
+      .catch((error) => {
+        // Enforcement is off, so this write is the only record that an
+        // out-of-policy transition happened. Losing it silently means the
+        // move goes through with no trace anywhere - log it so it is at
+        // least visible, even though it should not block the transition.
+        console.error(
+          `[ORDER STATUS] Failed to write audit log for illegal transition on ${order.orderNumber} (${order.status} -> ${next}):`,
+          error
+        )
+      })
   }
 
   const effects: string[] = []

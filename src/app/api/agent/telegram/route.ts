@@ -658,6 +658,10 @@ async function handleMessage(message: NonNullable<TelegramUpdate["message"]>) {
         }
       } catch (voiceError) {
         console.warn("Failed to generate voice note reply for Telegram:", voiceError)
+        // A text reply already went out, so this failure is otherwise
+        // invisible to the user who specifically asked for voice - let them
+        // know rather than leaving them waiting on audio that never arrives.
+        await sendTelegramMessage(chatId, "Sorry, I couldn't generate the voice reply.").catch(() => {})
       }
     })().catch(() => {})
   }

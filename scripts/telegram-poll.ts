@@ -1,3 +1,6 @@
+import fs from "node:fs"
+import path from "node:path"
+
 import {
   deleteTelegramWebhook,
   getTelegramMe,
@@ -15,6 +18,35 @@ import { processTelegramUpdate } from "../src/app/api/agent/telegram/route"
  * Usage:
  *   npx tsx --env-file=.env scripts/telegram-poll.ts
  */
+
+/**
+ * Where the last-seen update offset lives between runs.
+ *
+ * Nothing in this repo already tracks polling cursors in the database, and
+ * this script only ever runs on one developer's machine at a time, so a
+ * plain local file is enough - without it, every restart replays whatever
+ * Telegram still has buffered and re-triggers the agent for updates already
+ * handled.
+ */
+const OFFSET_FILE = path.join(__dirname, ".telegram-poll-offset")
+
+function loadOffset(): number {
+  try {
+    const raw = fs.readFileSync(OFFSET_FILE, "utf8").trim()
+    const parsed = Number(raw)
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0
+  } catch {
+    return 0
+  }
+}
+
+function saveOffset(offset: number) {
+  try {
+    fs.writeFileSync(OFFSET_FILE, String(offset), "utf8")
+  } catch (error) {
+    console.warn("Failed to persist Telegram poll offset:", error)
+  }
+}
 
 
 /** What arrived, in one line, so an ignored message is visible as ignored. */
@@ -74,7 +106,10 @@ async function main() {
 
   console.log("🟢 Listening for Telegram messages via long-polling (Press Ctrl+C to stop)...")
 
-  let offset = 0
+  let offset = loadOffset()
+  if (offset > 0) {
+    console.log(`Resuming from persisted offset ${offset}`)
+  }
   let running = true
 
   process.on("SIGINT", () => {
@@ -91,6 +126,11 @@ async function main() {
           const updateId = Number(update.update_id)
           if (!isNaN(updateId)) {
             offset = Math.max(offset, updateId + 1)
+            // Persisted as soon as an update is claimed, not only after it
+            // finishes processing - Telegram already considers anything below
+            // this offset delivered, so a crash mid-batch must not replay
+            // updates this process has already taken off the queue.
+            saveOffset(offset)
           }
 
           // A summary of what actually arrived. "Completed successfully" only
@@ -99,12 +139,15 @@ async function main() {
           // without this line a silently-ignored message is indistinguishable
           // from an answered one.
           console.log(`[Telegram Update #${updateId}] ${describeUpdate(update)}`)
-          // Process in background so subsequent updates are not blocked
-          processTelegramUpdate(update as any).then(() => {
+          // Awaited sequentially: dispatching without awaiting let a slow
+          // update (a long agent turn, a slow TTS call) race with the next
+          // poll's updates and process them concurrently and out of order.
+          try {
+            await processTelegramUpdate(update as any)
             console.log(`[Telegram Update #${updateId}] Completed successfully.`)
-          }).catch((err) => {
+          } catch (err) {
             console.error(`Error processing Telegram update #${updateId}:`, err)
-          })
+          }
         }
       }
     } catch (error) {
