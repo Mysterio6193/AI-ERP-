@@ -73,3 +73,6 @@ local-*
 
 # Backups contain every customer record. Never commit them.
 backups/
+
+# telegram-poll.ts local offset state (dev-only, per-machine)
+scripts/.telegram-poll-offset
