@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
 
 import { resolveCustomerByEmail, resolveCustomerPrincipal, resolveStaffPrincipal } from "@/lib/agent/context"
+import { UNTRUSTED } from "@/lib/agent/safe-fetch"
 import { signOutbound } from "@/lib/agent/identity"
 import { runAgentTurn } from "@/lib/agent/runtime"
 import { sendCommunicationMessage } from "@/lib/communications"
 import { db } from "@/lib/db"
+import { secretEquals } from "@/lib/secret-compare"
 
 /**
  * The agent's own inbox.
@@ -20,16 +22,26 @@ import { db } from "@/lib/db"
  * three destructured fields if you wire a different provider.
  */
 
-function isProviderConfigured() {
-  return Boolean(process.env.INBOUND_EMAIL_SECRET)
+/**
+ * Inbound-parsing providers sign nothing by default, so a shared secret
+ * header is what stands between this route and the open internet. Mirrors
+ * `verifyTelegramSecret` in `channels/telegram.ts`: an unconfigured secret
+ * rejects every request rather than skipping verification, because "no
+ * secret configured" and "no verification needed" are not the same thing.
+ */
+function verifyInboundEmailSecret(headerValue: string | null) {
+  const expected = process.env.INBOUND_EMAIL_SECRET
+  if (!expected) {
+    console.warn("INBOUND_EMAIL_SECRET is not set. Rejecting incoming webhook.")
+    return false
+  }
+
+  return secretEquals(expected, headerValue)
 }
 
 export async function POST(request: NextRequest) {
-  if (isProviderConfigured()) {
-    const provided = request.headers.get("x-inbound-secret")
-    if (provided !== process.env.INBOUND_EMAIL_SECRET) {
-      return NextResponse.json({ success: false }, { status: 401 })
-    }
+  if (!verifyInboundEmailSecret(request.headers.get("x-inbound-secret"))) {
+    return NextResponse.json({ success: false }, { status: 401 })
   }
 
   const body = await request.json().catch(() => null)
@@ -98,7 +110,10 @@ export async function POST(request: NextRequest) {
       principal,
       channel: "email",
       threadKey: `email:${customer.id}`,
-      userMessage: `Subject: ${subject}\n\n${text}`,
+      // The subject and body are attacker-controlled the moment an inbound
+      // email is accepted, so both go inside the untrusted-content wrapper -
+      // not just the body - and neither is allowed to read as an instruction.
+      userMessage: `${UNTRUSTED}\n\n<inbound-email>\nSubject: ${subject}\n\n${text}\n</inbound-email>`,
       trigger: "email",
     })
 
