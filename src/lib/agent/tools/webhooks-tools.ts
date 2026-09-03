@@ -2,6 +2,7 @@ import { z } from "zod"
 
 import { db } from "@/lib/db"
 import type { AgentPrincipal } from "../context"
+import { checkUrl } from "../safe-fetch"
 import { defineTool } from "./define"
 import { isStaff } from "./shared"
 
@@ -31,6 +32,16 @@ export function buildWebhookTools(principal: AgentPrincipal) {
       }),
       execute: async ({ eventName, targetUrl, payload }) => {
         try {
+          const urlCheck = await checkUrl(targetUrl)
+          if (!urlCheck.allowed) {
+            return {
+              ok: false as const,
+              eventName,
+              targetUrl,
+              error: urlCheck.reason ?? "Webhooks to private network or metadata addresses are forbidden.",
+            }
+          }
+
           const body = JSON.stringify({
             event: eventName,
             timestamp: new Date().toISOString(),
@@ -45,6 +56,7 @@ export function buildWebhookTools(principal: AgentPrincipal) {
               "User-Agent": "SupplySure-OS-Webhook-Engine/1.0",
             },
             body,
+            signal: AbortSignal.timeout(15000),
           })
 
           return {

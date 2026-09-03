@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getAdminUserFromRequest } from "@/lib/admin-auth"
+import { checkUrl } from "@/lib/agent/safe-fetch"
 import { processDocumentOcr } from "@/lib/ocr/engine"
 
 export const maxDuration = 120
@@ -43,6 +44,16 @@ export async function POST(request: NextRequest) {
         { success: false, error: "Either file, imageUrl, imageBase64, or rawText must be provided" },
         { status: 400 }
       )
+    }
+
+    if (imageUrl) {
+      const urlCheck = await checkUrl(imageUrl)
+      if (!urlCheck.allowed) {
+        return NextResponse.json(
+          { success: false, error: urlCheck.reason ?? "That imageUrl cannot be fetched." },
+          { status: 400 }
+        )
+      }
     }
 
     const document = await processDocumentOcr({
