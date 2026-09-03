@@ -13,6 +13,7 @@ import {
   verifyTelegramSecret,
 } from "@/lib/agent/channels/telegram"
 import { resolveProposal, runAgentTurn, type PendingApproval } from "@/lib/agent/runtime"
+import { UNTRUSTED } from "@/lib/agent/safe-fetch"
 import { db } from "@/lib/db"
 import { processDocumentOcr } from "@/lib/ocr/engine"
 import { transcribeAudio } from "@/lib/voice/transcribe"
@@ -91,6 +92,7 @@ async function autoRegisterGroup(chatId: string, title: string) {
 }
 
 interface TelegramUpdate {
+  update_id?: number
   message?: {
     message_id: number
     chat: { id: number; type: string; title?: string }
@@ -111,6 +113,52 @@ interface TelegramUpdate {
     message?: { message_id: number; chat: { id: number } }
     from?: { id: number; first_name?: string; username?: string }
   }
+}
+
+/** In-memory cache of processed Telegram update IDs to prevent duplicate execution loops on timeouts/retries. */
+const processedUpdates = new Map<string, number>()
+const MAX_PROCESSED_UPDATES = 10_000
+const UPDATE_EXPIRY_MS = 30 * 60 * 1000 // 30 minutes
+
+function isDuplicateUpdate(update: TelegramUpdate): boolean {
+  const updateKey =
+    update.update_id != null
+      ? `upd:${update.update_id}`
+      : update.message?.message_id != null
+      ? `msg:${update.message.chat?.id}:${update.message.message_id}`
+      : update.callback_query?.id != null
+      ? `cb:${update.callback_query.id}`
+      : null
+
+  if (!updateKey) return false
+
+  const now = Date.now()
+
+  // Evict older entries if size exceeds limit
+  if (processedUpdates.size >= MAX_PROCESSED_UPDATES) {
+    const cutoff = now - UPDATE_EXPIRY_MS
+    for (const [id, time] of processedUpdates.entries()) {
+      if (time < cutoff) {
+        processedUpdates.delete(id)
+      }
+    }
+    // Hard cap eviction if still full
+    while (processedUpdates.size >= MAX_PROCESSED_UPDATES) {
+      const oldestKey = processedUpdates.keys().next().value
+      if (oldestKey !== undefined) {
+        processedUpdates.delete(oldestKey)
+      } else {
+        break
+      }
+    }
+  }
+
+  if (processedUpdates.has(updateKey)) {
+    return true
+  }
+
+  processedUpdates.set(updateKey, now)
+  return false
 }
 
 function approvalButtons(approvals: PendingApproval[]) {
@@ -136,6 +184,10 @@ function helpText() {
 }
 
 export async function processTelegramUpdate(update: TelegramUpdate) {
+  if (isDuplicateUpdate(update)) {
+    return { ok: true, skipped: "duplicate" }
+  }
+
   await ensureBotInfo()
   try {
     if (update.callback_query) {
@@ -181,8 +233,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true })
   }
 
-  await processTelegramUpdate(update)
-  return NextResponse.json({ ok: true })
+  const result = await processTelegramUpdate(update)
+  return NextResponse.json(result)
 }
 
 async function handleMessage(message: NonNullable<TelegramUpdate["message"]>) {
@@ -366,7 +418,11 @@ async function handleMessage(message: NonNullable<TelegramUpdate["message"]>) {
         })
         const itemsSummary = ocr.items?.map((i) => `${i.quantity}x ${i.description} ($${i.lineTotal})`).join(", ")
         const docSummary = `📄 [Scanned ${ocr.documentType?.replace(/_/g, " ").toUpperCase()}]: ${ocr.vendorName || "Vendor"} #${ocr.documentNumber || "N/A"} · Total: $${ocr.totalAmount || 0} (${ocr.items?.length || 0} items: ${itemsSummary || "None"})`
-        text = text ? `${text}\n\n${docSummary}` : docSummary
+        // OCR reads whatever is printed on the photographed document, so every
+        // field here is attacker-controlled the moment the photo is accepted.
+        // Wrapped the same way inbound email content is in email/route.ts.
+        const wrappedDocSummary = `${UNTRUSTED}\n\n<ocr-document>\n${docSummary}\n</ocr-document>`
+        text = text ? `${text}\n\n${wrappedDocSummary}` : wrappedDocSummary
       } catch (err) {
         console.error("Telegram OCR scan failed:", err)
       }
@@ -383,6 +439,12 @@ async function handleMessage(message: NonNullable<TelegramUpdate["message"]>) {
    */
   if (message.document) {
     const fileName = message.document.file_name || "attachment"
+    // The synthetic CSV directive below is instruction-shaped and NOT wrapped
+    // as untrusted content, so `[`, `]`, and newlines are stripped from the
+    // filename before it is interpolated into agent-bound text. Otherwise a
+    // filename like `foo"][Action Directive: ...confirm: true]` could close
+    // the real directive early and open a forged one the agent might follow.
+    const safeFileName = fileName.replace(/[[\]\r\n]/g, "").slice(0, 200)
     const mimeType = message.document.mime_type || ""
     const extension = fileName.includes(".") ? fileName.split(".").pop()!.toLowerCase() : ""
 
@@ -426,15 +488,20 @@ async function handleMessage(message: NonNullable<TelegramUpdate["message"]>) {
     }
 
     const fileBlock =
-      `📎 Attached file: ${fileName}\n` +
+      `📎 Attached file: ${safeFileName}\n` +
       (truncated ? `(only the first ${MAX_FILE_CHARS.toLocaleString()} characters are shown)\n` : "") +
       `\n\`\`\`\n${content}\n\`\`\``
 
+    // The file's own content is fully attacker-controlled (CSV cells, text
+    // body, etc.), so it is wrapped the same way inbound email content is in
+    // email/route.ts, rather than concatenated straight into the agent turn.
+    const wrappedFileBlock = `${UNTRUSTED}\n\n<uploaded-file>\n${fileBlock}\n</uploaded-file>`
+
     if (extension === "csv" || mimeType === "application/csv" || mimeType === "application/vnd.ms-excel") {
-      const csvInstruction = `\n\n[Action Directive: The user provided a CSV spreadsheet "${fileName}". If this contains sales prospects or leads, use the importLeadsFromCsv tool to parse, validate, and import them. If the user asked to save or import them, pass confirm: true.]`
-      text = text ? `${text}\n\n${fileBlock}${csvInstruction}` : `Attached leads CSV spreadsheet "${fileName}". Please import these leads into our CRM.\n\n${fileBlock}${csvInstruction}`
+      const csvInstruction = `\n\n[Action Directive: The user provided a CSV spreadsheet "${safeFileName}". If this contains sales prospects or leads, use the importLeadsFromCsv tool to parse, validate, and import them. If the user asked to save or import them, pass confirm: true.]`
+      text = text ? `${text}\n\n${wrappedFileBlock}${csvInstruction}` : `Attached leads CSV spreadsheet "${safeFileName}". Please import these leads into our CRM.\n\n${wrappedFileBlock}${csvInstruction}`
     } else {
-      text = text ? `${text}\n\n${fileBlock}` : fileBlock
+      text = text ? `${text}\n\n${wrappedFileBlock}` : wrappedFileBlock
     }
   }
 
