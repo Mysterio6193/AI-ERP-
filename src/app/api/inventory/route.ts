@@ -73,29 +73,45 @@ export async function GET(request: NextRequest) {
     const warehouseId = searchParams.get("warehouseId") || ""
     const lowStock = searchParams.get("lowStock") === "true"
 
-    const inventory = await db.inventory.findMany({
-      where: {
-        AND: [
-          companyId ? { product: { companyId } } : {},
-          warehouseId ? { warehouseId } : {},
-        ],
-      },
-      include: {
-        product: {
-          include: {
-            category: true,
+    // Matches the page/pageSize convention already used by src/app/api/crm/route.ts
+    // rather than inventing a new one.
+    const page = Math.max(Number(searchParams.get("page")) || 1, 1)
+    const pageSize = Math.min(Math.max(Number(searchParams.get("pageSize")) || 50, 1), 100)
+
+    const where = {
+      AND: [
+        companyId ? { product: { companyId } } : {},
+        warehouseId ? { warehouseId } : {},
+      ],
+    }
+
+    const [inventory, total] = await Promise.all([
+      db.inventory.findMany({
+        where,
+        include: {
+          product: {
+            include: {
+              category: true,
+            },
+          },
+          warehouse: true,
+        },
+        orderBy: {
+          product: {
+            name: "asc",
           },
         },
-        warehouse: true,
-      },
-      orderBy: {
-        product: {
-          name: "asc",
-        },
-      },
-    })
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      db.inventory.count({ where }),
+    ])
 
-    // Filter low stock in memory if requested
+    // Filter low stock in memory if requested. Note: this filter runs on the
+    // already-paginated page, so `meta.total`/`pageCount` reflect the
+    // unfiltered result set, not the low-stock subset — `quantity <=
+    // reorderLevel` compares two columns, which Prisma's `where` can't
+    // express without a raw query.
     let filteredInventory = inventory
     if (lowStock) {
       filteredInventory = inventory.filter(
@@ -110,7 +126,11 @@ export async function GET(request: NextRequest) {
       stockValue: item.quantity * item.product.costPrice,
     }))
 
-    return NextResponse.json({ success: true, data: inventoryWithFlags })
+    return NextResponse.json({
+      success: true,
+      data: inventoryWithFlags,
+      meta: { total, page, pageSize, pageCount: Math.ceil(total / pageSize) },
+    })
   } catch (error) {
     console.error("Error fetching inventory:", error)
     return NextResponse.json(

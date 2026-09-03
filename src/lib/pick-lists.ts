@@ -61,24 +61,31 @@ export async function ensurePickListForOrder(db: DbClient, orderId: string) {
     })
   }
 
-  const items = await Promise.all(
-    order.items.map(async (item) => {
-      const inventory = await db.inventory.findFirst({
+  const productIds = Array.from(new Set(order.items.map((item) => item.productId)))
+  const inventories = productIds.length > 0
+    ? await db.inventory.findMany({
         where: {
-          productId: item.productId,
+          productId: { in: productIds },
           warehouseId,
         },
+        select: {
+          productId: true,
+          location: true,
+        },
       })
+    : []
 
-      return {
-        productId: item.productId,
-        location: inventory?.location || null,
-        requiredQty: item.quantity,
-        pickedQty: item.pickedQty,
-        status: item.pickedQty >= item.quantity ? "picked" : "pending",
-      }
-    })
-  )
+  const locationByProductId = new Map(inventories.map((inv) => [inv.productId, inv.location]))
+
+  const items = order.items.map((item) => {
+    return {
+      productId: item.productId,
+      location: locationByProductId.get(item.productId) || null,
+      requiredQty: item.quantity,
+      pickedQty: item.pickedQty,
+      status: item.pickedQty >= item.quantity ? "picked" : "pending",
+    }
+  })
 
   const allPicked = items.every((item) => item.pickedQty >= item.requiredQty)
   const anyPicked = items.some((item) => item.pickedQty > 0)
@@ -123,21 +130,41 @@ export async function ensurePickListForOrder(db: DbClient, orderId: string) {
       },
     })
 
-    await Promise.all(
-      order.pickList.items.map((pickItem) => {
-        const orderItem = order.items.find((item) => item.productId === pickItem.productId)
-        if (!orderItem) return Promise.resolve(null)
+    // Each row gets a different requiredQty/pickedQty/status, so this can't
+    // be a single `updateMany`. Batched into one `$transaction` instead of a
+    // `Promise.all` of individually-awaited updates so the writes are sent
+    // together and applied atomically rather than sequentially one by one.
+    const pickItemUpdates = order.pickList.items.flatMap((pickItem) => {
+      const orderItem = order.items.find((item) => item.productId === pickItem.productId)
+      if (!orderItem) return []
 
-        return db.pickListItem.update({
+      return [
+        db.pickListItem.update({
           where: { id: pickItem.id },
           data: {
             requiredQty: orderItem.quantity,
             pickedQty: orderItem.pickedQty,
             status: orderItem.pickedQty >= orderItem.quantity ? "picked" : "pending",
           },
-        })
-      })
-    )
+        }),
+      ]
+    })
+
+    if (pickItemUpdates.length > 0) {
+      // `db` here may already be a `Prisma.TransactionClient` (nested
+      // transactions aren't supported, and `TransactionClient` has no
+      // `$transaction`), so only batch via `$transaction` when we hold the
+      // top-level client. When we're already inside a transaction, the
+      // writes are awaited sequentially but are still part of, and atomic
+      // with, that outer transaction.
+      if ("$transaction" in db) {
+        await db.$transaction(pickItemUpdates)
+      } else {
+        for (const update of pickItemUpdates) {
+          await update
+        }
+      }
+    }
 
     return db.pickList.findUnique({
       where: { id: order.pickList.id },

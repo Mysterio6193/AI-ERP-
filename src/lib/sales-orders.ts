@@ -150,21 +150,31 @@ export async function priceSalesOrder(
     priceSource: string
   }> = []
 
+  // Batched once for the whole order instead of once per line item, which
+  // turned an N-item order into 2N+ round trips to the DB.
+  const productIds = Array.from(new Set(items.map((item) => item.productId)))
+  const products = await db.product.findMany({ where: { id: { in: productIds } } })
+  const productById = new Map(products.map((product) => [product.id, product]))
+
+  const taxRateIds = Array.from(
+    new Set(products.map((product) => product.taxRateId).filter((id): id is string => Boolean(id)))
+  )
+  const taxRates = taxRateIds.length
+    ? await db.taxRate.findMany({
+        where: { id: { in: taxRateIds } },
+        select: { id: true, rate: true, status: true, taxType: true },
+      })
+    : []
+  const taxRateById = new Map(taxRates.map((taxRate) => [taxRate.id, taxRate]))
+
   for (const item of items) {
-    const product = await db.product.findUnique({ where: { id: item.productId } })
+    const product = productById.get(item.productId)
 
     if (!product) {
       return { ok: false as const, error: `Product ${item.productId} not found` }
     }
 
-    // Fetched separately because the product query above selects every column
-    // rather than a projection, so the relation is not included.
-    const taxRate = product.taxRateId
-      ? await db.taxRate.findUnique({
-          where: { id: product.taxRateId },
-          select: { rate: true, status: true, taxType: true },
-        })
-      : null
+    const taxRate = product.taxRateId ? taxRateById.get(product.taxRateId) || null : null
 
     // Was `item.unitPrice ?? product.wholesalePrice`, which ignored the
     // customer's contract list entirely.

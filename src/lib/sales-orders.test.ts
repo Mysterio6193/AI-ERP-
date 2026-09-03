@@ -19,10 +19,20 @@ const queries = { priceLists: 0, priceListItems: 0 }
 
 vi.mock("@/lib/db", () => ({
   db: {
-    product: { findUnique: async ({ where }: { where: { id: string } }) => world.products.get(where.id) ?? null },
+    product: {
+      findUnique: async ({ where }: { where: { id: string } }) => world.products.get(where.id) ?? null,
+      findMany: async ({ where }: { where: { id: { in: string[] } } }) =>
+        where.id.in.map((id) => world.products.get(id)).filter((product) => product != null),
+    },
     customer: { findUnique: async () => world.customer },
     company: { findUnique: async () => world.company },
-    taxRate: { findUnique: async ({ where }: { where: { id: string } }) => world.taxRates.get(where.id) ?? null },
+    taxRate: {
+      findUnique: async ({ where }: { where: { id: string } }) => world.taxRates.get(where.id) ?? null,
+      findMany: async ({ where }: { where: { id: { in: string[] } } }) =>
+        where.id.in
+          .filter((id) => world.taxRates.has(id))
+          .map((id) => ({ id, ...world.taxRates.get(id) })),
+    },
     priceList: {
       findMany: async () => {
         queries.priceLists++
