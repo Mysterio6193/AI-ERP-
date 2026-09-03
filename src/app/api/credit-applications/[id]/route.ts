@@ -4,6 +4,8 @@ import { requireAdminUser } from "@/lib/admin-auth"
 import { db } from "@/lib/db"
 import { ROLE_SETS } from "@/lib/permissions"
 
+const CREDIT_APPLICATION_STATUSES = ["submitted", "under_review", "approved", "rejected"] as const
+
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -27,6 +29,13 @@ export async function PATCH(
     }
 
     const nextStatus = body.status || application.status
+    if (!(CREDIT_APPLICATION_STATUSES as readonly string[]).includes(nextStatus)) {
+      return NextResponse.json(
+        { success: false, error: `Invalid status. Must be one of: ${CREDIT_APPLICATION_STATUSES.join(", ")}` },
+        { status: 400 }
+      )
+    }
+
     const approvedLimit =
       body.approvedLimit !== undefined && body.approvedLimit !== null
         ? Number(body.approvedLimit) || 0

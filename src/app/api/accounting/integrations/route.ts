@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
 
     const companyId = await getDefaultCompanyId()
     if (!companyId) {
-      return NextResponse.json({ success: true, data: [] })
+      return NextResponse.json({ success: false, error: "Active company is required" }, { status: 400 })
     }
 
     const integrations = await ensureAccountingIntegrations(companyId)
