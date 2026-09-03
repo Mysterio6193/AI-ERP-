@@ -120,6 +120,7 @@ interface Product {
   name: string
   wholesalePrice: number
   gstRate: number
+  gstExempt?: boolean | null
   baseUnit: string
   totalStock?: number
 }
@@ -228,8 +229,8 @@ export default function OrdersPage() {
 
   const filteredOrders = orders.filter((order) => {
     const matchesSearch =
-      order.orderNumber.toLowerCase().includes(search.toLowerCase()) ||
-      order.customer.name.toLowerCase().includes(search.toLowerCase())
+      (order.orderNumber || "").toLowerCase().includes(search.toLowerCase()) ||
+      (order.customer?.name || "").toLowerCase().includes(search.toLowerCase())
     const matchesStatus = statusFilter === "all" || order.status === statusFilter
     const normalizedSource = normalizeCommerceChannel(order.sourceChannel)
     const matchesSource =
@@ -468,6 +469,30 @@ export default function OrdersPage() {
     )
   }
 
+  /**
+   * Client-side approximation of the backend's `resolveLineTaxRate`
+   * (src/lib/tax.ts): a gst-exempt product pays no tax, otherwise the
+   * product's own gstRate is used, falling back to the company-level rate.
+   *
+   * This intentionally cannot replicate the full backend chain: a product's
+   * named `taxRate` record and customer tax-exempt status both depend on
+   * data (the tax settings' `exemptCustomerTypes` list, the product's tax
+   * rate relation) that isn't fetched on this page. The server total remains
+   * authoritative; this only keeps the cart/edit preview from being
+   * confidently wrong for gst-exempt products.
+   */
+  const resolveClientTaxRate = (product: Product | null | undefined): number => {
+    if (!product) return 0
+    if (product.gstExempt) return 0
+    if (typeof product.gstRate === "number" && Number.isFinite(product.gstRate) && product.gstRate >= 0) {
+      return product.gstRate
+    }
+    if (typeof company?.gstRate === "number" && Number.isFinite(company.gstRate) && company.gstRate >= 0) {
+      return company.gstRate
+    }
+    return 0
+  }
+
   const addProductToEditItems = () => {
     const product = products.find((candidate) => candidate.id === newOrderItemProductId)
     if (!product) return
@@ -488,7 +513,7 @@ export default function OrdersPage() {
           quantity: 1,
           unitPrice: product.wholesalePrice,
           discount: 0,
-          taxRate: product.gstRate,
+          taxRate: resolveClientTaxRate(product),
           taxAmount: 0,
           total: 0,
         }),
@@ -555,7 +580,7 @@ export default function OrdersPage() {
     let subtotal = item.unitPrice * item.quantity
     const discountAmount = subtotal * (item.discount / 100)
     const taxableAmount = subtotal - discountAmount
-    const taxAmount = taxableAmount * (product.gstRate / 100)
+    const taxAmount = taxableAmount * (resolveClientTaxRate(product) / 100)
     return taxableAmount + taxAmount
   }
 
@@ -570,7 +595,7 @@ export default function OrdersPage() {
         const discountAmount = itemSubtotal * (item.discount / 100)
         const taxableAmount = itemSubtotal - discountAmount
         subtotal += taxableAmount
-        totalTax += taxableAmount * (product.gstRate / 100)
+        totalTax += taxableAmount * (resolveClientTaxRate(product) / 100)
       }
     })
 
@@ -799,9 +824,9 @@ export default function OrdersPage() {
                   <Button
                     type="submit"
                     className="bg-emerald-600 hover:bg-emerald-700"
-                    disabled={!formData.customerId || cart.length === 0}
+                    disabled={!formData.customerId || cart.length === 0 || isSubmitting}
                   >
-                    Create Order
+                    {isSubmitting ? "Creating..." : "Create Order"}
                   </Button>
                 </DialogFooter>
               </form>
@@ -1047,7 +1072,7 @@ export default function OrdersPage() {
                               </DropdownMenuItem>
                             )}
                             {order.status === "delivered" && (
-                              <DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => void handleStatusUpdate(order.id, "invoiced")}>
                                 <FileText className="mr-2 h-4 w-4" />
                                 Generate Invoice
                               </DropdownMenuItem>

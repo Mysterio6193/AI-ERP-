@@ -64,6 +64,7 @@ export default function QuotesPage() {
     const [search, setSearch] = useState("")
     const [statusFilter, setStatusFilter] = useState("all")
     const [dialogOpen, setDialogOpen] = useState(false)
+    const [isSubmitting, setIsSubmitting] = useState(false)
 
     const [formData, setFormData] = useState({
         customerId: "", validUntil: "", customerNotes: "", internalNotes: "",
@@ -150,6 +151,7 @@ export default function QuotesPage() {
         const customer = customers.find(c => c.id === formData.customerId)
         if (!customer || formData.items.length === 0) return
 
+        setIsSubmitting(true)
         try {
             const response = await fetch("/api/quotes", {
                 method: "POST",
@@ -157,13 +159,31 @@ export default function QuotesPage() {
                 body: JSON.stringify(formData),
             })
             const data = await response.json()
-            if (!data.success) return
+            if (!data.success) {
+                toast({
+                    variant: "destructive",
+                    title: "Could not create quote",
+                    description: data.error || "Failed to create quote",
+                })
+                return
+            }
 
             await fetchQuotes()
             setDialogOpen(false)
             setFormData({ customerId: "", validUntil: "", customerNotes: "", internalNotes: "", items: [] })
+            toast({
+                title: "Quote created",
+                description: `${data.data?.quoteNumber || "Quote"} created successfully.`,
+            })
         } catch (error) {
             console.error(error)
+            toast({
+                variant: "destructive",
+                title: "Could not create quote",
+                description: error instanceof Error ? error.message : "An unexpected error occurred",
+            })
+        } finally {
+            setIsSubmitting(false)
         }
     }
 
@@ -358,8 +378,8 @@ export default function QuotesPage() {
                             <DialogFooter>
                                 <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
                                 <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleSubmit}
-                                    disabled={!formData.customerId || formData.items.length === 0}>
-                                    Create Quote
+                                    disabled={!formData.customerId || formData.items.length === 0 || isSubmitting}>
+                                    {isSubmitting ? "Creating..." : "Create Quote"}
                                 </Button>
                             </DialogFooter>
                         </DialogContent>

@@ -39,6 +39,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
+import { useToast } from "@/hooks/use-toast"
 import { formatCurrency, formatDate } from "@/lib/types"
 
 interface ReturnItem {
@@ -68,6 +69,7 @@ interface Return {
 }
 
 export default function ReturnsPage() {
+    const { toast } = useToast()
     const [returns, setReturns] = useState<Return[]>([])
     const [customers, setCustomers] = useState<any[]>([])
     const [orders, setOrders] = useState<any[]>([])
@@ -76,6 +78,7 @@ export default function ReturnsPage() {
     const [search, setSearch] = useState("")
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
     const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
+    const [isSubmitting, setIsSubmitting] = useState(false)
     const [selectedReturn, setSelectedReturn] = useState<Return | null>(null)
 
     // New Return Form State
@@ -153,6 +156,7 @@ export default function ReturnsPage() {
     }
 
     const handleCreateReturn = async () => {
+        setIsSubmitting(true)
         try {
             const resp = await fetch("/api/returns", {
                 method: "POST",
@@ -165,8 +169,27 @@ export default function ReturnsPage() {
                 fetchReturns()
                 setReturnItems([])
                 setFormData({ customerId: "", orderId: "", reason: "", notes: "" })
+                toast({
+                    title: "Return created",
+                    description: `${data.data?.returnNumber || "Return"} submitted successfully.`,
+                })
+            } else {
+                toast({
+                    variant: "destructive",
+                    title: "Could not create return",
+                    description: data.error || "Failed to create return",
+                })
             }
-        } catch (e) { console.error(e) }
+        } catch (e) {
+            console.error(e)
+            toast({
+                variant: "destructive",
+                title: "Could not create return",
+                description: e instanceof Error ? e.message : "An unexpected error occurred",
+            })
+        } finally {
+            setIsSubmitting(false)
+        }
     }
 
     const filteredReturns = returns.filter(r =>
@@ -199,10 +222,19 @@ export default function ReturnsPage() {
                     setSelectedReturn(prev => prev ? { ...prev, status: newStatus as any } : null)
                 }
             } else {
-                alert(data.error || "Failed to update return status")
+                toast({
+                    variant: "destructive",
+                    title: "Could not update return status",
+                    description: data.error || "Failed to update return status",
+                })
             }
         } catch (e) {
             console.error(e)
+            toast({
+                variant: "destructive",
+                title: "Could not update return status",
+                description: e instanceof Error ? e.message : "An unexpected error occurred",
+            })
         }
     }
 
@@ -305,7 +337,7 @@ export default function ReturnsPage() {
                             </div>
                             <DialogFooter>
                                 <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>Cancel</Button>
-                                <Button onClick={handleCreateReturn} disabled={!formData.customerId || !formData.reason || returnItems.length === 0} className="bg-emerald-600 hover:bg-emerald-700">Submit Return Request</Button>
+                                <Button onClick={handleCreateReturn} disabled={!formData.customerId || !formData.reason || returnItems.length === 0 || isSubmitting} className="bg-emerald-600 hover:bg-emerald-700">{isSubmitting ? "Submitting..." : "Submit Return Request"}</Button>
                             </DialogFooter>
                         </DialogContent>
                     </Dialog>

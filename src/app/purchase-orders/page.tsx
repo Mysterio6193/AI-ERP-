@@ -9,6 +9,7 @@ import {
 } from "lucide-react"
 import { AppShell } from "@/components/layout/app-shell"
 import { SendDocumentModal } from "@/components/modals/SendDocumentModal"
+import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -63,6 +64,7 @@ export default function PurchaseOrdersPage() {
      * tax settings screen appeared to work while changing nothing here.
      */
     const [defaultTaxRate, setDefaultTaxRate] = useState(0)
+    const { toast } = useToast()
 
     const [orders, setOrders] = useState<PurchaseOrder[]>([])
     const [suppliers, setSuppliers] = useState<Supplier[]>([])
@@ -74,6 +76,7 @@ export default function PurchaseOrdersPage() {
     const [selectedPO, setSelectedPO] = useState<PurchaseOrder | null>(null)
     const [viewMode, setViewMode] = useState(false)
     const [sendModalOpen, setSendModalOpen] = useState(false)
+    const [isSubmitting, setIsSubmitting] = useState(false)
 
     // Form state
     const [formData, setFormData] = useState({
@@ -168,6 +171,7 @@ export default function PurchaseOrdersPage() {
         const supplier = suppliers.find(s => s.id === formData.supplierId)
         if (!supplier || formData.items.length === 0) return
 
+        setIsSubmitting(true)
         try {
             const response = await fetch("/api/purchase-orders", {
                 method: "POST",
@@ -175,13 +179,31 @@ export default function PurchaseOrdersPage() {
                 body: JSON.stringify(formData),
             })
             const data = await response.json()
-            if (!data.success) return
+            if (!data.success) {
+                toast({
+                    variant: "destructive",
+                    title: "Could not create purchase order",
+                    description: data.error || "Failed to create purchase order",
+                })
+                return
+            }
 
             await fetchPurchaseOrders()
             setDialogOpen(false)
             resetForm()
+            toast({
+                title: "Purchase order created",
+                description: `${data.data?.poNumber || "Purchase order"} created successfully.`,
+            })
         } catch (error) {
             console.error(error)
+            toast({
+                variant: "destructive",
+                title: "Could not create purchase order",
+                description: error instanceof Error ? error.message : "An unexpected error occurred",
+            })
+        } finally {
+            setIsSubmitting(false)
         }
     }
 
@@ -348,8 +370,8 @@ export default function PurchaseOrdersPage() {
                             <DialogFooter>
                                 <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
                                 <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleSubmit}
-                                    disabled={!formData.supplierId || formData.items.length === 0}>
-                                    Create Purchase Order
+                                    disabled={!formData.supplierId || formData.items.length === 0 || isSubmitting}>
+                                    {isSubmitting ? "Creating..." : "Create Purchase Order"}
                                 </Button>
                             </DialogFooter>
                         </DialogContent>
