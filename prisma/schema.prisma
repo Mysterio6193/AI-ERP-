@@ -694,7 +694,12 @@ model ProductUnit {
 model InventoryBatch {
   id          String    @id @default(cuid())
   inventoryId String
-  inventory   Inventory @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+  /// Restrict, not Cascade: an `Inventory` row is the product/warehouse
+  /// pairing, and batches under it are the recall-traceability record. A
+  /// silent cascade here would let deleting an `Inventory` row destroy lot
+  /// history a HACCP recall needs. Postgres now refuses the delete while
+  /// batches remain, forcing an explicit archival/decommission step instead.
+  inventory Inventory @relation(fields: [inventoryId], references: [id], onDelete: Restrict)
 
   productId   String
   warehouseId String
