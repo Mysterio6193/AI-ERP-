@@ -23,7 +23,7 @@ type DbClient = PrismaClient | Prisma.TransactionClient
 
 export type DocumentKind = keyof SettingsOf<"numbering">
 
-type Format = SettingsOf<"numbering">[DocumentKind]
+export type Format = SettingsOf<"numbering">[DocumentKind]
 
 function two(value: number) {
   return String(value).padStart(2, "0")
@@ -134,19 +134,31 @@ export interface NextNumberOptions {
   legacy: () => Promise<string>
 }
 
-export async function nextDocumentNumber(
+export interface AtomicNumberOptions {
+  date?: Date
+  companyId?: string | null
+}
+
+/**
+ * The atomic counter mechanism, callable directly.
+ *
+ * `nextDocumentNumber` only reaches this when a kind's `useCounter` is on —
+ * flipping that also changes what a legacy generator would have produced,
+ * which is why kinds stay off until their counter has been seeded. A legacy
+ * generator that has its own race (read the last number, parse it, add one)
+ * but must keep producing byte-for-byte the same numbers can call this
+ * directly instead: the mechanism becomes atomic without the format or the
+ * `useCounter` setting changing at all.
+ */
+export async function nextAtomicNumber(
+  db: DbClient,
   kind: DocumentKind,
-  { db, companyId, date = new Date(), legacy }: NextNumberOptions
+  format: Format,
+  options?: AtomicNumberOptions
 ): Promise<string> {
-  const numbering = await getSettings("numbering", { companyId })
-  const format = numbering[kind]
-
-  if (!format.useCounter) {
-    return legacy()
-  }
-
+  const date = options?.date ?? new Date()
   const period = periodKey(format.reset, date)
-  const companyKey = companyId ?? ""
+  const companyKey = options?.companyId ?? ""
 
   const existing = await db.documentCounter.findUnique({
     where: { kind_period_companyKey: { kind, period, companyKey } },
@@ -169,4 +181,18 @@ export async function nextDocumentNumber(
   })
 
   return renderDocumentNumber(format, counter.value, date)
+}
+
+export async function nextDocumentNumber(
+  kind: DocumentKind,
+  { db, companyId, date = new Date(), legacy }: NextNumberOptions
+): Promise<string> {
+  const numbering = await getSettings("numbering", { companyId })
+  const format = numbering[kind]
+
+  if (!format.useCounter) {
+    return legacy()
+  }
+
+  return nextAtomicNumber(db, kind, format, { date, companyId })
 }

@@ -1,7 +1,12 @@
 import type { Prisma, PrismaClient } from "@prisma/client"
 
 import { ensureDeliveryForOrder } from "@/lib/delivery-routes"
-import { commitStockForOrder, ensureInvoiceForOrder } from "@/lib/order-fulfillment"
+import {
+  commitStockForOrder,
+  ensureInvoiceForOrder,
+  reverseStockForOrder,
+  withTransaction,
+} from "@/lib/order-fulfillment"
 import { ensurePickListForOrder } from "@/lib/pick-lists"
 import { releaseReservationsForOrder, reserveStockForOrder } from "@/lib/reservations"
 import { getSettings } from "@/lib/settings/service"
@@ -223,10 +228,28 @@ export async function applyOrderStatus(
       orderId,
     })
 
-    await db.pickList.updateMany({ where: { orderId }, data: { status: "cancelled" } })
-    await db.delivery.updateMany({ where: { orderId }, data: { status: "failed" } })
-    await releaseReservationsForOrder(db, orderId)
+    // Together in one transaction: a crash between releasing the reservation
+    // and restoring committed stock would otherwise leave a cancelled order
+    // in a state nothing else can detect or repair — reserved dropped, but
+    // on-hand still short by whatever had already been dispatched.
+    const restored = await withTransaction(db, async (tx) => {
+      await tx.pickList.updateMany({ where: { orderId }, data: { status: "cancelled" } })
+      await tx.delivery.updateMany({ where: { orderId }, data: { status: "failed" } })
+      await releaseReservationsForOrder(tx, orderId)
+
+      // If commitStockForOrder already ran for this order (e.g. it was
+      // dispatched), that decremented Inventory.quantity for real — releasing
+      // the reservation above is a no-op in that case, since the stock was
+      // never held as a reservation by the time it shipped. Give it back.
+      // If stock was only ever reserved, this finds no committed movements
+      // and does nothing, which is correct: releaseReservationsForOrder
+      // already covers that case.
+      const reversal = await reverseStockForOrder(tx, orderId, { userId: options?.userId })
+      return reversal.ok && reversal.reversed
+    })
+
     effects.push("reservations released")
+    if (restored) effects.push("stock restored")
   }
 
   return { ok: true, status: next, previous: order.status, effects }

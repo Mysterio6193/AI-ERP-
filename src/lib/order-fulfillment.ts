@@ -5,10 +5,31 @@ import { computeDueDate } from "@/lib/invoicing"
 import { postInvoiceRaised } from "@/lib/ledger"
 import { fulfilReservationsForOrder } from "@/lib/reservations"
 import { getSettings } from "@/lib/settings/service"
-import { nextDocumentNumber } from "@/lib/numbering"
+import { nextAtomicNumber, nextDocumentNumber, type Format } from "@/lib/numbering"
 import { logCustomerActivity } from "@/lib/customer-timeline"
 
 type DbClient = PrismaClient | Prisma.TransactionClient
+
+/**
+ * Runs `fn` inside a new transaction, unless `db` is already one.
+ *
+ * `Prisma.TransactionClient` does not expose `$transaction` — nesting one
+ * inside an already-open transaction throws rather than composing. Every
+ * caller of `commitStockForOrder` today passes the top-level client, so this
+ * makes the function atomic on its own; if a future caller ever passes a
+ * `tx` it already opened, this reuses it instead of trying (and failing) to
+ * nest.
+ */
+async function withTransaction<T>(
+  db: DbClient,
+  fn: (tx: Prisma.TransactionClient) => Promise<T>
+): Promise<T> {
+  if (typeof (db as PrismaClient).$transaction === "function") {
+    return (db as PrismaClient).$transaction((tx) => fn(tx))
+  }
+
+  return fn(db as Prisma.TransactionClient)
+}
 
 /**
  * Takes stock off the shelf when goods physically leave.
@@ -54,127 +75,235 @@ export async function commitStockForOrder(
     return { ok: false as const, error: "Order not found" }
   }
 
-  const alreadyCommitted = await db.stockMovement.findFirst({
-    where: { reference: order.orderNumber, referenceType: "sales_order" },
-    select: { id: true },
-  })
-
-  if (alreadyCommitted) {
-    return { ok: true as const, skipped: true as const, reason: "Stock already committed" }
-  }
-
   const fallbackWarehouseId =
     order.warehouseId ||
     (await db.warehouse.findFirst({ where: { isDefault: true }, select: { id: true } }))?.id ||
     null
 
-  const committed: Array<{ product: string; quantity: number; batches: string[] }> = []
-  const shortfalls: Array<{ product: string; requested: number; short: number; blocked: string[] }> = []
-
-  for (const item of order.items) {
-    const warehouseId = item.warehouseId || fallbackWarehouseId
-
-    if (!warehouseId || item.quantity <= 0) {
-      continue
-    }
-
-    // FEFO across tracked lots. Products with no batch history return no
-    // allocations, which is expected — the stock decrement below is the source
-    // of truth either way, and the batch ledger simply has nothing to draw on.
-    const allocation = await allocateFefo({
-      productId: item.productId,
-      warehouseId,
-      quantity: item.quantity,
-      client: db,
+  // The idempotency check and every write it guards now run inside one
+  // transaction. Previously the check was a plain `findFirst` before the
+  // loop below, un-atomic with it, so two concurrent calls for the same
+  // order could both pass the guard and both decrement stock. Wrapping the
+  // whole thing also fixes a second problem for free: a crash partway
+  // through the per-item loop can no longer leave some items committed and
+  // others not, so the guard checking "any StockMovement exists for this
+  // order" stays a correct signal for "every item is committed" — a retry
+  // after a crash rolls back to nothing committed and reprocesses all items.
+  return withTransaction(db, async (tx) => {
+    const alreadyCommitted = await tx.stockMovement.findFirst({
+      where: { reference: order.orderNumber, referenceType: "sales_order" },
+      select: { id: true },
     })
 
-    if (allocation.allocations.length) {
-      await consumeBatches(allocation.allocations, db)
+    if (alreadyCommitted) {
+      return { ok: true as const, skipped: true as const, reason: "Stock already committed" }
     }
 
-    if (!allocation.ok && (allocation.unallocated > 0 || allocation.blocked.length)) {
-      // Recorded, not thrown. The goods are already on the truck by the time
-      // this runs; refusing here would leave the order dispatched with stock
-      // untouched, which is the bug being fixed.
-      shortfalls.push({
+    const committed: Array<{ product: string; quantity: number; batches: string[] }> = []
+    const shortfalls: Array<{ product: string; requested: number; short: number; blocked: string[] }> = []
+
+    for (const item of order.items) {
+      const warehouseId = item.warehouseId || fallbackWarehouseId
+
+      if (!warehouseId || item.quantity <= 0) {
+        continue
+      }
+
+      // FEFO across tracked lots. Products with no batch history return no
+      // allocations, which is expected — the stock decrement below is the source
+      // of truth either way, and the batch ledger simply has nothing to draw on.
+      const allocation = await allocateFefo({
+        productId: item.productId,
+        warehouseId,
+        quantity: item.quantity,
+        client: tx,
+      })
+
+      if (allocation.allocations.length) {
+        await consumeBatches(allocation.allocations, tx)
+      }
+
+      if (!allocation.ok && (allocation.unallocated > 0 || allocation.blocked.length)) {
+        // Recorded, not thrown. The goods are already on the truck by the time
+        // this runs; refusing here would leave the order dispatched with stock
+        // untouched, which is the bug being fixed.
+        shortfalls.push({
+          product: item.product.name,
+          requested: item.quantity,
+          short: allocation.unallocated,
+          blocked: allocation.blocked.map((entry) => `${entry.batchCode} (${entry.reason})`),
+        })
+      }
+
+      const inventory = await tx.inventory.findFirst({
+        where: { productId: item.productId, warehouseId },
+        select: { id: true, avgCost: true },
+      })
+
+      if (inventory) {
+        await tx.inventory.update({
+          where: { id: inventory.id },
+          data: { quantity: { decrement: item.quantity } },
+        })
+      }
+
+      await tx.stockMovement.create({
+        data: {
+          productId: item.productId,
+          warehouseId,
+          inventoryId: inventory?.id || null,
+          type: "out",
+          // Negative, so summing the ledger reproduces on-hand.
+          quantity: -item.quantity,
+          reason: "Dispatched to customer",
+          reference: order.orderNumber,
+          referenceType: "sales_order",
+          unitCost: inventory?.avgCost ?? 0,
+          totalCost: Number(((inventory?.avgCost ?? 0) * item.quantity).toFixed(2)),
+          userId: options?.userId || null,
+        },
+      })
+
+      await tx.salesOrderItem.update({
+        where: { id: item.id },
+        data: { shippedQty: item.quantity },
+      })
+
+      committed.push({
         product: item.product.name,
-        requested: item.quantity,
-        short: allocation.unallocated,
-        blocked: allocation.blocked.map((entry) => `${entry.batchCode} (${entry.reason})`),
+        quantity: item.quantity,
+        batches: allocation.allocations.map((line) => line.batchCode),
       })
     }
 
-    const inventory = await db.inventory.findFirst({
-      where: { productId: item.productId, warehouseId },
-      select: { id: true, avgCost: true },
-    })
+    // The stock has physically left, so the hold must lift — `quantity` has just
+    // dropped, and leaving `reserved` in place would subtract the same units
+    // twice from every availability figure.
+    await fulfilReservationsForOrder(tx, orderId)
 
-    if (inventory) {
+    return { ok: true as const, skipped: false as const, committed, shortfalls }
+  })
+}
+
+/**
+ * Gives back what `commitStockForOrder` took, when an order is cancelled
+ * after it already ran.
+ *
+ * Cancelling before dispatch is handled entirely by
+ * `releaseReservationsForOrder` — the goods never left, so there is nothing
+ * to reverse. Cancelling after `commitStockForOrder` ran is different:
+ * `Inventory.quantity` has already dropped and the "sales_order" StockMovement
+ * rows are the record of exactly how much, per item. This walks those rows,
+ * credits `Inventory.quantity` back, and writes a matching "in" movement so
+ * the ledger still sums to on-hand.
+ *
+ * Guarded by its own `referenceType`, so a retried or double-clicked cancel
+ * does not credit the same order twice. Batch-level quantities consumed by
+ * `consumeBatches` during commit are not restored here — only the on-hand
+ * total and its ledger, which is what a cancellation needs to be correct.
+ */
+export async function reverseStockForOrder(
+  db: DbClient,
+  orderId: string,
+  options?: { userId?: string | null }
+) {
+  const order = await db.salesOrder.findUnique({
+    where: { id: orderId },
+    select: { orderNumber: true },
+  })
+
+  if (!order) {
+    return { ok: false as const, error: "Order not found" }
+  }
+
+  const committedMovements = await db.stockMovement.findMany({
+    where: { reference: order.orderNumber, referenceType: "sales_order", type: "out" },
+    select: {
+      productId: true,
+      warehouseId: true,
+      inventoryId: true,
+      quantity: true,
+      unitCost: true,
+    },
+  })
+
+  if (!committedMovements.length) {
+    return { ok: true as const, reversed: false as const }
+  }
+
+  const alreadyReversed = await db.stockMovement.findFirst({
+    where: { reference: order.orderNumber, referenceType: "sales_order_cancel" },
+    select: { id: true },
+  })
+
+  if (alreadyReversed) {
+    return { ok: true as const, reversed: false as const, reason: "Already reversed" }
+  }
+
+  for (const movement of committedMovements) {
+    const restoreQty = Math.abs(movement.quantity)
+
+    if (restoreQty <= 0) {
+      continue
+    }
+
+    if (movement.inventoryId) {
       await db.inventory.update({
-        where: { id: inventory.id },
-        data: { quantity: { decrement: item.quantity } },
+        where: { id: movement.inventoryId },
+        data: { quantity: { increment: restoreQty } },
       })
     }
 
     await db.stockMovement.create({
       data: {
-        productId: item.productId,
-        warehouseId,
-        inventoryId: inventory?.id || null,
-        type: "out",
-        // Negative, so summing the ledger reproduces on-hand.
-        quantity: -item.quantity,
-        reason: "Dispatched to customer",
+        productId: movement.productId,
+        warehouseId: movement.warehouseId,
+        inventoryId: movement.inventoryId,
+        type: "in",
+        quantity: restoreQty,
+        reason: "Order cancelled after dispatch — stock restored",
         reference: order.orderNumber,
-        referenceType: "sales_order",
-        unitCost: inventory?.avgCost ?? 0,
-        totalCost: Number(((inventory?.avgCost ?? 0) * item.quantity).toFixed(2)),
+        referenceType: "sales_order_cancel",
+        unitCost: movement.unitCost ?? 0,
+        totalCost: Number(((movement.unitCost ?? 0) * restoreQty).toFixed(2)),
         userId: options?.userId || null,
       },
     })
-
-    await db.salesOrderItem.update({
-      where: { id: item.id },
-      data: { shippedQty: item.quantity },
-    })
-
-    committed.push({
-      product: item.product.name,
-      quantity: item.quantity,
-      batches: allocation.allocations.map((line) => line.batchCode),
-    })
   }
 
-  // The stock has physically left, so the hold must lift — `quantity` has just
-  // dropped, and leaving `reserved` in place would subtract the same units
-  // twice from every availability figure.
-  await fulfilReservationsForOrder(db, orderId)
-
-  return { ok: true as const, skipped: false as const, committed, shortfalls }
+  return { ok: true as const, reversed: true as const }
 }
 
+export { withTransaction }
+
+// The exact shape `getNextInvoiceNumber` has always rendered — INV-YYYY-#####,
+// starting at 1001, global across companies. Pinned here rather than read
+// from the `numbering` settings so this generator's output cannot drift just
+// because someone edits the invoice format in settings while `useCounter`
+// is still off.
+const LEGACY_INVOICE_FORMAT: Format = {
+  prefix: "INV",
+  dateToken: "YYYY",
+  separator: "-",
+  pad: 5,
+  start: 1001,
+  reset: "yearly",
+  suffix: "",
+  useCounter: false,
+}
+
+/**
+ * Was `findFirst` the last invoice, parse its digits, add one — exactly the
+ * race `numbering.ts` documents for every legacy generator: two concurrent
+ * invoice creations can read the same last number and both add one,
+ * producing a duplicate. `nextDocumentNumber` only takes the atomic
+ * `DocumentCounter` path once `invoice.useCounter` is flipped on, which
+ * hasn't happened yet (see `numbering.ts`), so this calls that same atomic
+ * mechanism directly, with the format pinned to what this generator always
+ * produced — the number is unaffected by whether the setting is on.
+ */
 async function getNextInvoiceNumber(db: DbClient) {
-  const currentYear = new Date().getFullYear()
-  const invoicePrefix = `INV-${currentYear}-`
-  const lastInvoice = await db.invoice.findFirst({
-    where: {
-      invoiceNumber: {
-        startsWith: invoicePrefix,
-      },
-    },
-    orderBy: { createdAt: "desc" },
-    select: { invoiceNumber: true },
-  })
-
-  let invoiceSequence = 1001
-  if (lastInvoice) {
-    const parts = lastInvoice.invoiceNumber.split("-")
-    if (parts.length >= 3) {
-      invoiceSequence = parseInt(parts[2]) + 1
-    }
-  }
-
-  return `${invoicePrefix}${String(invoiceSequence).padStart(5, "0")}`
+  return nextAtomicNumber(db, "invoice", LEGACY_INVOICE_FORMAT)
 }
 
 export async function ensureInvoiceForOrder(db: DbClient, orderId: string) {
