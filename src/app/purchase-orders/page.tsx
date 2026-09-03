@@ -37,6 +37,8 @@ interface Product { id: string; sku: string; name: string; costPrice: number; wh
 interface POItem {
     productId: string; productName: string; sku: string
     quantity: number; receivedQty: number; unitCost: number; taxRate: number; total: number
+    id?: string
+    lineId?: string
 }
 interface PurchaseOrder {
     id: string; poNumber: string
@@ -138,6 +140,7 @@ export default function PurchaseOrdersPage() {
             items: [...prev.items, {
                 productId: "", productName: "", sku: "",
                 quantity: 1, receivedQty: 0, unitCost: 0, taxRate: defaultTaxRate, total: 0,
+                lineId: crypto.randomUUID(),
             }],
         }))
     }
@@ -306,7 +309,7 @@ export default function PurchaseOrdersPage() {
                                             </TableHeader>
                                             <TableBody>
                                                 {formData.items.map((item, idx) => (
-                                                    <TableRow key={idx}>
+                                                    <TableRow key={item.lineId}>
                                                         <TableCell>
                                                             <Select value={item.productId} onValueChange={v => updateItem(idx, "productId", v)}>
                                                                 <SelectTrigger className="w-full"><SelectValue placeholder="Select product" /></SelectTrigger>
@@ -564,7 +567,7 @@ export default function PurchaseOrdersPage() {
                                         </TableHeader>
                                         <TableBody>
                                             {selectedPO.items.map((item, idx) => (
-                                                <TableRow key={idx}>
+                                                <TableRow key={item.id ?? idx}>
                                                     <TableCell>
                                                         <p className="font-medium text-sm">{item.productName}</p>
                                                         <p className="text-xs text-muted-foreground">{item.sku}</p>

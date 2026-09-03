@@ -136,6 +136,7 @@ export default function ReturnsPage() {
 
     const addReturnItem = (product: any) => {
         setReturnItems([...returnItems, {
+            lineId: crypto.randomUUID(),
             productId: product.id,
             sku: product.sku,
             name: product.name,
@@ -313,7 +314,7 @@ export default function ReturnsPage() {
                                             </TableHeader>
                                             <TableBody>
                                                 {returnItems.map((item, idx) => (
-                                                    <TableRow key={idx}>
+                                                    <TableRow key={item.lineId}>
                                                         <TableCell><p className="font-medium">{item.name}</p><p className="text-xs text-muted-foreground">{item.sku}</p></TableCell>
                                                         <TableCell><Input type="number" min="1" value={item.quantity} onChange={e => updateItem(idx, "quantity", parseInt(e.target.value) || 1)} /></TableCell>
                                                         <TableCell>
@@ -424,8 +425,8 @@ export default function ReturnsPage() {
                                         <Table>
                                             <TableHeader><TableRow><TableHead>Item</TableHead><TableHead className="text-center">Qty</TableHead><TableHead>Condition</TableHead><TableHead className="text-right">Refund</TableHead></TableRow></TableHeader>
                                             <TableBody>
-                                                {selectedReturn.items.map((i, idx) => (
-                                                    <TableRow key={idx}>
+                                                {selectedReturn.items.map((i) => (
+                                                    <TableRow key={i.id}>
                                                         <TableCell>{i.product.name}</TableCell>
                                                         <TableCell className="text-center">{i.quantity}</TableCell>
                                                         <TableCell><Badge variant="outline">{i.condition}</Badge></TableCell>

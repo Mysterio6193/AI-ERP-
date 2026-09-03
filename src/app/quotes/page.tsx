@@ -34,6 +34,7 @@ interface Product { id: string; sku: string; name: string; wholesalePrice: numbe
 interface QuoteItem {
     productId: string; productName: string; sku: string
     quantity: number; unitPrice: number; discount: number; taxRate: number; total: number
+    lineId?: string
 }
 interface Quote {
     id: string; quoteNumber: string
@@ -124,6 +125,7 @@ export default function QuotesPage() {
             items: [...prev.items, {
                 productId: "", productName: "", sku: "",
                 quantity: 1, unitPrice: 0, discount: 0, taxRate: defaultTaxRate, total: 0,
+                lineId: crypto.randomUUID(),
             }],
         }))
     }
@@ -319,7 +321,7 @@ export default function QuotesPage() {
                                             </TableHeader>
                                             <TableBody>
                                                 {formData.items.map((item, idx) => (
-                                                    <TableRow key={idx}>
+                                                    <TableRow key={item.lineId}>
                                                         <TableCell>
                                                             <Select value={item.productId} onValueChange={v => updateItem(idx, "productId", v)}>
                                                                 <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>

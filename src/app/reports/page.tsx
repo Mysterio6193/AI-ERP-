@@ -407,7 +407,7 @@ export default function ReportsPage() {
                       </TableRow>
                     ) : (
                       data?.topProducts?.map((item: any, index: number) => (
-                        <TableRow key={index}>
+                        <TableRow key={item.product?.id ?? index} className="hover:bg-muted/40 transition-colors">
                           <TableCell>
                             <div className="flex items-center gap-3">
                               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 font-medium text-sm">
@@ -467,7 +467,7 @@ export default function ReportsPage() {
                       </TableRow>
                     ) : (
                       data?.topCustomers?.map((item: any, index: number) => (
-                        <TableRow key={index}>
+                        <TableRow key={item.customer?.id ?? index} className="hover:bg-muted/40 transition-colors">
                           <TableCell>
                             <div className="flex items-center gap-3">
                               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 text-white font-medium text-sm">
