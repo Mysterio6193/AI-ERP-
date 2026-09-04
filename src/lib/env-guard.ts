@@ -73,12 +73,21 @@ export function checkEnvironment(env: NodeJS.ProcessEnv = process.env): EnvIssue
 
   if (!databaseUrl) {
     issues.push({ level: "fatal", key: "DATABASE_URL", message: "Not set." })
-  } else if (isProduction && /@(localhost|127\.0\.0\.1)[:/]/.test(databaseUrl)) {
+  } else if (
+    isProduction &&
+    /@(localhost|127\.0\.0\.1)[:/]/.test(databaseUrl) &&
+    !/[?&]host=/.test(databaseUrl)
+  ) {
     /**
      * The development database is an embedded Postgres started by a npm script
      * on the developer's own machine. In production that address either points
      * at nothing or, worse, at something unrelated on the same host — and the
      * app boots either way and only fails once someone tries to use it.
+     *
+     * Excluded: Cloud SQL's own Unix-socket connection format is
+     * `...@localhost/db?host=/cloudsql/PROJECT:REGION:INSTANCE` — `localhost`
+     * there is a required placeholder the driver ignores in favor of the
+     * `host` query param, not a real loopback address.
      */
     issues.push({
       level: "fatal",
