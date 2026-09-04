@@ -1,0 +1,77 @@
+# ==============================================================================
+# SupplySure OS — production overlay. Never auto-loaded; pass it explicitly:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# What this file mostly does is refuse to start.
+#
+# The previous production compose file supplied defaults for every secret —
+# including the session-signing keys committed to this repository — and
+# defaulted AUTH_BYPASS to "true". A deployment that forgot to set anything came
+# up looking healthy, with the sign-in gate disabled and admin sessions signed
+# by a string any reader of the repo could reproduce. src/lib/env-guard.ts
+# refuses to boot on exactly that, but only once the process is already running;
+# `${VAR:?}` moves the failure earlier, onto the machine doing the deploying.
+#
+# Compose is not an orchestrator. For multi-host production use Kubernetes, ECS
+# or Swarm; this file is for a single-host deployment and is honest about it.
+# ==============================================================================
+
+services:
+  db:
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD — refusing to deploy with the development password}
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+
+  web:
+    restart: always
+    environment:
+      # Generate with: openssl rand -base64 48
+      ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:?set ADMIN_SESSION_SECRET to 32+ random bytes}
+      DRIVER_SESSION_SECRET: ${DRIVER_SESSION_SECRET:?set DRIVER_SESSION_SECRET to 32+ random bytes}
+      CRON_SECRET: ${CRON_SECRET:?set CRON_SECRET — /api/cron/agents is otherwise callable by anyone}
+      # Development-only switches, forced off regardless of what .env says.
+      # AUTH_BYPASS disables the sign-in gate entirely; CUSTOMER_OTP_EXPOSE
+      # returns OTP codes in the HTTP response.
+      AUTH_BYPASS: "false"
+      CUSTOMER_OTP_EXPOSE: "false"
+      PRISMA_LOG_QUERIES: "false"
+    # A read-only root filesystem turns an arbitrary-write vulnerability into an
+    # error. The paths the app genuinely writes are handed back explicitly:
+    # Next.js caches rendered output under .next/cache, and uploads go to the
+    # named volume declared in the base file.
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/.next/cache
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+        reservations:
+          memory: 512M
+
+  driver-app:
+    restart: always
+    environment:
+      DRIVER_SESSION_SECRET: ${DRIVER_SESSION_SECRET:?set DRIVER_SESSION_SECRET to 32+ random bytes}
+      AUTH_BYPASS: "false"
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/apps/driver-app/.next/cache
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 768M

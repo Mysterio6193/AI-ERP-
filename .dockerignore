@@ -1,29 +1,34 @@
+# Build context exclusions.
+#
+# This only affects `COPY` in the build stages. The dev container gets its source
+# from a bind mount, which .dockerignore does not apply to — so excluding a file
+# here never hides it from the dev server.
+
 # version control
 .git
 .gitignore
+.gitattributes
 
-# docker
-Dockerfile
-.dockerignore
-
-# dependencies
+# dependencies & build output — reinstalled and rebuilt inside the image, and
+# the host's copies target a different libc and Prisma engine
 node_modules
-
-# build output
+apps/driver-app/node_modules
 .next
 apps/driver-app/.next
+.pgdata
 
-# package managers (lockfiles are copied in the image build, not the context)
-package-lock.json
-bun.lock
-yarn.lock
-pnpm-lock.yaml
+# incremental compiler state — stale here, and large
+tsconfig.tsbuildinfo
+*.tsbuildinfo
 
-# secrets and env files
-.env*
+# secrets. .env must never enter an image layer: layers are readable by anyone
+# who can pull the image, and deleting the file in a later layer does not remove
+# it. Configuration reaches the container at runtime via compose env_file.
+.env
+.env.*
 !.env.example
 
-# databases — must never enter an image layer
+# runtime SQLite databases (Postgres lives in a volume)
 *.db
 *.db-journal
 *.db-wal
@@ -31,24 +36,41 @@ pnpm-lock.yaml
 db/
 prisma/db/
 
-# runtime uploads (driver proof-of-delivery etc.)
+# runtime uploads — a volume in every environment
 public/uploads/
 
 # logs
 *.log
+dev.log
+server.log
 
-# docs / scratch / archives
+# docker's own files: editing a compose file should not invalidate the build
+# cache, since none of them are copied into an image
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# docs & scratch
 README.md
-docs.zip
+PRODUCT.md
+GEMINI.md
+docs/
+examples/
 *.zip
 upload/
 download/
 
 # local AI-tooling config
-.claude
 .codex
+.agents
+.impeccable
+.mcp.json
+skills-lock.json
 skills
 
-# tests
+# tests & coverage — the images do not run them; CI does
 test
+tests
 coverage
+vitest.config.mts
+**/*.test.ts
