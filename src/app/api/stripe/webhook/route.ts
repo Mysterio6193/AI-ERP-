@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { invoiceForOrder, recordPaymentAtomic } from "@/lib/payments"
 import { getStripeClient } from "@/lib/stripe"
+import { applySubscriptionIntent } from "@/lib/subscription/apply-stripe"
+import { interpretStripeEvent } from "@/lib/subscription/stripe-events"
 
 /**
  * Stripe webhook.
@@ -58,6 +60,17 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    // Subscription events first. A subscription checkout arrives as the same
+    // `checkout.session.completed` as an invoice payment and is told apart
+    // only by `mode`, so this has to run before the invoice branch or a new
+    // subscription goes looking for an order that was never placed.
+    const intent = interpretStripeEvent(event as never)
+
+    if (intent.kind !== "not_subscription") {
+      const outcome = await applySubscriptionIntent(intent)
+      return NextResponse.json({ received: true, subscription: outcome })
+    }
+
     if (event.type !== "checkout.session.completed") {
       // Acknowledge everything else so Stripe stops resending it.
       return NextResponse.json({ received: true, ignored: event.type })
