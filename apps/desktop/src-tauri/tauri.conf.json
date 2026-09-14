@@ -1,0 +1,34 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "SupplySure OS",
+  "version": "0.1.0",
+  "identifier": "com.supplysure.os",
+  "build": {
+    "beforeBuildCommand": "npm run bundle",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["dmg", "app", "msi", "nsis", "deb", "appimage"],
+    "icon": ["icons/icon.png"],
+    "resources": {
+      "../dist/server": "server",
+      "../dist/runtime": "runtime",
+      "../dist/pgsql": "pgsql"
+    },
+    "macOS": {
+      "minimumSystemVersion": "10.15"
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "perMachine"
+      }
+    }
+  }
+}

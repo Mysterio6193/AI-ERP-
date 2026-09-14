@@ -1,0 +1,15 @@
+[package]
+name = "supplysure-desktop"
+version = "0.1.0"
+edition = "2021"
+description = "SupplySure OS desktop"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+supervisor = { package = "supplysure-supervisor", path = "../supervisor" }
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]

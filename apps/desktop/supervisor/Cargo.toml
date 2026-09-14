@@ -1,0 +1,18 @@
+[package]
+name = "supplysure-supervisor"
+version = "0.1.0"
+edition = "2021"
+description = "Boots and supervises the bundled Postgres and Next.js server for the desktop app"
+
+[lib]
+name = "supervisor"
+path = "src/lib.rs"
+
+[[bin]]
+name = "supplysure-serve"
+path = "src/main.rs"
+
+# Deliberately no dependencies. This crate has to compile on three platforms
+# inside a signing pipeline; every crate added here is another thing that can
+# break a release build for reasons unrelated to the product.
+[dependencies]

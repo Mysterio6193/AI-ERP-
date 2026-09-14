@@ -1,0 +1,15 @@
+{
+  "name": "supplysure-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Windows and macOS build of SupplySure OS, carrying its own server and database",
+  "scripts": {
+    "bundle": "node scripts/bundle.mjs",
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "serve": "cargo run --manifest-path supervisor/Cargo.toml --bin supplysure-serve --"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

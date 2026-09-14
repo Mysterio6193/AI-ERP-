@@ -69,3 +69,7 @@ local-*
 # Skills directory
 /skills/*
 !/skills/hermes/
+
+# Desktop build output
+apps/desktop/dist/
+apps/desktop/**/target/
