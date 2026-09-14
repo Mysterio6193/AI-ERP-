@@ -258,7 +258,7 @@ export default function CommercePage() {
         </div>
 
         <Tabs defaultValue="overview" className="space-y-4">
-          <TabsList className="grid w-full max-w-2xl grid-cols-4">
+          <TabsList className="grid w-full max-w-2xl grid-cols-2 sm:grid-cols-4">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="orders">Customer Orders</TabsTrigger>
             <TabsTrigger value="operations">Operations</TabsTrigger>

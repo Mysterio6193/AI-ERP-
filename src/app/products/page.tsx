@@ -432,7 +432,7 @@ export default function ProductsPage() {
               </DialogHeader>
               <form onSubmit={handleSubmit}>
                 <Tabs defaultValue="basic" className="w-full">
-                  <TabsList className="grid w-full grid-cols-4">
+                  <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
                     <TabsTrigger value="basic">Basic Info</TabsTrigger>
                     <TabsTrigger value="units">Units</TabsTrigger>
                     <TabsTrigger value="variants">Variants</TabsTrigger>
@@ -441,7 +441,7 @@ export default function ProductsPage() {
                   </TabsList>
 
                   <TabsContent value="basic" className="space-y-4 mt-4">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="sku">SKU *</Label>
                         <Input
@@ -528,7 +528,7 @@ export default function ProductsPage() {
                         </p>
                       </div>
                     </div>
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="category">Category</Label>
                         <Select value={formData.categoryId} onValueChange={(value) => setFormData({ ...formData, categoryId: value })}>
@@ -564,7 +564,7 @@ export default function ProductsPage() {
                   </TabsContent>
 
                   <TabsContent value="units" className="space-y-4 mt-4">
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="baseUnit">Base Unit *</Label>
                         <Select value={formData.baseUnit} onValueChange={(value) => setFormData({ ...formData, baseUnit: value as UnitOfMeasure })}>
@@ -710,7 +710,7 @@ export default function ProductsPage() {
                   </TabsContent>
 
                   <TabsContent value="pricing" className="space-y-4 mt-4">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="costPrice">Cost Price (ex. GST) *</Label>
                         <div className="relative">
@@ -744,7 +744,7 @@ export default function ProductsPage() {
                         </div>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="retailPrice">RRP (inc. GST)</Label>
                         <div className="relative">

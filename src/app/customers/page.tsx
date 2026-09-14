@@ -398,7 +398,7 @@ export default function CustomersPage() {
                   </Alert>
                 )}
                 <Tabs defaultValue="business" className="w-full">
-                  <TabsList className="grid w-full grid-cols-4">
+                  <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
                     <TabsTrigger value="business">Business Info</TabsTrigger>
                     <TabsTrigger value="contact">Contact</TabsTrigger>
                     <TabsTrigger value="credit">Credit & Terms</TabsTrigger>
@@ -406,7 +406,7 @@ export default function CustomersPage() {
                   </TabsList>
 
                   <TabsContent value="business" className="space-y-4 mt-4">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="name">Company Name *</Label>
                         <Input
@@ -427,7 +427,7 @@ export default function CustomersPage() {
                         />
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="abn">ABN</Label>
                         <Input
@@ -447,7 +447,7 @@ export default function CustomersPage() {
                         />
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label>Customer Type</Label>
                         <Select value={formData.customerType} onValueChange={(value) => setFormData({ ...formData, customerType: value as CustomerType })}>
@@ -474,7 +474,7 @@ export default function CustomersPage() {
                   </TabsContent>
 
                   <TabsContent value="contact" className="space-y-4 mt-4">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="contactPerson">Primary Contact</Label>
                         <Input
@@ -495,7 +495,7 @@ export default function CustomersPage() {
                         />
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="email">Email</Label>
                         <Input
@@ -519,7 +519,7 @@ export default function CustomersPage() {
                   </TabsContent>
 
                   <TabsContent value="credit" className="space-y-4 mt-4">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label>Credit Limit</Label>
                         <div className="relative">
@@ -549,7 +549,7 @@ export default function CustomersPage() {
                         </Select>
                       </div>
                     </div>
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div className="space-y-2">
                         <Label>Credit Status</Label>
                         <Select value={formData.creditStatus} onValueChange={(value) => setFormData({ ...formData, creditStatus: value as CreditStatus })}>
@@ -679,7 +679,7 @@ export default function CustomersPage() {
                               </label>
                             </div>
                           </div>
-                          <div className="grid grid-cols-2 gap-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div className="col-span-2">
                               <Input
                                 value={loc.address}
@@ -1130,7 +1130,7 @@ export default function CustomersPage() {
                       </div>
                     )}
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <Label className="text-muted-foreground text-xs">Credit Status</Label>
                         <p>
@@ -1156,7 +1156,7 @@ export default function CustomersPage() {
                       </Alert>
                     )}
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label>Business Name</Label>
                         <Input
@@ -1204,7 +1204,7 @@ export default function CustomersPage() {
 
                     <Separator />
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label>Credit Limit</Label>
                         <Input

@@ -225,7 +225,7 @@ export default function ReturnsPage() {
                                 <DialogTitle>Process New Return</DialogTitle>
                             </DialogHeader>
                             <div className="space-y-6">
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div className="space-y-2">
                                         <Label>Customer</Label>
                                         <Select onValueChange={handleCustomerChange}>
@@ -311,7 +311,7 @@ export default function ReturnsPage() {
                     </Dialog>
                 </div>
 
-                <div className="grid grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                     <Card><CardContent className="pt-6 text-center">
                         <p className="text-sm font-medium text-muted-foreground">Active RMAs</p>
                         <p className="text-2xl font-bold">{returns.filter(r => r.status !== "completed").length}</p>

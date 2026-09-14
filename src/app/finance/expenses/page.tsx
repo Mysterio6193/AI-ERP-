@@ -199,7 +199,7 @@ export default function ExpensesPage() {
         </div>
 
         <Tabs defaultValue="activity" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3">
             <TabsTrigger value="activity">
               <Receipt className="mr-2 h-4 w-4" />
               Spend Activity

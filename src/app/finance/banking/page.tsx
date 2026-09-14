@@ -242,7 +242,7 @@ export default function BankingPage() {
         </div>
 
         <Tabs defaultValue="accounts" className="space-y-4">
-          <TabsList className="grid w-full max-w-2xl grid-cols-4">
+          <TabsList className="grid w-full max-w-2xl grid-cols-2 sm:grid-cols-4">
             <TabsTrigger value="accounts">Bank Accounts</TabsTrigger>
             <TabsTrigger value="transactions">Bank Feed</TabsTrigger>
             <TabsTrigger value="documents">Imports & Exports</TabsTrigger>

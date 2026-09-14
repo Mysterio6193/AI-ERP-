@@ -242,14 +242,14 @@ export default function SuppliersPage() {
               </DialogHeader>
               <form onSubmit={handleSubmit}>
                 <Tabs defaultValue="basic" className="w-full">
-                  <TabsList className="grid w-full grid-cols-3">
+                  <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3">
                     <TabsTrigger value="basic">Business Info</TabsTrigger>
                     <TabsTrigger value="contact">Contact</TabsTrigger>
                     <TabsTrigger value="terms">Terms</TabsTrigger>
                   </TabsList>
                   
                   <TabsContent value="basic" className="space-y-4 mt-4">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="name">Company Name *</Label>
                         <Input
@@ -285,7 +285,7 @@ export default function SuppliersPage() {
                   </TabsContent>
                   
                   <TabsContent value="contact" className="space-y-4 mt-4">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="contactPerson">Contact Person</Label>
                         <Input
@@ -305,7 +305,7 @@ export default function SuppliersPage() {
                         />
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="email">Email</Label>
                         <Input
@@ -335,7 +335,7 @@ export default function SuppliersPage() {
                         placeholder="Street address"
                       />
                     </div>
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div className="space-y-2">
                         <Label>City</Label>
                         <Input
@@ -369,7 +369,7 @@ export default function SuppliersPage() {
                   </TabsContent>
                   
                   <TabsContent value="terms" className="space-y-4 mt-4">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label>Payment Terms</Label>
                         <Select value={formData.paymentTerms} onValueChange={(value) => setFormData({ ...formData, paymentTerms: value })}>

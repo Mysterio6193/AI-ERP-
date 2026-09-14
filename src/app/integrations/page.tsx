@@ -304,7 +304,7 @@ export default function IntegrationsPage() {
 
         {/* Main Tabbed Integration Hub */}
         <Tabs defaultValue="all" onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full max-w-2xl grid-cols-4 bg-slate-100 p-1">
+          <TabsList className="grid w-full max-w-2xl grid-cols-2 sm:grid-cols-4 bg-slate-100 p-1">
             <TabsTrigger value="all">All Connectors</TabsTrigger>
             <TabsTrigger value="accounting">Finance & Bank</TabsTrigger>
             <TabsTrigger value="webhooks">Webhooks</TabsTrigger>

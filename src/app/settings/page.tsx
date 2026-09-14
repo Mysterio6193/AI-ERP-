@@ -322,7 +322,7 @@ export default function SettingsPage() {
         </div>
 
         <Tabs defaultValue="company" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
             <TabsTrigger value="company"><Building2 className="mr-2 h-4 w-4" />Company</TabsTrigger>
             <TabsTrigger value="commerce"><Globe className="mr-2 h-4 w-4" />Commerce</TabsTrigger>
             <TabsTrigger value="operations"><Bell className="mr-2 h-4 w-4" />Operations</TabsTrigger>

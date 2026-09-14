@@ -431,7 +431,7 @@ export default function WarehousePickingPage() {
                             <div className="space-y-4 py-2">
                                 <div className="space-y-2">
                                     <Label className="text-xs font-semibold">Logistics Fulfillment Method</Label>
-                                    <div className="grid grid-cols-2 gap-3">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                         <button
                                             type="button"
                                             className={`rounded-xl border p-3.5 text-left transition-all ${logisticsMode === "3pl" ? "border-emerald-600 bg-emerald-50/50 ring-2 ring-emerald-500/20" : "border-slate-200 bg-white hover:bg-slate-50"}`}
@@ -467,7 +467,7 @@ export default function WarehousePickingPage() {
                                             </Select>
                                         </div>
 
-                                        <div className="grid grid-cols-2 gap-3">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                             <div className="space-y-1.5">
                                                 <Label className="text-xs">Consignment / Tracking #</Label>
                                                 <Input
