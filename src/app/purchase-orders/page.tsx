@@ -215,7 +215,7 @@ export default function PurchaseOrdersPage() {
                                 <Plus className="h-4 w-4 mr-2" /> New Purchase Order
                             </Button>
                         </DialogTrigger>
-                        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
                             <DialogHeader>
                                 <DialogTitle>Create Purchase Order</DialogTitle>
                                 <DialogDescription>Order products from your suppliers</DialogDescription>
@@ -476,7 +476,7 @@ export default function PurchaseOrdersPage() {
 
             {/* View & Action Dialog */}
             <Dialog open={viewMode} onOpenChange={setViewMode}>
-                <DialogContent className="max-w-3xl">
+                <DialogContent className="sm:max-w-3xl">
                     {selectedPO && (
                         <>
                             <DialogHeader>

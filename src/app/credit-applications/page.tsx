@@ -280,7 +280,7 @@ export default function CreditApplicationsPage() {
         </Card>
 
         <Dialog open={reviewOpen} onOpenChange={setReviewOpen}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
             {selected && (
               <>
                 <DialogHeader>

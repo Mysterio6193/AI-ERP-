@@ -54,11 +54,13 @@ function DialogContent({
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
 }) {
-  // Callers size the dialog with their own `max-w-*`. A `sm:max-w-lg` baked into
-  // the base classes would beat an unprefixed one at every width above 640px —
-  // tailwind-merge only resolves conflicts within the same variant — so the
-  // default only applies when the caller has not set a width of its own. The
-  // content grid is pinned to `minmax(0,1fr)` for the same reason: an auto
+  // Callers size the dialog with `sm:max-w-*`, which tailwind-merge resolves
+  // against the default below. The default is dropped for any caller width so
+  // that an unprefixed `max-w-*` also works: tailwind-merge only resolves
+  // conflicts within the same variant, so a baked-in `sm:max-w-lg` would
+  // silently beat a bare `max-w-3xl` at every width above 640px.
+  //
+  // The content grid is pinned to `minmax(0,1fr)` for a related reason: an auto
   // column sizes to its widest child, so one wide table would stretch the
   // column past the dialog and push every sibling out with it.
   const hasMaxWidth = /(?:^|[\s:])max-w-/.test(className ?? "")

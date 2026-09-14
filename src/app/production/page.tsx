@@ -800,7 +800,7 @@ export default function ProductionPage() {
 
       {/* ---------------- Plan Run Modal ---------------- */}
       <Dialog open={planModalOpen} onOpenChange={setPlanModalOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Play className="h-5 w-5 text-blue-600" />
@@ -898,7 +898,7 @@ export default function ProductionPage() {
 
       {/* ---------------- Complete & QA Modal ---------------- */}
       <Dialog open={completeModalOpen} onOpenChange={setCompleteModalOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CheckCircle className="h-5 w-5 text-emerald-600" />
@@ -976,7 +976,7 @@ export default function ProductionPage() {
 
       {/* ---------------- Create Recipe (BOM) Modal ---------------- */}
       <Dialog open={createBomOpen} onOpenChange={setCreateBomOpen}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ChefHat className="h-5 w-5 text-emerald-600" />

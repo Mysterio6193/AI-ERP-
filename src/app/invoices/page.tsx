@@ -584,7 +584,7 @@ export default function InvoicesPage() {
 
         {/* View Invoice Dialog */}
         <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
             {selectedInvoice && (
               <>
                 <DialogHeader>

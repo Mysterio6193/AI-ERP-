@@ -332,7 +332,7 @@ export default function WarehousesPage() {
         </Card>
 
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="max-w-3xl">
+          <DialogContent className="sm:max-w-3xl">
             <DialogHeader>
               <DialogTitle>{selectedLocation ? "Edit Location" : "Add Location"}</DialogTitle>
               <DialogDescription>

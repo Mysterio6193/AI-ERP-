@@ -220,7 +220,7 @@ export default function ReturnsPage() {
                                 <RotateCcw className="mr-2 h-4 w-4" /> New Return
                             </Button>
                         </DialogTrigger>
-                        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
                             <DialogHeader>
                                 <DialogTitle>Process New Return</DialogTitle>
                             </DialogHeader>
@@ -368,7 +368,7 @@ export default function ReturnsPage() {
 
                 {/* View & Action Modal */}
                 <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-                    <DialogContent className="max-w-2xl">
+                    <DialogContent className="sm:max-w-2xl">
                         {selectedReturn && (
                             <>
                                 <DialogHeader>

@@ -701,7 +701,7 @@ export default function GrokBotExactPage() {
 
       {/* ── MODAL 1: CREATE NEW BOT / TEAMMATE ── */}
       <Dialog open={isNewBotOpen} onOpenChange={setIsNewBotOpen}>
-        <DialogContent className="bg-[#18181b] border-zinc-800 text-zinc-100 max-w-md rounded-2xl">
+        <DialogContent className="bg-[#18181b] border-zinc-800 text-zinc-100 sm:max-w-md rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-lg font-semibold flex items-center gap-2 text-white">
               <Bot className="w-5 h-5 text-amber-400" />
@@ -754,7 +754,7 @@ export default function GrokBotExactPage() {
 
       {/* ── MODAL 2: VIRTUAL COMPUTER ENVIRONMENT VIEW ── */}
       <Dialog open={isVirtualComputerOpen} onOpenChange={setIsVirtualComputerOpen}>
-        <DialogContent className="bg-[#121214] border-zinc-800 text-zinc-100 max-w-4xl h-[620px] rounded-2xl flex flex-col p-0 overflow-hidden">
+        <DialogContent className="bg-[#121214] border-zinc-800 text-zinc-100 sm:max-w-4xl h-[620px] rounded-2xl flex flex-col p-0 overflow-hidden">
           {/* Virtual Titlebar */}
           <div className="bg-[#18181b] px-4 py-3 border-b border-zinc-800 flex items-center justify-between">
             <div className="flex items-center gap-2">

@@ -415,7 +415,7 @@ export default function WarehousePickingPage() {
 
             {/* Dispatch & 3PL Logistics Assignment Modal */}
             <Dialog open={dispatchModalOpen} onOpenChange={setDispatchModalOpen}>
-                <DialogContent className="max-w-xl">
+                <DialogContent className="sm:max-w-xl">
                     {dispatchPick && (
                         <>
                             <DialogHeader>

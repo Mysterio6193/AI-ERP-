@@ -252,7 +252,7 @@ export default function PricingPage() {
               <Plus className="mr-2 h-4 w-4" />
               {editingId ? "Save Changes" : "Create Price List"}
             </Button>
-            <DialogContent className="max-w-lg">
+            <DialogContent className="sm:max-w-lg">
               <DialogHeader>
                 <DialogTitle>{editingId ? "Edit Price List" : "Create Price List"}</DialogTitle>
                 <DialogDescription>
@@ -574,7 +574,7 @@ export default function PricingPage() {
 
         {/* Price List Detail Dialog */}
         <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
             {selectedPriceList && (
               <>
                 <DialogHeader>

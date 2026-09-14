@@ -383,7 +383,7 @@ export default function CustomersPage() {
               <Plus className="mr-2 h-4 w-4" />
               Add Customer
             </Button>
-            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Add New Customer</DialogTitle>
                 <DialogDescription>
@@ -993,7 +993,7 @@ export default function CustomersPage() {
 
         {/* Customer Detail Dialog */}
         <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
             {selectedCustomer && (
               <>
                 <DialogHeader>

@@ -233,7 +233,7 @@ export default function SuppliersPage() {
               <Plus className="mr-2 h-4 w-4" />
               Add Supplier
             </Button>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{selectedSupplier ? "Edit Supplier" : "Add New Supplier"}</DialogTitle>
                 <DialogDescription>
@@ -616,7 +616,7 @@ export default function SuppliersPage() {
 
         {/* Supplier Detail Dialog */}
         <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="sm:max-w-2xl">
             {selectedSupplier && (
               <>
                 <DialogHeader>

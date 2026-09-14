@@ -403,7 +403,7 @@ export default function ProductsPage() {
                   Import CSV
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl">
+              <DialogContent className="sm:max-w-2xl">
                 <DialogHeader>
                   <DialogTitle>Import products</DialogTitle>
                   <DialogDescription>Paste CSV with headers like `sku,name,description,category,brand,baseUnit,packSize,packUnit,costPrice,wholesalePrice,retailPrice,gstRate,status,barcode`.</DialogDescription>
@@ -423,7 +423,7 @@ export default function ProductsPage() {
                   Add Product
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+              <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{selectedProduct ? "Edit Product" : "Add New Product"}</DialogTitle>
                 <DialogDescription>
@@ -1075,7 +1075,7 @@ export default function ProductsPage() {
 
         {/* Product Detail Dialog */}
         <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
             {selectedProduct && (
               <>
                 <DialogHeader>
