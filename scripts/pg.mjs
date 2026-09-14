@@ -19,7 +19,14 @@ const PGDATA = path.join(ROOT, ".pgdata")
 const PORT = Number(process.env.PGPORT || 5432)
 const USER = "postgres"
 const DB_NAME = "supplysure"
-const NATIVE_BIN = path.join(ROOT, "node_modules", "@embedded-postgres", "darwin-arm64", "native", "bin")
+const PLATFORM_PACKAGE = {
+  "darwin-arm64": "darwin-arm64",
+  "darwin-x64": "darwin-x64",
+  "linux-arm64": "linux-arm64",
+  "linux-x64": "linux-x64",
+  "win32-x64": "windows-x64",
+}[`${process.platform}-${process.arch}`]
+const NATIVE_BIN = path.join(ROOT, "node_modules", "@embedded-postgres", PLATFORM_PACKAGE ?? "darwin-arm64", "native", "bin")
 
 function pgctl(action) {
   return execFileSync(path.join(NATIVE_BIN, "pg_ctl"), ["-D", PGDATA, ...action], {
