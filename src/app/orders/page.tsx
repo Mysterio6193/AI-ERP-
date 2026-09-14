@@ -1182,7 +1182,7 @@ export default function OrdersPage() {
                           <TableBody>
                             {editItems.map((item, index) => (
                               <TableRow key={item.id || `${item.productId}-${index}`}>
-                                <TableCell>
+                                <TableCell className="min-w-40 whitespace-normal">
                                   <div>
                                     <p className="font-medium">{item.product.name}</p>
                                     <p className="text-xs text-muted-foreground">{item.product.sku}</p>
@@ -1194,7 +1194,7 @@ export default function OrdersPage() {
                                     min="1"
                                     value={item.quantity}
                                     onChange={(event) => updateEditItem(index, "quantity", Number(event.target.value))}
-                                    className="h-8"
+                                    className="h-8 min-w-14"
                                   />
                                 </TableCell>
                                 <TableCell>
@@ -1204,7 +1204,7 @@ export default function OrdersPage() {
                                     step="0.01"
                                     value={item.unitPrice}
                                     onChange={(event) => updateEditItem(index, "unitPrice", Number(event.target.value))}
-                                    className="h-8"
+                                    className="h-8 min-w-20"
                                   />
                                 </TableCell>
                                 <TableCell>
@@ -1214,7 +1214,7 @@ export default function OrdersPage() {
                                     max="100"
                                     value={item.discount}
                                     onChange={(event) => updateEditItem(index, "discount", Number(event.target.value))}
-                                    className="h-8"
+                                    className="h-8 min-w-14"
                                   />
                                 </TableCell>
                                 <TableCell className="text-right">{formatCurrency(item.taxAmount)}</TableCell>
