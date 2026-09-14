@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "SupplySure",
+    "slug": "supplysure",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "supplysure",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.supplysure.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Take a photo as proof of delivery.",
+        "NSLocationWhenInUseUsageDescription": "Show your position on the run and record where a delivery was made."
+      }
+    },
+    "android": {
+      "package": "com.supplysure.app",
+      "permissions": ["CAMERA", "ACCESS_FINE_LOCATION"],
+      "adaptiveIcon": { "backgroundColor": "#0f172a" }
+    },
+    "plugins": ["expo-router", "expo-camera", "expo-secure-store"],
+    "extra": {
+      "eas": { "projectId": "" }
+    }
+  }
+}
