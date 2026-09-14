@@ -1053,8 +1053,8 @@ export default function ProductionPage() {
 
               <div className="space-y-2">
                 {bomLines.map((line, idx) => (
-                  <div key={idx} className="flex items-center gap-2 bg-slate-50 p-2.5 rounded-xl border">
-                    <div className="flex-1">
+                  <div key={idx} className="flex flex-wrap items-center gap-2 bg-slate-50 p-2.5 rounded-xl border">
+                    <div className="w-full sm:w-auto sm:flex-1">
                       <Select
                         value={line.componentId}
                         onValueChange={(val) => updateBomLine(idx, "componentId", val)}
@@ -1069,7 +1069,7 @@ export default function ProductionPage() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="w-20">
+                    <div className="w-20 shrink-0">
                       <Input
                         type="number"
                         min="0.01"
@@ -1080,7 +1080,7 @@ export default function ProductionPage() {
                         onChange={(e) => updateBomLine(idx, "quantity", Number(e.target.value) || 0)}
                       />
                     </div>
-                    <div className="w-20">
+                    <div className="w-20 shrink-0">
                       <Input
                         placeholder="Unit"
                         className="bg-white text-xs"
@@ -1088,7 +1088,7 @@ export default function ProductionPage() {
                         onChange={(e) => updateBomLine(idx, "unit", e.target.value)}
                       />
                     </div>
-                    <div className="w-20">
+                    <div className="w-20 shrink-0">
                       <Input
                         type="number"
                         min="0"
