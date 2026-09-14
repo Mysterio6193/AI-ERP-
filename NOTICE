@@ -1,0 +1,30 @@
+SupplySure OS
+Copyright the SupplySure OS contributors
+
+This product includes software adapted from third-party projects.
+
+--------------------------------------------------------------------------------
+
+Rakazo
+https://github.com/elie222/rakazo
+Licensed under the Apache License, Version 2.0
+
+  apps/mobile/src/lib/endpoint.ts is adapted from Rakazo's
+  apps/mobile/lib/endpoint.ts.
+
+  Changes made:
+    - Probes this product's GET /api/health and its `{ status: "ok" }` shape
+      rather than Rakazo's POST /rpc/health.
+    - Returns a structured `reason` ("invalid" | "insecure" | "unreachable" |
+      "not-ours") so a caller can tell a server that cannot be reached from one
+      that answers but is not ours.
+    - Drops the i18n layer, which this product does not have.
+    - Replaces the bounded-read helper with a local implementation that falls
+      back to response.text() where React Native exposes no stream.
+
+  Retained from the original: treating a bare host as https, keeping only the
+  origin, and permitting plain http solely to loopback, .local, the private
+  IPv4 ranges and the carrier-grade NAT range.
+
+  A copy of the Apache License, Version 2.0 is available at
+  https://www.apache.org/licenses/LICENSE-2.0

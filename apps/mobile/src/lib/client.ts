@@ -43,6 +43,15 @@ export class Client {
     this.session = session
   }
 
+  /** Repointed at runtime once the stored server address is known. */
+  setBaseUrl(baseUrl: string) {
+    this.options = { ...this.options, baseUrl }
+  }
+
+  getBaseUrl() {
+    return this.options.baseUrl
+  }
+
   getSession() {
     return this.session
   }

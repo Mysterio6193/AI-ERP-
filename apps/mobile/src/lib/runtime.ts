@@ -1,6 +1,7 @@
 import AsyncStorageLike from "expo-secure-store"
 
 import { Client } from "./client"
+import { defaultApiBase, normalizeApiBase } from "./endpoint"
 import { ActionQueue, type QueuedAction, type QueueStorage } from "./queue"
 
 /**
@@ -13,9 +14,7 @@ import { ActionQueue, type QueuedAction, type QueueStorage } from "./queue"
 
 const QUEUE_KEY = "supplysure.queue.v1"
 const RUN_KEY = "supplysure.run.v1"
-
-export const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000"
+const ENDPOINT_KEY = "supplysure.endpoint.v1"
 
 const storage: QueueStorage = {
   async load() {
@@ -33,8 +32,46 @@ const storage: QueueStorage = {
   },
 }
 
-export const client = new Client({ baseUrl: API_BASE_URL })
+/**
+ * Starts on the fallback and is repointed once the stored address is read.
+ *
+ * The same binary from the App Store serves customers we host and customers
+ * running their own install; the second group cannot rebuild the app to put
+ * their address in it, so the server is chosen on the device rather than at
+ * build time.
+ */
+export const client = new Client({ baseUrl: defaultApiBase() })
 export const queue = new ActionQueue(storage, client.sender)
+
+/** The address in use, after any stored choice is applied. */
+export async function loadApiBase(): Promise<string> {
+  try {
+    const stored = await AsyncStorageLike.getItemAsync(ENDPOINT_KEY)
+    if (stored) {
+      const parsed = normalizeApiBase(stored)
+      if (parsed.ok) {
+        client.setBaseUrl(parsed.url)
+        return parsed.url
+      }
+    }
+  } catch {
+    // An unreadable store falls back rather than blocking sign in.
+  }
+
+  const fallback = defaultApiBase()
+  client.setBaseUrl(fallback)
+  return fallback
+}
+
+/** Saves a server address that has already been probed. */
+export async function saveApiBase(url: string) {
+  const parsed = normalizeApiBase(url)
+  if (!parsed.ok) return parsed
+
+  await AsyncStorageLike.setItemAsync(ENDPOINT_KEY, parsed.url)
+  client.setBaseUrl(parsed.url)
+  return parsed
+}
 
 export async function writeCachedRun(stops: unknown) {
   try {

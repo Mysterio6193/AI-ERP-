@@ -12,6 +12,7 @@ is where the effort went and it is covered by 15 tests that need no simulator:
 |---|---|
 | `src/lib/queue.ts` | Durable action queue: per-stop ordering, idempotency keys, exponential backoff, retryable vs. refused, nothing dropped silently. |
 | `src/lib/client.ts` | Reads go straight out; **writes always go through the queue**. Both the fetch and the session are injected. |
+| `src/lib/endpoint.ts` | Which server to talk to, chosen **on the device**, validated and probed before it is saved. |
 | `src/lib/runtime.ts` | The only module that touches the device. Everything above it is pure. |
 
 ```bash
@@ -52,4 +53,17 @@ npx expo start           # then press i or a
 eas build --platform ios --profile preview
 ```
 
-Set `EXPO_PUBLIC_API_URL` to the server; it defaults to `http://localhost:3000`.
+## Choosing a server
+
+The address is **not** baked in at build time. The same binary from the App
+Store has to serve customers we host and customers running their own install,
+and the second group cannot rebuild the app to put their address in it — so the
+server is entered on the device, validated, probed against `/api/health`, and
+stored. `EXPO_PUBLIC_API_URL` is only the fallback before anyone has chosen.
+
+Plain `http` is allowed only to loopback, `.local`, the private IPv4 ranges and
+the carrier-grade NAT range that Tailscale hands out. A driver signs in from a
+phone on a stranger's network; anything on the public internet needs `https`.
+
+`src/lib/endpoint.ts` is adapted from [Rakazo](https://github.com/elie222/rakazo)
+(Apache-2.0) — see the repository `NOTICE` for what changed.
