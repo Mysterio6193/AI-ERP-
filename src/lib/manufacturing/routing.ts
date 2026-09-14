@@ -271,6 +271,12 @@ export function computeWorkCenterLoad(
  *
  * Copied rather than referenced, so editing the recipe later does not rewrite
  * what a finished run was made to.
+ *
+ * The labour cost is always stored, whatever the costing setting says. Minutes
+ * at a work centre's rate is a fact about the work; whether that fact belongs
+ * in the unit cost is a policy, and completion applies it. Storing 0 here would
+ * conflate the two — a company that turned costing on later would find every
+ * run already in flight permanently valued as though the work were free.
  */
 export function materialiseOperations(
   schedule: RoutingSchedule,
@@ -282,7 +288,7 @@ export function materialiseOperations(
     workCenterId: step.workCenterId,
     plannedSetupMinutes: step.setupMinutes,
     plannedRunMinutes: step.runMinutes,
-    laborCost: settings.includeLaborInUnitCost ? step.laborCost : 0,
+    laborCost: step.laborCost,
     status: "pending" as const,
   }))
 }

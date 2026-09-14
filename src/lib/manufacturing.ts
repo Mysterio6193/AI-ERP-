@@ -1,6 +1,13 @@
 import { allocateFefo, consumeBatches, receiveBatch } from "@/lib/batches"
 import { db } from "@/lib/db"
+import {
+  materialiseOperations,
+  scheduleRouting,
+  type RoutingStep,
+  type WorkCenterCapacity,
+} from "@/lib/manufacturing/routing"
 import { nextDocumentNumber } from "@/lib/numbering"
+import { getSettings } from "@/lib/settings/service"
 
 /**
  * Production.
@@ -242,13 +249,74 @@ export async function createProductionOrder(input: {
     include: { consumptions: true },
   })
 
+  // Copy the recipe's routing onto the run, rather than pointing at it. Editing
+  // a recipe later must not rewrite what a finished run was made to.
+  const operations = await materialiseRunOperations(
+    input.bomId,
+    order.id,
+    exploded.bom.outputQty,
+    input.companyId ?? null
+  )
+
   return {
     ok: true as const,
     order,
+    operations,
     requirements: exploded.requirements,
     shortfalls: exploded.requirements.filter((line) => line.shortfall > 0),
     estimatedCost: exploded.totalCost,
+    /** Time cost of the routing, separate from materials. */
+    estimatedLaborCost: operations.reduce((sum, op) => sum + op.laborCost, 0),
   }
+}
+
+/**
+ * Turns a recipe's routing into this run's operations.
+ *
+ * A recipe with no routing produces none, and the run still works — it is then
+ * a materials-only run, which is what every run was before routings existed.
+ */
+export async function materialiseRunOperations(
+  bomId: string,
+  productionOrderId: string,
+  quantity: number,
+  companyId: string | null
+) {
+  const routing = await db.routingOperation.findMany({
+    where: { bomId },
+    orderBy: { sequence: "asc" },
+  })
+
+  if (!routing.length) {
+    return []
+  }
+
+  // Fresh for the same reason: these numbers are persisted onto the run's
+  // operations and are what the finished run will be costed from.
+  const settings = await getSettings("manufacturing", { companyId, skipCache: true })
+
+  const centers: WorkCenterCapacity[] = await db.workCenter.findMany({
+    where: { status: { not: "retired" } },
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      minutesPerDay: true,
+      parallelCapacity: true,
+      efficiencyPercent: true,
+      costPerHour: true,
+      setupMinutes: true,
+    },
+  })
+
+  const schedule = scheduleRouting(routing as RoutingStep[], quantity, settings, centers)
+  const rows = materialiseOperations(schedule, settings)
+
+  await db.productionOperation.createMany({
+    data: rows.map((row) => ({ ...row, productionOrderId })),
+  })
+
+  return rows
 }
 
 /**
@@ -289,6 +357,29 @@ export async function completeProductionOrder(input: {
 
   const actualById = new Map(
     (input.actuals || []).map((entry) => [entry.componentId, entry])
+  )
+
+  // Read past the cache. getSettings memoises for a few seconds per module
+  // instance; that is right for the hot read path and wrong here, because this
+  // value decides the unit cost and the stock valuation written by this run.
+  // A stale read does not merely delay a preference — it records the wrong
+  // number against inventory, and nothing later goes back to correct it.
+  const settings = await getSettings("manufacturing", {
+    companyId: order.companyId,
+    skipCache: true,
+  })
+  const includeLabor = settings.includeLaborInUnitCost
+
+  // Taken from the run's own operations, not recomputed from the recipe: the
+  // recipe may have been edited since, and this run was made to the old one.
+  const operations = await db.productionOperation.findMany({
+    where: { productionOrderId: order.id },
+    select: { plannedSetupMinutes: true, plannedRunMinutes: true, laborCost: true },
+  })
+
+  const laborCost = round(
+    operations.reduce((sum, operation) => sum + operation.laborCost, 0),
+    2
   )
 
   let materialCost = 0
@@ -367,7 +458,11 @@ export async function completeProductionOrder(input: {
     }
 
     const good = input.producedQty
-    const unitCost = good > 0 ? round(materialCost / good, 4) : 0
+    // Labour is added to the run's cost only when the company has chosen to
+    // cost it. Turning it on changes reported margins on every product, so it
+    // is a deliberate setting rather than a silent default.
+    const costedLabor = includeLabor ? laborCost : 0
+    const unitCost = good > 0 ? round((materialCost + costedLabor) / good, 4) : 0
 
     const outputInventory = await tx.inventory.findFirst({
       where: { productId: order.productId, warehouseId: order.warehouseId as string },
@@ -378,7 +473,10 @@ export async function completeProductionOrder(input: {
       // Weighted average across existing stock and this batch.
       const existingValue = outputInventory.quantity * outputInventory.avgCost
       const newQty = outputInventory.quantity + good
-      const avgCost = newQty > 0 ? round((existingValue + materialCost) / newQty, 4) : unitCost
+      // The same total the unit cost came from, or stock value and unit cost
+      // would disagree the moment labour is costed.
+      const batchValue = materialCost + costedLabor
+      const avgCost = newQty > 0 ? round((existingValue + batchValue) / newQty, 4) : unitCost
 
       await tx.inventory.update({
         where: { id: outputInventory.id },
@@ -407,7 +505,7 @@ export async function completeProductionOrder(input: {
         reference: order.orderNumber,
         referenceType: "production_order",
         unitCost,
-        totalCost: materialCost,
+        totalCost: materialCost + costedLabor,
         userId: input.userId || null,
       },
     })
@@ -476,6 +574,8 @@ export async function completeProductionOrder(input: {
     ok: true as const,
     order: result,
     materialCost: round(materialCost, 2),
+    laborCost,
+    laborCosted: includeLabor,
     unitCost: result.unitCost,
     yieldPercent,
     batch,

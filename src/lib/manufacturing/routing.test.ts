@@ -245,16 +245,31 @@ describe("computeWorkCenterLoad", () => {
 })
 
 describe("materialiseOperations", () => {
-  it("carries labour cost only when settings say to cost it", () => {
+  it("records what the work cost regardless of whether it will be costed", () => {
     const steps: RoutingStep[] = [
       { sequence: 10, name: "Bake", workCenterId: "wc-oven", setupMinutes: 0, runMinutesPerUnit: 1 },
     ]
 
     const schedule = scheduleRouting(steps, 48, settings, [oven])
 
-    expect(materialiseOperations(schedule, settings)[0].laborCost).toBe(0)
+    // Minutes at the centre's rate is a fact; whether it lands in the unit cost
+    // is a policy applied at completion. Storing 0 under the off setting would
+    // leave every run already in flight valued as though the work were free.
+    expect(materialiseOperations(schedule, settings)[0].laborCost).toBe(120)
     expect(
       materialiseOperations(schedule, { ...settings, includeLaborInUnitCost: true })[0].laborCost
     ).toBe(120)
+  })
+
+  it("numbers steps from the configured gap when a routing gives none", () => {
+    const schedule = scheduleRouting(
+      [{ sequence: 0, name: "Mix" }, { sequence: 0, name: "Pack" }],
+      1,
+      settings,
+      []
+    )
+
+    const rows = materialiseOperations(schedule, { ...settings, sequenceStep: 10 })
+    expect(rows.map((row) => row.sequence)).toEqual([10, 20])
   })
 })

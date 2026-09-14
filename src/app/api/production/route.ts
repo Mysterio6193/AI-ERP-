@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { getActiveCompanyId } from "@/lib/active-company"
 import { requireAdminUser } from "@/lib/admin-auth"
 import { db } from "@/lib/db"
+import { computeWorkCenterLoad } from "@/lib/manufacturing/routing"
+import { getSettings } from "@/lib/settings/service"
 import {
   completeProductionOrder,
   createProductionOrder,
@@ -152,6 +154,105 @@ export async function POST(request: NextRequest) {
       const id = String(body.id || "")
       if (!id) {
         return NextResponse.json({ success: false, error: "id is required" }, { status: 400 })
+      }
+
+      const existing = await db.productionOrder.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          orderNumber: true,
+          status: true,
+          companyId: true,
+          _count: { select: { operations: true } },
+        },
+      })
+
+      if (!existing) {
+        return NextResponse.json(
+          { success: false, error: "Production order not found" },
+          { status: 404 }
+        )
+      }
+
+      // Read past the cache. getSettings memoises for a few seconds per module
+      // instance, which is right for the hot read path but wrong here: these
+      // two rules decide whether an action is refused, and an admin who turns
+      // enforcement on expects the very next release to obey it — not the one
+      // after the cache happens to expire. It also cannot be relied on across
+      // instances, where each caches independently.
+      const settings = await getSettings("manufacturing", {
+        companyId: existing.companyId,
+        skipCache: true,
+      })
+
+      // Off by default. Recipes that predate routings would otherwise all
+      // become unreleasable the moment this shipped; a plant that has done the
+      // work of writing its routings can turn it on and have the rule enforced.
+      if (settings.requireRoutingToRelease && existing._count.operations === 0) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `${existing.orderNumber} has no routing. Add one to the recipe, or turn off "Require routing to release" in Manufacturing settings.`,
+          },
+          { status: 409 }
+        )
+      }
+
+      // Releasing work onto a plant that is already full is the thing this
+      // setting is about. Checked at release rather than at planning, because
+      // planning is how you find out you are full.
+      if (!settings.allowOverload) {
+        const mine = await db.productionOperation.findMany({
+          where: { productionOrderId: id, workCenterId: { not: null } },
+          select: { workCenterId: true },
+        })
+
+        const centerIds = [...new Set(mine.map((row) => row.workCenterId as string))]
+
+        if (centerIds.length) {
+          const centers = await db.workCenter.findMany({
+            where: { id: { in: centerIds } },
+            select: {
+              id: true,
+              code: true,
+              name: true,
+              minutesPerDay: true,
+              parallelCapacity: true,
+              efficiencyPercent: true,
+              costPerHour: true,
+              setupMinutes: true,
+            },
+          })
+
+          // Everything outstanding, including this run — releasing it is what
+          // would tip the centre over.
+          const outstanding = await db.productionOperation.findMany({
+            where: { workCenterId: { in: centerIds }, status: { in: ["pending", "in_progress"] } },
+            select: {
+              workCenterId: true,
+              scheduledStart: true,
+              plannedSetupMinutes: true,
+              plannedRunMinutes: true,
+            },
+          })
+
+          const overloaded = computeWorkCenterLoad(centers, outstanding, settings).filter(
+            (entry) => entry.overloaded
+          )
+
+          if (overloaded.length) {
+            const worst = overloaded.sort((a, b) => b.utilisationPercent - a.utilisationPercent)[0]
+
+            return NextResponse.json(
+              {
+                success: false,
+                error: `${worst.code} is at ${worst.utilisationPercent}% over the next ${settings.capacityHorizonDays} days. Release anyway by allowing overload in Manufacturing settings.`,
+                data: { overloaded },
+              },
+              { status: 409 }
+            )
+          }
+        }
       }
 
       const order = await db.productionOrder.update({
