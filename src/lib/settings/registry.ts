@@ -184,6 +184,62 @@ export const manufacturingSchema = z.object({
   roundMinutesTo: z.number().int().min(0).max(4).default(1),
 })
 
+export const subscriptionSchema = z.object({
+  /**
+   * Which world this install lives in.
+   *
+   * "cloud" reconciles against Stripe; "self_hosted" trusts a signed licence
+   * and never calls out. The difference is not cosmetic — a self-hosted
+   * install must keep working with no network, so nothing may block on a
+   * billing round-trip.
+   */
+  deploymentMode: z.enum(["cloud", "self_hosted"]).default("cloud"),
+
+  /**
+   * Days a lapsed subscription keeps working.
+   *
+   * A card that fails on a Friday should not stop a warehouse dispatching on
+   * Saturday. Collections is a different problem from access.
+   */
+  graceDays: z.number().int().min(0).max(90).default(14),
+
+  /** Trial length for a new company when the plan itself sets none. */
+  defaultTrialDays: z.number().int().min(0).max(365).default(14),
+
+  /**
+   * Whether hitting a plan limit actually refuses the action.
+   *
+   * Off by default. Turning enforcement on before anyone has seen what it
+   * would block is how a billing feature takes out a customer's Monday; the
+   * usage figures are visible either way, so run it in the open first.
+   */
+  enforceLimits: z.boolean().default(false),
+
+  /**
+   * Whether an entitlement key the plan has never heard of is refused.
+   *
+   * Off, because a plan sold last year cannot list a key that shipped this
+   * morning, and denying on absence would break every existing customer the
+   * moment a new entitlement is added.
+   */
+  denyUnknownEntitlements: z.boolean().default(false),
+
+  /** Usage at or above this share of a limit is flagged in the UI. */
+  warnAtPercent: z.number().min(1).max(100).default(80),
+
+  /** Let the platform run with no subscription at all — dev and evaluation. */
+  allowUnlicensedAccess: z.boolean().default(true),
+
+  /** Seats counted from active staff logins, or set by hand. */
+  seatCounting: z.enum(["active_users", "manual"]).default("active_users"),
+
+  /** Currency plans are priced and displayed in. */
+  billingCurrency: z.string().length(3).default("AUD"),
+
+  /** Show the plan picker and upgrade prompts to non-admins. */
+  showPlansToStaff: z.boolean().default(false),
+})
+
 export const brandingSchema = z.object({
   primaryColor: z.enum(["slate", "sky", "emerald", "indigo", "violet", "rose", "amber"]).default("sky"),
   invoiceTheme: z.enum(["modern", "classic", "compact", "minimalist"]).default("modern"),
@@ -271,6 +327,12 @@ export const REGISTRY = {
     schema: agentPersonaSchema,
     label: "Agent Persona & Directives",
     description: "AI assistant tone, custom guidelines, and autonomous execution rules.",
+    writeRoles: ["admin"],
+  },
+  subscription: {
+    schema: subscriptionSchema,
+    label: "Subscription & Licensing",
+    description: "Deployment mode, grace period, trial length, plan limit enforcement, and seat counting.",
     writeRoles: ["admin"],
   },
   manufacturing: {

@@ -422,6 +422,13 @@ const navItems: NavItem[] = [
     group: "Setup",
   },
   {
+    label: "Subscription",
+    href: "/settings/subscription",
+    icon: CreditCard,
+    roles: ["admin"],
+    group: "Setup",
+  },
+  {
     label: "Users",
     href: "/users",
     icon: UserCircle,

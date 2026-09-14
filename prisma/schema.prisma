@@ -96,6 +96,7 @@ model Company {
   financeDocuments       FinanceDocument[]
   returns                Return[]
   commerceSettings       CommerceSettings?
+  subscription           Subscription?
 
   supplierInvoices SupplierInvoice[]
 }
@@ -3309,4 +3310,201 @@ model ProductionOperation {
   @@unique([productionOrderId, sequence])
   @@index([workCenterId, status])
   @@index([scheduledStart])
+}
+
+// ============================================
+// Subscription, Plans & Licensing
+// ============================================
+
+/// A sellable plan. Rows, not constants, so plans can be added and repriced
+/// without a deploy — which is the whole point of asking for this to be
+/// configurable rather than hardcoded.
+model Plan {
+  id   String @id @default(cuid())
+  /// Stable identifier used in licence payloads and Stripe metadata. Renaming
+  /// a plan must not invalidate the licences already issued against it.
+  code String @unique
+  name String
+
+  description String?
+
+  /// Minor units (cents), to avoid float drift on money.
+  monthlyPriceCents Int @default(0)
+  yearlyPriceCents  Int @default(0)
+  currency          String @default("AUD")
+
+  /// Days of trial granted on first subscribe. 0 means no trial.
+  trialDays Int @default(0)
+
+  /// Seats included before per-seat pricing applies. Null means unmetered.
+  includedSeats Int?
+  perSeatCents  Int @default(0)
+
+  /// Shown on the public plan picker. A private plan can still be assigned by
+  /// an admin or carried by a licence — that is how bespoke deals work.
+  isPublic  Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  status String @default("active") // active, archived
+
+  /// Stripe price ids, when billing runs through our server. Absent for a
+  /// self-hosted install, which never talks to Stripe.
+  stripeMonthlyPriceId String?
+  stripeYearlyPriceId  String?
+
+  entitlements  PlanEntitlement[]
+  subscriptions Subscription[]
+  licenseKeys   LicenseKey[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, sortOrder])
+}
+
+/// One capability or limit a plan grants.
+///
+/// Separate rows rather than a JSON blob so entitlements are queryable,
+/// editable one at a time in the UI, and diffable when a plan changes.
+model PlanEntitlement {
+  id     String @id @default(cuid())
+  planId String
+  plan   Plan   @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  /// Namespaced key: "module.manufacturing", "limit.users", "limit.warehouses".
+  key String
+
+  /// Whether the capability is on at all.
+  enabled Boolean @default(true)
+
+  /// Ceiling for a countable resource. Null means unlimited — which is why
+  /// this is nullable rather than defaulting to 0, since 0 is a real limit
+  /// meaning "none allowed".
+  limit Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([planId, key])
+  @@index([key])
+}
+
+/// What a given company is entitled to right now.
+///
+/// One per company. `source` records how it was granted, because the two
+/// deployment modes reconcile differently: a cloud subscription is whatever
+/// Stripe last told us, a self-hosted one is whatever the signed licence says
+/// and must keep working with no network at all.
+model Subscription {
+  id        String  @id @default(cuid())
+  companyId String  @unique
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  planId String
+  plan   Plan   @relation(fields: [planId], references: [id])
+
+  /// trialing, active, past_due, cancelled, expired
+  status String @default("trialing")
+
+  /// stripe, license, manual
+  source String @default("manual")
+
+  /// monthly, yearly
+  interval String @default("monthly")
+
+  seats Int @default(1)
+
+  currentPeriodStart DateTime @default(now())
+  currentPeriodEnd   DateTime?
+  trialEndsAt        DateTime?
+
+  /// Set when someone cancels but has already paid to the end of the period.
+  cancelAtPeriodEnd Boolean @default(false)
+  cancelledAt       DateTime?
+
+  stripeCustomerId     String?
+  stripeSubscriptionId String? @unique
+
+  licenseKeyId String?     @unique
+  licenseKey   LicenseKey? @relation(fields: [licenseKeyId], references: [id])
+
+  events SubscriptionEvent[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+}
+
+/// A signed, offline-verifiable entitlement for a self-hosted install.
+///
+/// The install has no route to our billing server, so the key itself must
+/// carry the plan, seat count and expiry, signed so it cannot be edited. Only
+/// a hash of the key is stored: a leaked database should not yield keys that
+/// can be replayed onto another install.
+model LicenseKey {
+  id String @id @default(cuid())
+
+  /// SHA-256 of the key as issued. The key itself is shown once, at issue.
+  keyHash String @unique
+  /// First and last characters, so a person can identify a key in a list
+  /// without the database holding anything usable.
+  keyHint String
+
+  planId String
+  plan   Plan   @relation(fields: [planId], references: [id])
+
+  issuedTo String
+  seats    Int    @default(1)
+
+  issuedAt  DateTime  @default(now())
+  expiresAt DateTime?
+
+  /// Binds the key to one install once activated, so the same key cannot be
+  /// spread across sites.
+  activatedAt          DateTime?
+  activationFingerprint String?
+
+  /// active, revoked, expired
+  status String @default("active")
+  revokedAt DateTime?
+  revokedReason String?
+
+  notes String?
+
+  subscription Subscription?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, expiresAt])
+}
+
+/// Append-only record of everything that changed a subscription.
+///
+/// Billing disputes are argued from this, so rows are never updated — a
+/// correction is another row.
+model SubscriptionEvent {
+  id             String       @id @default(cuid())
+  subscriptionId String
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  /// created, plan_changed, renewed, payment_failed, cancelled, reactivated,
+  /// license_activated, seats_changed, expired
+  type String
+
+  fromPlanCode String?
+  toPlanCode   String?
+  fromStatus   String?
+  toStatus     String?
+
+  /// Free-form context: the Stripe event id, the actor, the licence hint.
+  detail String?
+
+  /// Set when the change arrived from a webhook rather than a person.
+  externalEventId String? @unique
+
+  createdAt DateTime @default(now())
+
+  @@index([subscriptionId, createdAt])
 }
