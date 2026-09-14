@@ -349,6 +349,9 @@ model BillOfMaterial {
 
   lines            BomLine[]
   productionOrders ProductionOrder[]
+  /// The method, as steps. A recipe with no routing still works — it is then
+  /// a materials-only BOM and scheduling falls back to standardTimeMinutes.
+  routing          RoutingOperation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -424,6 +427,7 @@ model ProductionOrder {
   companyId String?
 
   consumptions ProductionConsumption[]
+  operations   ProductionOperation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -532,6 +536,7 @@ model Warehouse {
   pickLists      PickList[]
   reservations   StockReservation[]
   deliveryRoutes DeliveryRoute[]
+  workCenters    WorkCenter[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -3150,4 +3155,158 @@ model ToolHealth {
   updatedAt DateTime @updatedAt
 
   @@index([consecutiveFailures])
+}
+
+// ============================================
+// Manufacturing — Work Centres & Routings
+// ============================================
+
+/// Where work happens: a mixing line, an oven, a packing bench, a cell.
+///
+/// Capacity is held here rather than in settings because it is a property of
+/// the machine, not a company preference. Settings supply the defaults a new
+/// work centre starts from; once it exists, the plant floor owns the numbers.
+model WorkCenter {
+  id   String @id @default(cuid())
+  /// Short code on the shop-floor label: MIX-01, OVEN-2.
+  code String
+  name String
+
+  description String?
+
+  /// Work centres belong to a site. Capacity is only meaningful per site.
+  warehouseId String?
+  warehouse   Warehouse? @relation(fields: [warehouseId], references: [id])
+
+  /// Minutes genuinely available per working day, after planned downtime.
+  /// Null inherits the manufacturing settings default.
+  minutesPerDay Int?
+
+  /// How many of these run in parallel. Two identical ovens is capacity 2,
+  /// not a second work centre, so long as the routing does not care which.
+  parallelCapacity Int @default(1)
+
+  /// Sustained output as a percentage of the routing's standard time. Below
+  /// 100 means this centre is reliably slower than the standard says; the
+  /// schedule stretches to match rather than promising a date it will miss.
+  /// Null inherits the manufacturing settings default.
+  efficiencyPercent Float?
+
+  /// Charge-out rate used to cost the time a run spends here. Material cost
+  /// alone understates a slow, hand-finished product.
+  costPerHour Float @default(0)
+
+  /// Default changeover time when a routing operation does not state its own.
+  /// Null inherits the manufacturing settings default.
+  setupMinutes Int?
+
+  status String @default("active") // active, maintenance, retired
+
+  companyId String?
+
+  routingOperations    RoutingOperation[]
+  productionOperations ProductionOperation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([code, companyId])
+  @@index([warehouseId, status])
+}
+
+/// One step in the method for a recipe: the standard, not a particular run.
+///
+/// Sequence numbers are spaced (10, 20, 30) so a step can be inserted between
+/// two others without renumbering the rest.
+model RoutingOperation {
+  id    String         @id @default(cuid())
+  bomId String
+  bom   BillOfMaterial @relation(fields: [bomId], references: [id], onDelete: Cascade)
+
+  sequence Int
+  name     String
+
+  workCenterId String?
+  workCenter   WorkCenter? @relation(fields: [workCenterId], references: [id])
+
+  /// Changeover before the first unit. Paid once per run, not per unit —
+  /// which is what makes small batches expensive.
+  ///
+  /// Null inherits the work centre's figure, then the settings default. A
+  /// stored 0 means this step genuinely has no changeover — the distinction
+  /// matters, so these are nullable rather than defaulted to zero.
+  setupMinutes Int?
+
+  /// Time per unit of the recipe's yield. The part that scales with batch size.
+  runMinutesPerUnit Float @default(0)
+
+  /// Waiting before and travelling after. Real lead time is mostly this, so
+  /// leaving it out makes every promised date optimistic. Null inherits.
+  queueMinutes Int?
+  moveMinutes  Int?
+
+  /// Loss at this step, compounding down the route: a 5% loss at packing
+  /// means more must enter mixing than the order quantity.
+  scrapPercent Float @default(0)
+
+  /// Work instructions for the operator at this step.
+  instructions String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([bomId, sequence])
+  @@index([workCenterId])
+}
+
+/// A routing step as it applies to one production run.
+///
+/// Copied from the routing when the run is created, so editing a recipe never
+/// rewrites the history of runs already made to the old method.
+model ProductionOperation {
+  id                String          @id @default(cuid())
+  productionOrderId String
+  productionOrder   ProductionOrder @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
+
+  sequence Int
+  name     String
+
+  workCenterId String?
+  workCenter   WorkCenter? @relation(fields: [workCenterId], references: [id])
+
+  /// pending, in_progress, completed, skipped
+  status String @default("pending")
+
+  /// What the routing said this step should take for this quantity.
+  plannedSetupMinutes Int   @default(0)
+  plannedRunMinutes   Float @default(0)
+
+  /// Where the schedule expects this step to sit. Set by scheduling, not by
+  /// the operator.
+  scheduledStart DateTime?
+  scheduledEnd   DateTime?
+
+  /// What it actually took. The gap against planned is the number worth
+  /// reviewing — it is how a standard time gets corrected.
+  actualMinutes Float?
+  startedAt     DateTime?
+  completedAt   DateTime?
+
+  /// Output booked at this step, so a run can be tracked while in progress
+  /// rather than only at the end.
+  goodQty  Float @default(0)
+  scrapQty Float @default(0)
+
+  /// Time cost at the work centre's rate, rolled into the run's unit cost.
+  laborCost Float @default(0)
+
+  operatorId String?
+  notes      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([productionOrderId, sequence])
+  @@index([workCenterId, status])
+  @@index([scheduledStart])
 }

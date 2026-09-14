@@ -136,6 +136,54 @@ export const opsSchema = z.object({
   lowStockReorderQty: z.number().int().min(0).default(50),
 })
 
+export const manufacturingSchema = z.object({
+  /**
+   * Refuse to release a run whose recipe has no routing.
+   *
+   * Off by default: recipes that predate routings would all become
+   * unreleasable overnight. Turn it on once the routings exist.
+   */
+  requireRoutingToRelease: z.boolean().default(false),
+
+  /** Applied to a new work centre, and to any that leaves minutesPerDay null. */
+  defaultMinutesPerDay: z.number().int().min(1).max(1440).default(480),
+  /** Gap between generated operation sequence numbers, so steps can be inserted. */
+  sequenceStep: z.number().int().min(1).max(100).default(10),
+
+  /** Defaults a routing operation starts from when it states nothing itself. */
+  defaultSetupMinutes: z.number().int().min(0).default(0),
+  defaultQueueMinutes: z.number().int().min(0).default(0),
+  defaultMoveMinutes: z.number().int().min(0).default(0),
+  /** Sustained output vs standard time, for a work centre that sets none. */
+  defaultEfficiencyPercent: z.number().min(1).max(200).default(100),
+
+  /**
+   * Cost the time a run spends at a work centre, at that centre's rate.
+   *
+   * Off keeps unit cost as materials only, which is what the system did before
+   * routings existed — turning it on changes reported margins, so it is a
+   * deliberate choice rather than a default.
+   */
+  includeLaborInUnitCost: z.boolean().default(false),
+
+  /**
+   * Scrap at a step means more must enter the step before it. Off treats the
+   * order quantity as the input quantity at every step, which understates
+   * materials for anything with real losses.
+   */
+  compoundScrapThroughRouting: z.boolean().default(true),
+
+  /** Let a run be scheduled onto a work centre already at capacity. */
+  allowOverload: z.boolean().default(true),
+  /** Days ahead the capacity report looks. */
+  capacityHorizonDays: z.number().int().min(1).max(365).default(14),
+  /** Utilisation above this is reported as overloaded. */
+  overloadThresholdPercent: z.number().min(50).max(200).default(100),
+
+  /** Decimal places for computed minutes and costs. */
+  roundMinutesTo: z.number().int().min(0).max(4).default(1),
+})
+
 export const brandingSchema = z.object({
   primaryColor: z.enum(["slate", "sky", "emerald", "indigo", "violet", "rose", "amber"]).default("sky"),
   invoiceTheme: z.enum(["modern", "classic", "compact", "minimalist"]).default("modern"),
@@ -224,6 +272,12 @@ export const REGISTRY = {
     label: "Agent Persona & Directives",
     description: "AI assistant tone, custom guidelines, and autonomous execution rules.",
     writeRoles: ["admin"],
+  },
+  manufacturing: {
+    schema: manufacturingSchema,
+    label: "Manufacturing & Routings",
+    description: "Work centre defaults, routing scrap and lead time, capacity limits, and whether labour is costed into a run.",
+    writeRoles: ["admin", "warehouse"],
   },
   tax: {
     schema: taxSchema,
