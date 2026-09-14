@@ -377,7 +377,11 @@ export default function BusinessSettingsPage() {
         </div>
 
         <Tabs value={active} onValueChange={setActive}>
-          <TabsList>
+          {/* Wraps rather than overflowing. This list is not a fixed set of
+              tabs: it is rendered from whatever namespaces the registry
+              exposes, so it grows every time a settings area is added and a
+              single row will always run out of width eventually. */}
+          <TabsList className="h-auto max-w-full flex-wrap justify-start">
             {namespaces.map((entry) => (
               <TabsTrigger key={entry.namespace} value={entry.namespace}>
                 {entry.label}
