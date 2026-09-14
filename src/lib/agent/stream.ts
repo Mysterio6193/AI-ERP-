@@ -16,6 +16,7 @@ import {
   valueFor,
 } from "./runtime"
 import { TOOL_POLICY } from "./tools"
+import { describeAgentError } from "./error-text"
 
 /**
  * Streaming turns for the in-app chat.
@@ -183,7 +184,12 @@ export async function streamAgentResponse(input: {
     // internal operations tool, and the message is usually the fix itself
     // (a missing model key, a provider outage), so surface it.
     onError: (error) => {
-      const message = error instanceof Error ? error.message : String(error)
+      // An API call error carries the HTTP status text as its message and the
+      // explanation in responseBody, so `error.message` alone reads "Forbidden"
+      // when the provider actually said which host was blocked or which key
+      // expired. describeAgentError folds that in, names the provider, and
+      // redacts anything key-shaped, since this text ends up in tickets.
+      const message = describeAgentError(error)
       void finishRun(run.id, { status: "failed", errorText: message }).catch(() => undefined)
       return message
     },

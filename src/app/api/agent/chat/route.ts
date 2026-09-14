@@ -4,6 +4,7 @@ import { getAdminUserFromRequest } from "@/lib/admin-auth"
 import { resolveStaffPrincipal } from "@/lib/agent/context"
 import { getAgentRuntimeInfo } from "@/lib/agent/model"
 import { streamAgentResponse } from "@/lib/agent/stream"
+import { normaliseUiMessages } from "@/lib/agent/ui-messages"
 import { db } from "@/lib/db"
 import { guardRate, RATE_LIMITS } from "@/lib/rate-guard"
 
@@ -70,10 +71,15 @@ export async function POST(request: NextRequest) {
   if (limited) return limited
 
   const body = await request.json()
-  const messages = Array.isArray(body.messages) ? body.messages : []
 
-  if (!messages.length) {
-    return NextResponse.json({ success: false, error: "messages are required" }, { status: 400 })
+  // Settle the shape here rather than letting convertToModelMessages reach
+  // into `parts` and throw. A malformed request is the caller's to fix, so it
+  // gets a 400 naming which message was wrong — not a 500 that reads as though
+  // the server broke.
+  const parsed = normaliseUiMessages(body.messages)
+
+  if (!parsed.ok) {
+    return NextResponse.json({ success: false, error: parsed.error }, { status: 400 })
   }
 
   try {
@@ -81,7 +87,7 @@ export async function POST(request: NextRequest) {
       principal,
       channel: "web",
       threadKey: body.threadKey ? String(body.threadKey) : `web:${user.id}`,
-      uiMessages: messages,
+      uiMessages: parsed.messages,
       decidedByUserId: user.id,
       agentSlug: body.agentSlug ? String(body.agentSlug) : undefined,
       modelOverride: body.model ? String(body.model) : undefined,
