@@ -9,6 +9,7 @@ import {
   releaseBatch,
 } from "@/lib/batches"
 import { traceBatch } from "@/lib/manufacturing"
+import { planRecall, whatWentIntoIt } from "@/lib/traceability/service"
 import { db } from "@/lib/db"
 
 import type { AgentPrincipal } from "../context"
@@ -172,6 +173,24 @@ export function buildFoodSafetyTools(principal: AgentPrincipal) {
         batchCode: z.string().describe("The lot code / batch code to trace"),
       }),
       execute: async ({ batchCode }) => traceBatch(batchCode),
+    }),
+
+    planRecall: defineTool({
+      description:
+        "Work out the full scope of a recall for a lot: every downstream lot made from it to any depth, and every customer a dispatch record links to one of them, with quantities and contact details. Use this rather than traceBatch when the question is who has to be called. Customers are named from dispatch records, never inferred from dates, so the list is exact.",
+      inputSchema: z.object({
+        batchCode: z.string().describe("The lot code being recalled"),
+      }),
+      execute: async ({ batchCode }) => planRecall(batchCode),
+    }),
+
+    lotGenealogy: defineTool({
+      description:
+        "Trace a lot's full ancestry - every ingredient lot that went into it, and every ingredient of those, to any depth. Use when a finished product is faulty and the cause is an ingredient several steps back.",
+      inputSchema: z.object({
+        batchCode: z.string().describe("The lot code to trace back from"),
+      }),
+      execute: async ({ batchCode }) => whatWentIntoIt(batchCode),
     }),
   }
 }

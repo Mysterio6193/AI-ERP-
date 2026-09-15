@@ -37,6 +37,7 @@ export async function commitStockForOrder(
       id: true,
       orderNumber: true,
       warehouseId: true,
+      customerId: true,
       items: {
         select: {
           id: true,
@@ -90,6 +91,22 @@ export async function commitStockForOrder(
 
     if (allocation.allocations.length) {
       await consumeBatches(allocation.allocations, db)
+
+      // Which lot went to which customer, recorded here because this is the
+      // only moment both facts are known. Reconstructing it later from dates
+      // names every customer who bought the product that week — too many to
+      // be useful and, for a product two steps downstream, too few to be safe.
+      await db.lotShipment.createMany({
+        data: allocation.allocations.map((line) => ({
+          batchCode: line.batchCode,
+          batchId: line.batchId,
+          productId: item.productId,
+          quantity: line.quantity,
+          orderId: order.id,
+          orderItemId: item.id,
+          customerId: order.customerId,
+        })),
+      })
     }
 
     if (!allocation.ok && (allocation.unallocated > 0 || allocation.blocked.length)) {

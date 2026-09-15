@@ -4,7 +4,9 @@ const postInvoiceRaised = vi.fn(async () => ({ ok: true }))
 const fulfilReservationsForOrder = vi.fn(async () => ({ ok: true }))
 type Allocation = {
   ok: boolean
-  allocations: Array<{ batchCode: string }>
+  // Mirrors BatchAllocation. The lot id and quantity matter now that dispatch
+  // records which lot went to which customer.
+  allocations: Array<{ batchId: string; batchCode: string; quantity: number; expiryDate: Date | null }>
   unallocated: number
   blocked: Array<{ batchCode: string; reason: string }>
 }
@@ -60,6 +62,7 @@ function makeClient(options: {
     invoices: [] as Array<Record<string, unknown>>,
     customerUpdates: [] as Array<Record<string, unknown>>,
     creditTransactions: [] as Array<Record<string, unknown>>,
+    lotShipments: [] as Array<Record<string, unknown>>,
   }
 
   const client = {
@@ -105,6 +108,12 @@ function makeClient(options: {
         return data
       },
     },
+    lotShipment: {
+      createMany: async ({ data }: { data: Array<Record<string, unknown>> }) => {
+        writes.lotShipments.push(...data)
+        return { count: data.length }
+      },
+    },
   }
 
   return { client: client as never, writes }
@@ -115,6 +124,7 @@ function order(overrides: Record<string, unknown> = {}) {
     id: "so-1",
     orderNumber: "SO-2026-0001",
     warehouseId: "wh-1",
+    customerId: "cust-1",
     items: [
       {
         id: "line-1",
@@ -185,6 +195,55 @@ describe("commitStockForOrder", () => {
     await commitStockForOrder(client, "so-1")
 
     expect(writes.itemUpdates[0]).toMatchObject({ shippedQty: 5 })
+  })
+
+  it("records which lot went to which customer", async () => {
+    // The write that turns a recall from an investigation into a query. This
+    // is the only moment both facts are known: reconstructing it later from
+    // order dates names everyone who bought the product that week.
+    allocateFefo.mockResolvedValue({
+      ok: true,
+      allocations: [
+        { batchId: "b-1", batchCode: "L-2026-001", quantity: 3, expiryDate: null },
+        { batchId: "b-2", batchCode: "L-2026-002", quantity: 2, expiryDate: null },
+      ],
+      unallocated: 0,
+      blocked: [],
+    })
+
+    const { client, writes } = makeClient({ order: order() })
+    await commitStockForOrder(client, "so-1")
+
+    expect(writes.lotShipments).toEqual([
+      {
+        batchCode: "L-2026-001",
+        batchId: "b-1",
+        productId: "prod-1",
+        quantity: 3,
+        orderId: "so-1",
+        orderItemId: "line-1",
+        customerId: "cust-1",
+      },
+      {
+        batchCode: "L-2026-002",
+        batchId: "b-2",
+        productId: "prod-1",
+        quantity: 2,
+        orderId: "so-1",
+        orderItemId: "line-1",
+        customerId: "cust-1",
+      },
+    ])
+  })
+
+  it("records nothing for a product with no tracked lots", async () => {
+    // An untracked product has no genealogy to record, and a row with an
+    // empty lot code would be a false positive in every recall search.
+    const { client, writes } = makeClient({ order: order() })
+    await commitStockForOrder(client, "so-1")
+
+    expect(writes.lotShipments).toEqual([])
+    expect(writes.movements).toHaveLength(1)
   })
 
   it("reports a shortfall instead of throwing, because the goods have already gone", async () => {

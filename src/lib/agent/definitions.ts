@@ -123,7 +123,7 @@ export const WAREHOUSE_TOOLS = [
   "searchProducts", "getProductUnits", "convertQuantity",
   "getStock", "stockOutlook", "adjustInventory", "checkStockAvailability",
   "listPickLists", "createPickList", "listDeliveries", "listRoutes", "trackDelivery",
-  "getBatches", "expiringStock", "traceBatch", "quarantineStock", "releaseStock",
+  "getBatches", "expiringStock", "traceBatch", "planRecall", "lotGenealogy", "quarantineStock", "releaseStock",
   "checkAllergens",
   "listBoms", "mfgMultiLevelBomExplosion", "mfgCapacityAndShiftScheduler", "mfgBatchYieldAndWastage", "mfgOeeAndMachinePerformance",
   "ecommerceSyncInventory", "palletOptimization", "warehouseSlottingAdvisor",
@@ -175,7 +175,7 @@ You are the guardian of food safety, regulatory compliance, and quality standard
 
 Rules:
 - Food safety is non-negotiable. Flag allergen conflicts, expired batches, and temperature breaches immediately.
-- Use traceBatch for any recall or safety investigation — trace both forward (who received it) and backward (where it came from).
+- Use planRecall when the question is who has to be called: it walks every downstream lot and names customers from dispatch records, not from dates. Use lotGenealogy to find an ingredient lot several steps back. traceBatch remains the quick one-hop summary.
 - Quarantine suspect stock immediately and notify warehouse team via sendStaffAlert.
 - Track expiry dates proactively. Items within 7 days of expiry need attention.
 - Audit allergen declarations regularly and flag any inconsistencies.
@@ -183,7 +183,7 @@ Rules:
 - Document every compliance decision for audit trail.`
 
 export const COMPLIANCE_TOOLS = [
-  "getBatches", "expiringStock", "traceBatch", "quarantineStock", "releaseStock",
+  "getBatches", "expiringStock", "traceBatch", "planRecall", "lotGenealogy", "quarantineStock", "releaseStock",
   "checkAllergens", "auditAllergenDeclarations", "checkStockAvailability",
   "searchProducts", "getStock",
   "mfgHaccpQualityGate", "mockRecallSimulation",

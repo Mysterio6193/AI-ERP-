@@ -407,6 +407,9 @@ export async function completeProductionOrder(input: {
         },
       })
 
+      // A re-run must not stack a second set of lot rows on the first.
+      await tx.productionConsumptionLot.deleteMany({ where: { consumptionId: consumption.id } })
+
       const inventory = await tx.inventory.findFirst({
         where: { productId: consumption.componentId, warehouseId: order.warehouseId as string },
         select: { id: true, quantity: true },
@@ -438,6 +441,29 @@ export async function completeProductionOrder(input: {
 
       if (componentAllocation.allocations.length) {
         await consumeBatches(componentAllocation.allocations, tx)
+
+        // The allocation is the only place that knows which lots actually
+        // moved. It used to be used to decrement stock and then discarded,
+        // leaving every consumption's lot null unless a human typed one in —
+        // so backward traceability found nothing however carefully the rest
+        // of the chain was recorded.
+        await tx.productionConsumptionLot.createMany({
+          data: componentAllocation.allocations.map((line) => ({
+            consumptionId: consumption.id,
+            batchId: line.batchId,
+            batchCode: line.batchCode,
+            quantity: line.quantity,
+          })),
+        })
+
+        // Keep the single-value field meaningful for everything that reads it,
+        // without letting it pretend to be the whole story when it is not.
+        if (!(override?.batchCode ?? consumption.batchCode)) {
+          await tx.productionConsumption.update({
+            where: { id: consumption.id },
+            data: { batchCode: componentAllocation.allocations[0].batchCode },
+          })
+        }
       }
 
       await tx.stockMovement.create({
@@ -616,13 +642,36 @@ export async function traceBatch(batchCode: string) {
     ...new Set(asInput.map((row) => row.productionOrder.productId)),
   ]
 
-  // Who received product made from this lot. Bounded to orders placed after the
-  // earliest affected run, so an old customer is not implicated by coincidence.
+  // Who received this lot, from the dispatch record that names it.
+  //
+  // This is the exact answer and the one to prefer: a customer appears because
+  // a shipment says this lot reached them.
+  const recorded = await db.lotShipment.findMany({
+    where: { batchCode },
+    select: {
+      quantity: true,
+      shippedAt: true,
+      product: { select: { name: true, sku: true } },
+      customer: { select: { id: true, name: true, phone: true, email: true } },
+      order: { select: { orderNumber: true, orderDate: true, status: true } },
+    },
+    orderBy: { shippedAt: "desc" },
+    take: 500,
+  })
+
+  // Orders dispatched before lot shipments were recorded have none, and
+  // returning an empty list for those would read as "nobody got it" — the one
+  // wrong answer a recall must not give. So fall back to the old inference,
+  // and say that is what this is.
+  const inferred = recorded.length === 0 && affectedProductIds.length > 0
+
+  // Bounded to orders placed after the earliest affected run, so an old
+  // customer is not implicated by coincidence.
   const earliestRun = asInput
     .map((row) => row.productionOrder.completedAt || row.productionOrder.createdAt)
     .sort((a, b) => a.getTime() - b.getTime())[0]
 
-  const shipped = affectedProductIds.length
+  const shipped = inferred
     ? await db.salesOrderItem.findMany({
         where: {
           productId: { in: affectedProductIds },
@@ -668,16 +717,39 @@ export async function traceBatch(batchCode: string) {
       qty: row.actualQty,
       completedAt: row.productionOrder.completedAt,
     })),
-    shippedTo: shipped.map((line) => ({
-      customer: line.order.customer.name,
-      customerId: line.order.customer.id,
-      phone: line.order.customer.phone,
-      email: line.order.customer.email,
-      orderNumber: line.order.orderNumber,
-      orderDate: line.order.orderDate,
-      product: line.product.name,
-      quantity: line.quantity,
-    })),
-    customersAffected: [...new Set(shipped.map((line) => line.order.customer.name))],
+    shippedTo: recorded.length
+      ? recorded.map((row) => ({
+          customer: row.customer.name,
+          customerId: row.customer.id,
+          phone: row.customer.phone,
+          email: row.customer.email,
+          orderNumber: row.order.orderNumber,
+          orderDate: row.shippedAt,
+          product: row.product.name,
+          quantity: row.quantity,
+        }))
+      : shipped.map((line) => ({
+          customer: line.order.customer.name,
+          customerId: line.order.customer.id,
+          phone: line.order.customer.phone,
+          email: line.order.customer.email,
+          orderNumber: line.order.orderNumber,
+          orderDate: line.order.orderDate,
+          product: line.product.name,
+          quantity: line.quantity,
+        })),
+    customersAffected: recorded.length
+      ? [...new Set(recorded.map((row) => row.customer.name))]
+      : [...new Set(shipped.map((line) => line.order.customer.name))],
+    /**
+     * How `shippedTo` was arrived at.
+     *
+     * "recorded" means a dispatch record names this lot. "inferred" means
+     * there is none, and the list is everyone who bought an affected product
+     * after the earliest affected run — which will include customers who got
+     * a different lot. Anyone acting on an inferred list needs to know that,
+     * so it is stated rather than left to be assumed.
+     */
+    shippedToSource: recorded.length ? ("recorded" as const) : ("inferred" as const),
   }
 }

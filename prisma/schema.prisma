@@ -252,9 +252,10 @@ model Product {
   productionOrders ProductionOrder[]       @relation("ProductionOutput")
   consumptions     ProductionConsumption[] @relation("ConsumedComponent")
 
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  binStocks BinStock[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  binStocks    BinStock[]
+  lotShipments LotShipment[]
 }
 
 // ============================================
@@ -452,7 +453,12 @@ model ProductionConsumption {
   actualQty  Float @default(0)
 
   /// Supplier lot of this input. The backward half of traceability.
+  ///
+  /// Holds the first lot drawn when several were, so existing readers keep
+  /// working; `lots` is the complete record and the one a recall walks.
   batchCode String?
+
+  lots ProductionConsumptionLot[]
 
   unitCost  Float @default(0)
   totalCost Float @default(0)
@@ -770,13 +776,87 @@ model InventoryBatch {
 
   location String?
 
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  binStocks BinStock[]
+  createdAt                 DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
+  binStocks                 BinStock[]
+  lotShipments              LotShipment[]
+  productionConsumptionLots ProductionConsumptionLot[]
 
   @@index([productId, warehouseId, status])
   @@index([batchCode])
   @@index([expiryDate, status])
+}
+
+/// Which lot actually went to which customer.
+///
+/// Without this, "who received this batch" is answered by inference: every
+/// customer who bought the product after the earliest affected run. That is
+/// both too wide (someone who got the previous lot) and too narrow (someone
+/// who got a product two steps downstream, where this lot was an ingredient
+/// of an ingredient).
+///
+/// A recall is the one query where approximately right is worthless, so the
+/// link is recorded at dispatch rather than reconstructed from dates later.
+model LotShipment {
+  id String @id @default(cuid())
+
+  /// Denormalised from the batch and never null: the code is the thing people
+  /// read off a carton and search for, and it has to survive the batch row
+  /// being consumed and cleaned up.
+  batchCode String
+  batchId   String?
+  batch     InventoryBatch? @relation(fields: [batchId], references: [id])
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  quantity Int
+
+  orderId     String
+  order       SalesOrder      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderItemId String?
+  orderItem   SalesOrderItem? @relation(fields: [orderItemId], references: [id], onDelete: SetNull)
+
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  shippedAt DateTime @default(now())
+
+  createdAt DateTime @default(now())
+
+  @@index([batchCode])
+  @@index([productId])
+  @@index([customerId])
+  @@index([orderId])
+}
+
+/// Which lots a single consumption actually drew from.
+///
+/// A line that consumes 12 units can take 5 from one lot and 7 from another,
+/// and `ProductionConsumption.batchCode` is one string. Recording only the
+/// first means a recall walks one of the two lots and declares the other
+/// clear — the exact failure this table exists to prevent.
+///
+/// Written from the FEFO allocation at completion, so it records what stock
+/// actually moved rather than what someone typed.
+model ProductionConsumptionLot {
+  id            String                @id @default(cuid())
+  consumptionId String
+  consumption   ProductionConsumption @relation(fields: [consumptionId], references: [id], onDelete: Cascade)
+
+  batchId   String?
+  batch     InventoryBatch? @relation(fields: [batchId], references: [id])
+  /// Denormalised and never null: the code outlives the batch row, which is
+  /// deleted once consumed, and the code is what people search for.
+  batchCode String
+
+  quantity Float
+
+  createdAt DateTime @default(now())
+
+  @@index([consumptionId])
+  @@index([batchCode])
+  @@index([batchId])
 }
 
 model StockMovement {
@@ -917,6 +997,7 @@ model Customer {
   opportunities Opportunity[]
   activities    Activity[]
   cases         Case[]
+  lotShipments  LotShipment[]
 }
 
 model CustomerLocation {
@@ -1266,8 +1347,9 @@ model SalesOrder {
   statusLogs      SalesOrderStatusLog[]
   returns         Return[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  lotShipments LotShipment[]
 
   /// Unique within the entity that issued it, not across the whole database.
   ///
@@ -1388,8 +1470,9 @@ model SalesOrderItem {
 
   notes String?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  lotShipments LotShipment[]
 
   @@index([orderId])
   @@index([productId])

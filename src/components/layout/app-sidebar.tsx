@@ -48,6 +48,7 @@ import {
   ScanLine,
   Zap,
   Bot,
+  ShieldAlert,
 } from "lucide-react"
 
 import {
@@ -231,6 +232,13 @@ const navItems: NavItem[] = [
     label: "Work Centres",
     href: "/production/work-centers",
     icon: Gauge,
+    roles: ["admin", "warehouse"],
+    group: "Production",
+  },
+  {
+    label: "Traceability",
+    href: "/traceability",
+    icon: ShieldAlert,
     roles: ["admin", "warehouse"],
     group: "Production",
   },

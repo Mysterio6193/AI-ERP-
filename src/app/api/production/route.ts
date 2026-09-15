@@ -338,7 +338,11 @@ export async function POST(request: NextRequest) {
               unit: String(line.unit || "each"),
               wastePercent: Number(line.wastePercent) || 0,
               sortOrder: line.sortOrder !== undefined ? Number(line.sortOrder) : index,
-              instructions: line.instructions ? String(line.instructions) : null,
+              // BomLine calls this `notes`; writing `instructions` made every
+              // create_recipe call fail, since the field is sent on every line.
+              notes: (line.notes ?? line.instructions)
+                ? String(line.notes ?? line.instructions)
+                : null,
             })),
           },
         },

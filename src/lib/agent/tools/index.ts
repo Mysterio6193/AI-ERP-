@@ -224,6 +224,8 @@ export const TOOL_POLICY: Record<string, ToolPolicyMeta> = {
   quarantineStock: { risk: "high", roles: ["admin", "warehouse"], alwaysApprove: true },
   releaseStock: { risk: "high", roles: ["admin", "warehouse"], alwaysApprove: true },
   traceBatch: { risk: "read" },
+  planRecall: { risk: "read" },
+  lotGenealogy: { risk: "read" },
 
   // History. Read-only over conversations the principal may already see.
   searchHistory: { risk: "read" },
