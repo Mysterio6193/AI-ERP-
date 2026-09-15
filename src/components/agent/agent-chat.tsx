@@ -63,6 +63,31 @@ interface SpeechRecognitionLike {
   stop: () => void
 }
 
+/**
+ * A browser capability, measured after mount.
+ *
+ * Probing during render — in a useState initialiser or inline from
+ * `typeof window` — looks harmless and is not. The same render runs on the
+ * server, where the answer is always false, and hydration compares the server
+ * HTML against the client's *first* render, which says true. React then throws
+ * the tree away and logs a mismatch on every load.
+ *
+ * Returning false until an effect has run costs one extra frame and makes the
+ * two renders agree.
+ */
+function useBrowserCapability(probe: () => boolean) {
+  const [supported, setSupported] = useState(false)
+
+  useEffect(() => {
+    setSupported(probe())
+    // The probe is a stable capability check; re-running it on every render of
+    // a new closure would restart the effect for no gain.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  return supported
+}
+
 function getSpeechRecognition(): (new () => SpeechRecognitionLike) | null {
   if (typeof window === "undefined") {
     return null
@@ -121,8 +146,8 @@ export function AgentChat({ threadKey, suggestions, pageContext, compact }: Agen
   const [scanningOcr, setScanningOcr] = useState(false)
   const [listening, setListening] = useState(false)
   const [recordingAudio, setRecordingAudio] = useState(false)
-  const [voiceSupported, setVoiceSupported] = useState(() =>
-    typeof window !== "undefined" ? Boolean(getSpeechRecognition() || navigator?.mediaDevices?.getUserMedia) : false
+  const voiceSupported = useBrowserCapability(() =>
+    Boolean(getSpeechRecognition() || navigator?.mediaDevices?.getUserMedia)
   )
   const endRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -135,8 +160,9 @@ export function AgentChat({ threadKey, suggestions, pageContext, compact }: Agen
   // actual barrier. Browser speech synthesis, so it needs no credential and no
   // audio leaves the machine.
   const [speaking, setSpeaking] = useState(false)
-  const speechSupported =
-    typeof window !== "undefined" && typeof window.speechSynthesis !== "undefined"
+  const speechSupported = useBrowserCapability(
+    () => typeof window.speechSynthesis !== "undefined"
+  )
   const spokenRef = useRef<string | null>(null)
 
   const activeModelParam = selectedModel || undefined
