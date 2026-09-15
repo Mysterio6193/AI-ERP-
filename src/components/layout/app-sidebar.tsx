@@ -424,6 +424,13 @@ const navItems: NavItem[] = [
     group: "Setup",
   },
   {
+    label: "Event Triggers",
+    href: "/settings/agent-events",
+    icon: Zap,
+    roles: ["admin"],
+    group: "Setup",
+  },
+  {
     label: "Telegram & Bot",
     href: "/settings/agent",
     icon: Radio,

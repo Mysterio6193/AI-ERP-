@@ -3,7 +3,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { getActiveCompanyId } from "@/lib/active-company"
 import { requireAdminUser } from "@/lib/admin-auth"
 import { db } from "@/lib/db"
-import { emitDomainEvent, eventId, KNOWN_EVENT_TYPES } from "@/lib/agent/events/dispatch"
+import { emitDomainEvent, eventId } from "@/lib/agent/events/dispatch"
+import { EVENT_CATALOGUE, KNOWN_EVENT_TYPES } from "@/lib/agent/events/catalogue"
 
 /** Agents that wake when something happens, rather than on a clock. */
 
@@ -57,7 +58,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
-        eventTypes: KNOWN_EVENT_TYPES,
+        // The full descriptors, so the UI can offer real payload paths and say
+        // plainly which types nothing raises yet.
+        eventTypes: EVENT_CATALOGUE,
         subscriptions: subscriptions.map((row) => ({
           ...row,
           filters: row.filtersJson ? safeParse(row.filtersJson) : [],

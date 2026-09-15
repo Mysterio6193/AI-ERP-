@@ -1,4 +1,5 @@
 import { allocateFefo, consumeBatches, receiveBatch } from "@/lib/batches"
+import { emitDomainEvent, eventId } from "@/lib/agent/events/dispatch"
 import { db } from "@/lib/db"
 import {
   materialiseOperations,
@@ -595,6 +596,30 @@ export async function completeProductionOrder(input: {
 
   const planned = order.plannedQty
   const yieldPercent = planned > 0 ? round((input.producedQty / planned) * 100, 1) : 0
+
+  // A finished run is worth waking an agent for: a yield well under plan is
+  // the thing worth catching the same day, not in a monthly review.
+  void emitDomainEvent({
+    type: "production.completed",
+    id: eventId("production.completed", order.id),
+    occurredAt: new Date(),
+    companyId: order.companyId ?? null,
+    payload: {
+      run: {
+        id: order.id,
+        number: order.orderNumber,
+        plannedQty: planned,
+        producedQty: input.producedQty,
+        rejectedQty: input.rejectedQty ?? 0,
+        yieldPercent,
+        unitCost: result.unitCost,
+        materialCost: round(materialCost, 2),
+        laborCost,
+      },
+      product: { id: order.productId, sku: order.product.sku, name: order.product.name },
+      lot: { code: batch?.batchCode ?? null, expiryDate: batch?.expiryDate ?? null },
+    },
+  })
 
   return {
     ok: true as const,

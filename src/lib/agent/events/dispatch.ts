@@ -23,29 +23,10 @@ import {
 /** Recent history to consider for deduplication, rate limits and cooldowns. */
 const HISTORY_WINDOW_MS = 3_600_000
 
-/**
- * Event types the system knows how to raise.
- *
- * A list rather than free strings so the UI can offer them and a typo does
- * not silently create a subscription that can never fire. Adding one means
- * emitting it somewhere, which is the point.
- */
-export const KNOWN_EVENT_TYPES = [
-  "order.created",
-  "order.dispatched",
-  "order.cancelled",
-  "stock.low",
-  "lot.quarantined",
-  "lot.expiring",
-  "production.completed",
-  "purchase.received",
-  "invoice.overdue",
-  "payment.received",
-  "bin.overfilled",
-  "rate.stale",
-] as const
-
-export type KnownEventType = (typeof KNOWN_EVENT_TYPES)[number]
+// The catalogue is the single source of truth for what events exist and which
+// are actually raised. Keeping a second list here is how the two drift and the
+// UI starts offering a type nothing emits.
+export { KNOWN_EVENT_TYPES, LIVE_EVENT_TYPES, EVENT_CATALOGUE } from "@/lib/agent/events/catalogue"
 
 function parseFilters(json: string | null): EventFilter[] {
   if (!json) return []
