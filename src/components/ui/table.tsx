@@ -8,7 +8,10 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
     <div
       data-slot="table-container"
-      className="relative w-full overflow-x-auto rounded-[1.5rem]"
+      // min-w-0 alongside w-full: as a flex or grid child this box defaults to
+      // min-width:auto and grows to the table's natural width, so overflow-x
+      // never engages and wide columns are simply unreachable.
+      className="relative w-full min-w-0 overflow-x-auto rounded-[1.5rem]"
     >
       <table
         data-slot="table"
