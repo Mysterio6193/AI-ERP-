@@ -182,7 +182,7 @@ model Product {
   minMargin      Float  @default(20) // Minimum margin %
 
   // Tax
-  gstRate   Float   @default(10.0) // Australian GST
+  gstRate Float @default(10.0) // Australian GST
 
   /// The named rate this product is sold under, when one applies.
   ///
@@ -193,7 +193,7 @@ model Product {
   /// across every product carrying the same number.
   taxRateId String?
   taxRate   TaxRate? @relation(fields: [taxRateId], references: [id])
-  gstExempt Boolean @default(false)
+  gstExempt Boolean  @default(false)
 
   // --- Food safety -------------------------------------------------------
   // Declaring allergens is a legal requirement here (FSANZ 1.2.3), not a
@@ -201,7 +201,7 @@ model Product {
   // wheat ones. Stored as JSON arrays of lowercase tokens ("gluten", "milk",
   // "soy", "egg", "sesame", "nuts") so the set can grow without a migration.
   /// Allergens present in the product.
-  allergensJson String?
+  allergensJson  String?
   /// Allergens possible through shared equipment - the "may contain" line.
   mayContainJson String?
 
@@ -252,8 +252,9 @@ model Product {
   productionOrders ProductionOrder[]       @relation("ProductionOutput")
   consumptions     ProductionConsumption[] @relation("ConsumedComponent")
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  binStocks BinStock[]
 }
 
 // ============================================
@@ -497,7 +498,7 @@ model Supplier {
   products         ProductSupplier[]
   purchaseOrders   PurchaseOrder[]
   supplierInvoices SupplierInvoice[]
-  communications CommunicationLog[]
+  communications   CommunicationLog[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -538,6 +539,7 @@ model Warehouse {
   reservations   StockReservation[]
   deliveryRoutes DeliveryRoute[]
   workCenters    WorkCenter[]
+  bins           BinLocation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -585,6 +587,81 @@ model Inventory {
   @@index([variantId])
 }
 
+/// A physical place in the warehouse, and where it sits on the picking route.
+///
+/// `Inventory.location` has always been free text ("A1-12-3"). That is enough
+/// to print on a label and useless for everything else: it holds no quantity,
+/// it cannot be sorted into a walking order, and nothing stops two pickers
+/// being sent to the same shelf from opposite ends of the building.
+model BinLocation {
+  id          String    @id @default(cuid())
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+
+  /// ZONE-AISLE-RACK-LEVEL, e.g. "A-01-3-2". Parsed, not free text.
+  code  String
+  zone  String
+  aisle Int
+  rack  Int
+  level Int
+
+  /// The packed walking position, so a database sort reproduces the route
+  /// without re-deriving it per row. A double rather than an integer: each
+  /// component gets three digits and a four-letter zone puts the total past
+  /// what a 32-bit integer holds. Recomputed whenever the serpentine setting
+  /// or the aisle length changes.
+  pickSequence Float @default(0)
+
+  /// Bulk and quarantine locations are storage, not stops on the route.
+  isPickable Boolean @default(true)
+  /// Null means no ceiling, which is different from a ceiling of zero.
+  maxUnits   Int?
+
+  /// active, blocked, quarantine
+  status String @default("active")
+
+  stock BinStock[]
+
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  pickListItems PickListItem[]
+
+  @@unique([warehouseId, code])
+  @@index([warehouseId, pickSequence])
+  @@index([warehouseId, status])
+}
+
+/// What is in a bin, by product and lot.
+///
+/// Separate from `Inventory` on purpose: Inventory is the warehouse-level
+/// balance every other module already reads, and bin quantities have to be
+/// able to disagree with it briefly — that gap is what a cycle count is for.
+model BinStock {
+  id    String      @id @default(cuid())
+  binId String
+  bin   BinLocation @relation(fields: [binId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  batchId String?
+  batch   InventoryBatch? @relation(fields: [batchId], references: [id])
+
+  /// Denormalised from the batch, and empty string rather than null for the
+  /// untracked case: Postgres treats NULLs as distinct in a unique index, so
+  /// a nullable column here would let the same product sit in one bin twice.
+  batchCode String @default("")
+
+  quantity Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([binId, productId, batchCode])
+  @@index([productId])
+  @@index([batchId])
+}
+
 /// How a product is bought, held and sold.
 ///
 /// The same base is sold by the box to a restaurant and by the pallet to a
@@ -610,11 +687,11 @@ model ProductUnit {
   factor Float @default(1)
 
   /// Exactly one per product. Stock is counted in it.
-  isBase Boolean @default(false)
+  isBase        Boolean @default(false)
   /// Offered first at order entry.
   isDefaultSell Boolean @default(false)
   /// Offered when raising a purchase order.
-  isDefaultBuy Boolean @default(false)
+  isDefaultBuy  Boolean @default(false)
 
   /// Price for one of these. Null means derive it: base price x factor.
   /// Set it when a pallet is genuinely cheaper per unit rather than a multiple.
@@ -630,8 +707,8 @@ model ProductUnit {
   heightCm Float?
 
   /// Cartons per layer and layers per pallet, for pallet building.
-  perLayer  Int?
-  layers    Int?
+  perLayer Int?
+  layers   Int?
 
   status String @default("active")
 
@@ -673,7 +750,7 @@ model InventoryBatch {
   /// Drives FEFO picking and the expiry warning.
   expiryDate DateTime?
   /// When it was made or received, for FIFO where there is no expiry.
-  receivedAt DateTime @default(now())
+  receivedAt DateTime  @default(now())
 
   /// production, purchase, adjustment, opening
   sourceType        String  @default("purchase")
@@ -687,14 +764,15 @@ model InventoryBatch {
   ///
   /// Quarantined stock is excluded from allocation but not deleted — a recall
   /// needs the quantity to still be countable.
-  status String @default("available")
+  status     String  @default("available")
   /// Why it was quarantined, so the freezer label matches the system.
   holdReason String?
 
   location String?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  binStocks BinStock[]
 
   @@index([productId, warehouseId, status])
   @@index([batchCode])
@@ -1458,7 +1536,15 @@ model PickListItem {
   pickList   PickList @relation(fields: [pickListId], references: [id], onDelete: Cascade)
 
   productId String
-  location  String? // Bin location
+  location  String? // Free-text location, kept for lists made before bins existed
+
+  /// The bin this line is picked from, when the warehouse has them mapped.
+  /// Nullable because a warehouse can adopt bins without reworking history.
+  binId String?
+  bin   BinLocation? @relation(fields: [binId], references: [id])
+
+  /// The lot to take, when the product is tracked and FEFO chose one.
+  batchCode String?
 
   requiredQty Int
   pickedQty   Int @default(0)
@@ -1471,6 +1557,7 @@ model PickListItem {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([binId])
   @@index([pickListId])
   @@index([productId])
 }
@@ -1635,16 +1722,16 @@ model CarrierZone {
   name String
 
   /// postcode, postcode_range, state or suburb.
-  matchType String @default("postcode")
+  matchType  String @default("postcode")
   /// "2000", "2000-2234", "NSW" or a suburb name, per matchType.
   matchValue String
 
   priority     Int @default(100)
   leadTimeDays Int @default(1)
 
-  baseRate   Float @default(0)
-  perKgRate  Float @default(0)
-  minCharge  Float @default(0)
+  baseRate  Float @default(0)
+  perKgRate Float @default(0)
+  minCharge Float @default(0)
 
   enabled Boolean @default(true)
 
@@ -1670,7 +1757,7 @@ model FreightBooking {
   status String @default("draft")
 
   /// The filled form, keyed by the carrier's own field keys.
-  payloadJson String?
+  payloadJson     String?
   /// Exactly what was sent, kept verbatim for disputes.
   renderedSubject String?
   renderedBody    String?
@@ -1741,10 +1828,6 @@ model Invoice {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([customerId])
-  @@index([status])
-  @@index([dueDate])
-
   /// Unique within the entity that issued it, not across the whole database.
   ///
   /// This was globally unique while `nextDocumentNumber` scopes its counter per
@@ -1757,6 +1840,9 @@ model Invoice {
   /// distinct in a unique index, so uniqueness for those rests on the counter
   /// rather than the constraint.
   @@unique([invoiceNumber, companyId])
+  @@index([customerId])
+  @@index([status])
+  @@index([dueDate])
 }
 
 model Payment {
@@ -1767,7 +1853,7 @@ model Payment {
   customerId String
   customer   Customer @relation(fields: [customerId], references: [id])
 
-  amount    Decimal  @db.Decimal(12, 2)
+  amount    Decimal @db.Decimal(12, 2)
   method    String // bank_transfer, bpay, credit_card, eftpos, cash, cheque
   reference String?
 
@@ -1798,13 +1884,13 @@ model CreditNote {
   invoice   Invoice? @relation(fields: [invoiceId], references: [id])
 
   customerId String
-  amount     Decimal  @db.Decimal(12, 2)
-  taxAmount  Decimal  @default(0) @db.Decimal(12, 2)
+  amount     Decimal @db.Decimal(12, 2)
+  taxAmount  Decimal @default(0) @db.Decimal(12, 2)
   reason     String
-  status     String @default("active") // active, applied, cancelled
+  status     String  @default("active") // active, applied, cancelled
 
   appliedToInvoice String?
-  appliedAmount    Decimal  @default(0) @db.Decimal(12, 2)
+  appliedAmount    Decimal @default(0) @db.Decimal(12, 2)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1879,8 +1965,8 @@ model CreditTransaction {
 
   // Transaction details
   type         String // credit_grant, invoice_charge, payment_received, adjustment, refund
-  amount       Decimal  @db.Decimal(12, 2) // Positive for credits granted/payments, negative for charges
-  balanceAfter Decimal  @db.Decimal(12, 2) // Running balance after this transaction
+  amount       Decimal @db.Decimal(12, 2) // Positive for credits granted/payments, negative for charges
+  balanceAfter Decimal @db.Decimal(12, 2) // Running balance after this transaction
 
   // Reference
   referenceType String? // invoice, payment, manual
@@ -1924,9 +2010,9 @@ model TaxRate {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([code, companyId])
-
   products Product[]
+
+  @@unique([code, companyId])
 }
 
 // ============================================
@@ -2018,8 +2104,8 @@ model JournalLine {
   account   ChartOfAccount @relation(fields: [accountId], references: [id])
 
   description String?
-  debit       Decimal  @default(0) @db.Decimal(12, 2)
-  credit      Decimal  @default(0) @db.Decimal(12, 2)
+  debit       Decimal @default(0) @db.Decimal(12, 2)
+  credit      Decimal @default(0) @db.Decimal(12, 2)
 
   createdAt DateTime @default(now())
 
@@ -2314,11 +2400,11 @@ model AgentThread {
   /// A short account of what this conversation was about and what was decided.
   /// Written after the fact, so a search hit reads as something meaningful
   /// rather than one stray line out of context.
-  summary       String?
-  summarisedAt  DateTime?
+  summary        String?
+  summarisedAt   DateTime?
   /// Messages at the time of summarising, so a thread that has moved on since
   /// can be spotted and redone.
-  summarisedUpTo Int @default(0)
+  summarisedUpTo Int       @default(0)
 
   messages AgentMessage[]
 
@@ -2386,13 +2472,13 @@ model AgentDefinition {
   thresholdsJson String?
 
   /// manual, schedule or event.
-  trigger  String  @default("manual")
+  trigger   String  @default("manual")
   /// Cron expression when trigger is "schedule".
-  schedule String?
+  schedule  String?
   /// The prompt a scheduled or event run starts from.
   runPrompt String?
 
-  enabled Boolean @default(true)
+  enabled  Boolean @default(true)
   /// Built-in agents cannot be deleted, only edited.
   isSystem Boolean @default(false)
 
@@ -2519,8 +2605,8 @@ model AgentSkillRevision {
   skillId String
   skill   AgentSkill @relation(fields: [skillId], references: [id], onDelete: Cascade)
 
-  version Int
-  content String
+  version    Int
+  content    String
   /// Why it changed, in the agent's own words.
   changeNote String?
 
@@ -2606,7 +2692,7 @@ model AgentNotification {
   dedupeKey String
 
   userId  String?
-  channel String @default("telegram")
+  channel String  @default("telegram")
 
   kind     String // overdue_invoice, stock_out, lapsed_account, pending_approval, freight_cutoff
   severity String @default("info") // info, warn, urgent
@@ -3056,7 +3142,7 @@ model SupplierInvoice {
   outstandingAmt Float @default(0)
 
   /// unpaid, partial, paid, disputed, cancelled
-  status String @default("unpaid")
+  status String  @default("unpaid")
   notes  String?
 
   companyId String?
@@ -3329,8 +3415,8 @@ model Plan {
   description String?
 
   /// Minor units (cents), to avoid float drift on money.
-  monthlyPriceCents Int @default(0)
-  yearlyPriceCents  Int @default(0)
+  monthlyPriceCents Int    @default(0)
+  yearlyPriceCents  Int    @default(0)
   currency          String @default("AUD")
 
   /// Days of trial granted on first subscribe. 0 means no trial.
@@ -3338,7 +3424,7 @@ model Plan {
 
   /// Seats included before per-seat pricing applies. Null means unmetered.
   includedSeats Int?
-  perSeatCents  Int @default(0)
+  perSeatCents  Int  @default(0)
 
   /// Shown on the public plan picker. A private plan can still be assigned by
   /// an admin or carried by a licence — that is how bespoke deals work.
@@ -3414,12 +3500,12 @@ model Subscription {
 
   seats Int @default(1)
 
-  currentPeriodStart DateTime @default(now())
+  currentPeriodStart DateTime  @default(now())
   currentPeriodEnd   DateTime?
   trialEndsAt        DateTime?
 
   /// Set when someone cancels but has already paid to the end of the period.
-  cancelAtPeriodEnd Boolean @default(false)
+  cancelAtPeriodEnd Boolean   @default(false)
   cancelledAt       DateTime?
 
   stripeCustomerId     String?
@@ -3462,12 +3548,12 @@ model LicenseKey {
 
   /// Binds the key to one install once activated, so the same key cannot be
   /// spread across sites.
-  activatedAt          DateTime?
+  activatedAt           DateTime?
   activationFingerprint String?
 
   /// active, revoked, expired
-  status String @default("active")
-  revokedAt DateTime?
+  status        String    @default("active")
+  revokedAt     DateTime?
   revokedReason String?
 
   notes String?

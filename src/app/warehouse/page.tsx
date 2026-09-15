@@ -184,6 +184,18 @@ export default function WarehouseDashboardPage() {
             </Card>
           </Link>
 
+          <Link href="/warehouse/bins" className="block">
+            <Card className="hover:border-blue-500 hover:shadow-sm transition-all cursor-pointer">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-rose-600" />
+                  Bin Locations
+                </CardTitle>
+                <CardDescription>Map the racking and set the picking walk order</CardDescription>
+              </CardHeader>
+            </Card>
+          </Link>
+
           <Link href="/warehouses" className="block">
             <Card className="hover:border-blue-500 hover:shadow-sm transition-all cursor-pointer">
               <CardHeader className="pb-3">

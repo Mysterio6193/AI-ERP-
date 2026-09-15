@@ -240,6 +240,47 @@ export const subscriptionSchema = z.object({
   showPlansToStaff: z.boolean().default(false),
 })
 
+export const warehouseSchema = z.object({
+  /**
+   * Walk odd aisles in reverse, so a picker goes up one and back down the
+   * next rather than returning to the start of every aisle.
+   *
+   * On by default because it is almost always shorter. Off suits a layout
+   * with one-way aisles or a single entrance per aisle, where the reverse leg
+   * is not walkable.
+   */
+  serpentinePicking: z.boolean().default(true),
+
+  /**
+   * Racks in the longest aisle. Only used to reverse the route on odd aisles;
+   * too low a number would fold the far end of an aisle back on itself.
+   */
+  maxRacksPerAisle: z.number().int().min(1).max(999).default(50),
+
+  /** fefo sends the earliest expiry first; route ignores dates and walks. */
+  pickStrategy: z.enum(["fefo", "route"]).default("fefo"),
+
+  /**
+   * Let a bin exceed its stated capacity.
+   *
+   * On by default: a capacity is an estimate written once, and refusing a
+   * putaway at 5pm because a shelf is nominally full leaves the stock on the
+   * floor, which is worse than an over-full bin someone tidies later.
+   */
+  allowBinOverfill: z.boolean().default(true),
+
+  /** Bin to suggest when nothing else fits — receiving, usually. */
+  defaultReceivingZone: z.string().max(4).default("R"),
+
+  /**
+   * Refuse to pick from a bin that does not hold enough.
+   *
+   * Off by default, matching how the rest of the platform ships enforcement:
+   * the shortfall is always reported, and whether it blocks is a choice.
+   */
+  enforceBinQuantities: z.boolean().default(false),
+})
+
 export const brandingSchema = z.object({
   primaryColor: z.enum(["slate", "sky", "emerald", "indigo", "violet", "rose", "amber"]).default("sky"),
   invoiceTheme: z.enum(["modern", "classic", "compact", "minimalist"]).default("modern"),
@@ -328,6 +369,12 @@ export const REGISTRY = {
     label: "Agent Persona & Directives",
     description: "AI assistant tone, custom guidelines, and autonomous execution rules.",
     writeRoles: ["admin"],
+  },
+  warehouse: {
+    schema: warehouseSchema,
+    label: "Warehouse & Bins",
+    description: "Bin layout, the order a picker walks them, putaway and pick strategy.",
+    writeRoles: ["admin", "warehouse"],
   },
   subscription: {
     schema: subscriptionSchema,
