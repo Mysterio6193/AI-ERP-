@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { customerId, locationId, deliveryDate, notes, items, warehouseId } = body
+    const { customerId, locationId, deliveryDate, notes, items, warehouseId, currency } = body
 
     const result = await createSalesOrder({
       customerId,
@@ -102,6 +102,7 @@ export async function POST(request: NextRequest) {
       deliveryDate,
       notes,
       items,
+      currency,
       sourceChannel: "admin",
     })
 

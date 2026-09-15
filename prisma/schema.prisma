@@ -99,6 +99,7 @@ model Company {
   subscription           Subscription?
 
   supplierInvoices SupplierInvoice[]
+  exchangeRates    ExchangeRate[]
 }
 
 // ============================================
@@ -859,6 +860,64 @@ model ProductionConsumptionLot {
   @@index([batchId])
 }
 
+/// A currency the business trades in.
+///
+/// A table rather than an enum because the set is the business's own: a
+/// distributor that opens a New Zealand arm adds NZD without a deploy, which
+/// is the whole point of nothing being hardcoded.
+model Currency {
+  code   String  @id /// ISO 4217, uppercase: AUD, USD, JPY.
+  name   String
+  symbol String?
+
+  /// Minor units. Null means use the standard for this code (two for most,
+  /// none for yen, three for dinars) — an explicit value is for the cases the
+  /// built-in table does not know.
+  decimals Int?
+
+  isActive Boolean @default(true)
+
+  ratesFrom ExchangeRate[] @relation("RateFrom")
+  ratesTo   ExchangeRate[] @relation("RateTo")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// What one currency was worth in another, from a moment onwards.
+///
+/// Rates are effective-dated rather than overwritten, because a document must
+/// keep the rate it was raised at. Updating a single current rate in place
+/// means last quarter's invoices change value every morning and the ledger
+/// quietly stops reconciling.
+model ExchangeRate {
+  id String @id @default(cuid())
+
+  fromCode String
+  from     Currency @relation("RateFrom", fields: [fromCode], references: [code])
+  toCode   String
+  to       Currency @relation("RateTo", fields: [toCode], references: [code])
+
+  /// Units of `to` per one unit of `from`.
+  rate Float
+
+  /// Applies from here until a later rate for the same pair supersedes it.
+  /// A rate dated ahead is stored and ignored until its day comes.
+  effectiveFrom DateTime
+
+  /// manual, or the name of the feed it came from.
+  source String @default("manual")
+
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([fromCode, toCode, effectiveFrom, companyId])
+  @@index([fromCode, toCode, effectiveFrom])
+  @@index([companyId])
+}
+
 model StockMovement {
   id          String          @id @default(cuid())
   productId   String
@@ -1316,11 +1375,21 @@ model SalesOrder {
   deliveryDate DateTime?
 
   // Pricing
-  subtotal       Float  @default(0)
-  discountAmount Float  @default(0)
-  taxAmount      Float  @default(0)
-  totalAmount    Float  @default(0)
-  sourceChannel  String @default("admin") // admin, customer_web, customer_app
+  subtotal       Float @default(0)
+  discountAmount Float @default(0)
+  taxAmount      Float @default(0)
+  totalAmount    Float @default(0)
+
+  /// The currency the customer is billed in, and the rate to the entity's own
+  /// currency at the moment the order was priced.
+  ///
+  /// `baseTotal` is stored rather than derived: looking the rate up again at
+  /// read time restates every historical order whenever a rate moves, and the
+  /// figure the ledger posted would stop matching the figure the order shows.
+  currency      String @default("AUD")
+  exchangeRate  Float  @default(1)
+  baseTotal     Float  @default(0)
+  sourceChannel String @default("admin") // admin, customer_web, customer_app
 
   // Status
   status String @default("draft") // draft, pending_approval, approved, picking, packed, dispatched, delivered, invoiced, cancelled
@@ -1892,6 +1961,12 @@ model Invoice {
   subtotal    Float
   taxAmount   Float
   totalAmount Float
+
+  /// The currency invoiced in, and the rate in force when it was raised.
+  /// `baseTotal` is what the ledger posted; it must not move when rates do.
+  currency     String @default("AUD")
+  exchangeRate Float  @default(1)
+  baseTotal    Float  @default(0)
 
   // Status
   status String @default("unpaid") // draft, sent, unpaid, partial, paid, overdue, cancelled

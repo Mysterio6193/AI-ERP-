@@ -1,5 +1,6 @@
 import { sendSalesOrderEmail } from "@/lib/communications"
 import { checkCreditForOrder } from "@/lib/credit"
+import { priceInBase } from "@/lib/currency/service"
 import { db } from "@/lib/db"
 import { ensurePickListForOrder, resolveDefaultWarehouseId } from "@/lib/pick-lists"
 import { applyOrderDiscounts, resolveLinePrice } from "@/lib/pricing"
@@ -34,11 +35,17 @@ export interface CreateSalesOrderInput {
   sourceChannel?: string
   status?: string
   createdByAgent?: boolean
+  /** Bills the customer in this currency. Defaults to the entity's own. */
+  currency?: string | null
 }
 
 export type CreateSalesOrderResult =
   | { ok: true; order: Awaited<ReturnType<typeof createOrderRecord>> }
-  | { ok: false; error: string; code: "customer_not_found" | "product_not_found" | "credit_limit" | "no_items" }
+  | {
+      ok: false
+      error: string
+      code: "customer_not_found" | "product_not_found" | "credit_limit" | "no_items" | "no_rate"
+    }
 
 export async function generateSalesOrderNumber() {
   const currentYear = new Date().getFullYear()
@@ -268,10 +275,25 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
 
   const discountedTotal = Math.round((priced.totalAmount - discount.discountAmount) * 100) / 100
 
+  // The rate is fixed here, at the moment of pricing, and stored on the order.
+  // Looking it up again when the order is read would restate every historical
+  // order whenever a rate moves, and the figure posted to the ledger would
+  // stop matching the figure the order shows.
+  const priceInCurrency = await priceInBase(discountedTotal, input.currency || "", {
+    companyId: customer.companyId,
+  })
+
+  if (!priceInCurrency.ok) {
+    return { ok: false, error: priceInCurrency.error, code: "no_rate" }
+  }
+
+  // Credit limits are held in the entity's own currency, so the converted
+  // figure is the one to check — not the foreign-currency total, which would
+  // compare dollars against yen.
   // Checked against what the customer will actually be charged, not the
   // pre-discount figure — otherwise a discount could push an order over the
   // limit that should have fitted under it.
-  const credit = await checkCreditForOrder(input.customerId, discountedTotal)
+  const credit = await checkCreditForOrder(input.customerId, priceInCurrency.baseTotal)
 
   if (!credit.ok) {
     return {
@@ -304,6 +326,9 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
     taxAmount: priced.taxAmount,
     discountAmount: discount.discountAmount,
     totalAmount: discountedTotal,
+    currency: priceInCurrency.currency,
+    exchangeRate: priceInCurrency.exchangeRate,
+    baseTotal: priceInCurrency.baseTotal,
     // A rule that demands sign-off routes the order to the existing approval
     // status rather than quietly applying itself.
     requiresApproval: discount.requiresApproval,

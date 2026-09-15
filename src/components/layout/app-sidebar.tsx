@@ -49,6 +49,7 @@ import {
   Zap,
   Bot,
   ShieldAlert,
+  Coins,
 } from "lucide-react"
 
 import {
@@ -413,6 +414,13 @@ const navItems: NavItem[] = [
     href: "/settings/business",
     icon: SlidersHorizontal,
     roles: ["admin", "accounts", "warehouse"],
+    group: "Setup",
+  },
+  {
+    label: "Currencies",
+    href: "/settings/currencies",
+    icon: Coins,
+    roles: ["admin", "accounts"],
     group: "Setup",
   },
   {

@@ -240,6 +240,45 @@ export const subscriptionSchema = z.object({
   showPlansToStaff: z.boolean().default(false),
 })
 
+export const currencySchema = z.object({
+  /**
+   * The entity's own currency: what the ledger is kept in and what every
+   * report totals to.
+   *
+   * Changing it does not restate history. Documents keep the rate they were
+   * raised at, so old figures stay as posted and new ones use the new base.
+   */
+  baseCurrency: z.string().length(3).toUpperCase().default("AUD"),
+
+  /**
+   * Let a customer be invoiced in a currency other than the base one.
+   *
+   * Off by default: a business that trades in one currency should not have a
+   * currency picker on every order, and the field is a way to get it wrong.
+   */
+  allowForeignCurrencySales: z.boolean().default(false),
+
+  /**
+   * Derive a missing pair through the base currency rather than refusing.
+   *
+   * Convenient where the house currency is quoted against everything, and
+   * worth being able to turn off: a triangulated rate carries both legs'
+   * spreads, which is not what a treasury team wants on a contract.
+   */
+  allowTriangulation: z.boolean().default(true),
+
+  /**
+   * Refuse to price an order when the rate in force is older than this.
+   *
+   * Zero means never refuse. The point is that a stale rate is worse than no
+   * rate: it looks authoritative.
+   */
+  maxRateAgeDays: z.number().int().min(0).max(365).default(7),
+
+  /** Locale used to format money. Affects grouping and symbol placement. */
+  displayLocale: z.string().min(2).max(12).default("en-AU"),
+})
+
 export const warehouseSchema = z.object({
   /**
    * Walk odd aisles in reverse, so a picker goes up one and back down the
@@ -369,6 +408,12 @@ export const REGISTRY = {
     label: "Agent Persona & Directives",
     description: "AI assistant tone, custom guidelines, and autonomous execution rules.",
     writeRoles: ["admin"],
+  },
+  currency: {
+    schema: currencySchema,
+    label: "Currency & Exchange Rates",
+    description: "Base currency, foreign-currency selling, and how missing rates are handled.",
+    writeRoles: ["admin", "accounts"],
   },
   warehouse: {
     schema: warehouseSchema,
