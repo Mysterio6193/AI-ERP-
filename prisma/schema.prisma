@@ -100,6 +100,9 @@ model Company {
 
   supplierInvoices SupplierInvoice[]
   exchangeRates    ExchangeRate[]
+
+  /// Customer records in other entities that represent this one.
+  customerRecords Customer[] @relation("CustomerIsGroupEntity")
 }
 
 // ============================================
@@ -1034,6 +1037,16 @@ model Customer {
   // Company
   companyId String?
   company   Company? @relation(fields: [companyId], references: [id])
+
+  /// Set when this customer record *is* another entity in the group.
+  ///
+  /// Explicit rather than inferred from a matching ABN or name. Getting it
+  /// wrong in one direction removes real external revenue from the group
+  /// accounts, so it is something a person states, not something a heuristic
+  /// decides. `companyId` above is a different fact — which entity owns this
+  /// customer record.
+  groupEntityId String?
+  groupEntity   Company? @relation("CustomerIsGroupEntity", fields: [groupEntityId], references: [id])
 
   // Relations
   locations          CustomerLocation[]
