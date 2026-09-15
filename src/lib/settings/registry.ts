@@ -241,14 +241,10 @@ export const subscriptionSchema = z.object({
 })
 
 export const currencySchema = z.object({
-  /**
-   * The entity's own currency: what the ledger is kept in and what every
-   * report totals to.
-   *
-   * Changing it does not restate history. Documents keep the rate they were
-   * raised at, so old figures stay as posted and new ones use the new base.
-   */
-  baseCurrency: z.string().length(3).toUpperCase().default("AUD"),
+  // The base currency deliberately does not live here. `Company.baseCurrency`
+  // already holds it, is what Settings edits and what the invoice and
+  // statement PDFs print. A second copy would let the two disagree, and the
+  // ledger would be kept in one while documents were printed in the other.
 
   /**
    * Let a customer be invoiced in a currency other than the base one.

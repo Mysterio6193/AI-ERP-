@@ -25,6 +25,25 @@ function liveSettings(companyId: string | null) {
 }
 
 /**
+ * The entity's own currency.
+ *
+ * Read from the company row rather than kept as a currency setting, because
+ * `Company.baseCurrency` already holds it: it is what Settings edits and what
+ * the invoice and statement PDFs print. A second copy would let the ledger be
+ * kept in one currency while documents were printed in another.
+ */
+async function baseCurrencyFor(companyId: string | null) {
+  const company = companyId
+    ? await db.company.findUnique({ where: { id: companyId }, select: { baseCurrency: true } })
+    : await db.company.findFirst({
+        orderBy: { createdAt: "asc" },
+        select: { baseCurrency: true },
+      })
+
+  return (company?.baseCurrency || "AUD").toUpperCase()
+}
+
+/**
  * Rates visible to a company: its own, plus the shared ones.
  *
  * A group entity can quote its own rate — a forward contract, a negotiated
@@ -82,7 +101,7 @@ export async function rateForPricing(
     to,
     on,
     await loadRates(companyId),
-    settings.allowTriangulation ? settings.baseCurrency : undefined
+    settings.allowTriangulation ? await baseCurrencyFor(companyId) : undefined
   )
 
   if (!found.ok) {
@@ -133,7 +152,7 @@ export async function priceInBase(
 ): Promise<PriceResult> {
   const companyId = options.companyId ?? null
   const settings = await liveSettings(companyId)
-  const base = settings.baseCurrency.toUpperCase()
+  const base = await baseCurrencyFor(companyId)
 
   // No currency means the entity's own. Most orders say nothing, and treating
   // an absent currency as a currency named "" sends every ordinary order
@@ -274,7 +293,7 @@ export async function recordRate(input: {
 /** Configured currencies, with the rate each is at today. */
 export async function listCurrencies(companyId: string | null = null) {
   const settings = await liveSettings(companyId)
-  const base = settings.baseCurrency.toUpperCase()
+  const base = await baseCurrencyFor(companyId)
   const on = new Date()
 
   const [currencies, rates] = await Promise.all([
