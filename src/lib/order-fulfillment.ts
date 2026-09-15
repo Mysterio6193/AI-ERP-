@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient } from "@prisma/client"
 
+import { emitDomainEvent, eventId } from "@/lib/agent/events/dispatch"
 import { allocateFefo, consumeBatches } from "@/lib/batches"
 import { computeDueDate } from "@/lib/invoicing"
 import { postInvoiceRaised } from "@/lib/ledger"
@@ -166,6 +167,19 @@ export async function commitStockForOrder(
   // dropped, and leaving `reserved` in place would subtract the same units
   // twice from every availability figure.
   await fulfilReservationsForOrder(db, orderId)
+
+  void emitDomainEvent({
+    type: "order.dispatched",
+    id: eventId("order.dispatched", order.id),
+    occurredAt: new Date(),
+    payload: {
+      order: { id: order.id, number: order.orderNumber },
+      committed,
+      // A short pick is the thing most worth waking someone about here.
+      shortfalls,
+      shortfallCount: shortfalls.length,
+    },
+  })
 
   return { ok: true as const, skipped: false as const, committed, shortfalls }
 }

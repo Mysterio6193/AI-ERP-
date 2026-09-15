@@ -1,6 +1,7 @@
 import { sendSalesOrderEmail } from "@/lib/communications"
 import { checkCreditForOrder } from "@/lib/credit"
 import { priceInBase } from "@/lib/currency/service"
+import { emitDomainEvent, eventId } from "@/lib/agent/events/dispatch"
 import { db } from "@/lib/db"
 import { ensurePickListForOrder, resolveDefaultWarehouseId } from "@/lib/pick-lists"
 import { applyOrderDiscounts, resolveLinePrice } from "@/lib/pricing"
@@ -372,6 +373,28 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
   } catch (error) {
     console.error("Failed to send order creation email:", error)
   }
+
+  // Raised after the order exists, and never allowed to fail it: a business
+  // operation that has already happened must not be undone because an agent
+  // could not be woken.
+  void emitDomainEvent({
+    type: "order.created",
+    id: eventId("order.created", order.id),
+    occurredAt: new Date(),
+    companyId: customer.companyId ?? null,
+    payload: {
+      order: {
+        id: order.id,
+        number: order.orderNumber,
+        total: order.totalAmount,
+        baseTotal: order.baseTotal,
+        currency: order.currency,
+        status: order.status,
+        lineCount: priced.items.length,
+      },
+      customer: { id: customer.id, name: customer.name },
+    },
+  })
 
   return { ok: true, order }
 }

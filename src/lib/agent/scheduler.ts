@@ -69,7 +69,15 @@ export async function recomputeNextRun(definitionId: string, from: Date = new Da
 }
 
 /** The staff identity an unattended run acts as. */
-async function resolveRunAs(definition: { runAsUserId: string | null; createdById: string | null }) {
+/**
+ * Who a background run acts as.
+ *
+ * Exported so event-triggered runs use the same answer. Two copies of this
+ * would be two answers to a question with security consequences: the
+ * principal decides which tools the run may touch and what it may approve on
+ * its own.
+ */
+export async function resolveRunAs(definition: { runAsUserId: string | null; createdById: string | null }) {
   const candidates = [definition.runAsUserId, definition.createdById].filter(Boolean) as string[]
 
   for (const userId of candidates) {

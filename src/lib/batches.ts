@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient } from "@prisma/client"
 
+import { emitDomainEvent, eventId } from "@/lib/agent/events/dispatch"
 import { db } from "@/lib/db"
 
 /**
@@ -237,10 +238,29 @@ export async function quarantineBatch(batchCode: string, reason: string) {
 
   const nameById = new Map(products.map((row) => [row.id, row]))
 
+  const heldUnits = affected.reduce((sum, batch) => sum + batch.quantity, 0)
+
+  // A lot going on hold is the event most worth an agent acting on: the
+  // recall scope is a query away and the stock is still stoppable.
+  void emitDomainEvent({
+    type: "lot.quarantined",
+    id: eventId("lot.quarantined", batchCode, Date.now()),
+    occurredAt: new Date(),
+    payload: {
+      lot: { code: batchCode, reason, batches: affected.length, units: heldUnits },
+      products: affected.map((batch) => ({
+        id: batch.productId,
+        name: nameById.get(batch.productId)?.name ?? null,
+        sku: nameById.get(batch.productId)?.sku ?? null,
+        quantity: batch.quantity,
+      })),
+    },
+  })
+
   return {
     ok: true as const,
     held: affected.length,
-    units: affected.reduce((sum, batch) => sum + batch.quantity, 0),
+    units: heldUnits,
     lines: affected.map((batch) => ({
       product: nameById.get(batch.productId)?.name ?? batch.productId,
       sku: nameById.get(batch.productId)?.sku ?? null,

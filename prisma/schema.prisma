@@ -102,7 +102,8 @@ model Company {
   exchangeRates    ExchangeRate[]
 
   /// Customer records in other entities that represent this one.
-  customerRecords Customer[] @relation("CustomerIsGroupEntity")
+  customerRecords         Customer[]               @relation("CustomerIsGroupEntity")
+  agentEventSubscriptions AgentEventSubscription[]
 }
 
 // ============================================
@@ -2682,6 +2683,8 @@ model AgentDefinition {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  eventSubscriptions AgentEventSubscription[]
+
   @@index([enabled, trigger])
 }
 
@@ -2709,6 +2712,8 @@ model AgentRun {
 
   startedAt  DateTime  @default(now())
   finishedAt DateTime?
+
+  eventLog AgentEventLog[]
 
   @@index([persona, startedAt])
   @@index([threadId])
@@ -2856,6 +2861,87 @@ model AgentMemory {
 /// tick: a signal carries a stable `dedupeKey` and is only re-sent once its
 /// cooldown has passed. An agent that pings hourly gets muted, and a muted
 /// agent is worse than no agent.
+/// An agent waiting on something happening in the business.
+///
+/// `AgentDefinition.trigger` has always accepted "event", the API stored it
+/// and the UI offered it — and nothing fired it. The scheduler skips any
+/// definition that is not on a cron, so an agent set to run on an event sat
+/// with a null `nextRunAt` and never ran. This is what makes that real.
+model AgentEventSubscription {
+  id      String          @id @default(cuid())
+  agentId String
+  agent   AgentDefinition @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  /// Dotted and specific: "order.created", "stock.low", "lot.quarantined".
+  eventType String
+  enabled   Boolean @default(true)
+
+  /// JSON array of {path, operator, value}. All must pass; none means all
+  /// events of the type. JSON so a new filter shape needs no migration.
+  filtersJson String?
+
+  /// Limits this subscription to one entity's events. Null is group-wide.
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+
+  /// Runs an event can start from this subscription per hour. Zero is no
+  /// limit. A bulk import fires thousands of events, and waking the agent for
+  /// every one is both useless and expensive.
+  maxPerHour Int @default(60)
+
+  /// Ignore the same subject changing again within this many seconds.
+  /// Different from dropping a duplicate event: this is for a subject that
+  /// changes five times in a minute.
+  cooldownSeconds Int     @default(0)
+  /// Payload path identifying "the same subject", e.g. "order.id".
+  cooldownKeyPath String?
+
+  /// Prompt the woken run starts from. The event is added as context.
+  prompt String?
+
+  log AgentEventLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([eventType, enabled])
+  @@index([agentId])
+  @@index([companyId])
+}
+
+/// Every event this subscription saw, and what was decided.
+///
+/// Serves three purposes at once, which is why the refusals are kept and not
+/// only the runs: it is the deduplication record, the rate-limit window, and
+/// the answer to "why did my agent not run" — which is otherwise unanswerable
+/// and gets an event system switched off.
+model AgentEventLog {
+  id String @id @default(cuid())
+
+  subscriptionId String
+  subscription   AgentEventSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  /// Stable per real occurrence, so a redelivery is recognisable.
+  eventId   String
+  eventType String
+
+  /// The cooldown key this event resolved to, when the subscription has one.
+  cooldownKey String?
+
+  /// Whether a run was started, and why not when it was not.
+  ran    Boolean
+  reason String?
+
+  runId String?
+  run   AgentRun? @relation(fields: [runId], references: [id], onDelete: SetNull)
+
+  startedAt DateTime @default(now())
+
+  @@unique([subscriptionId, eventId])
+  @@index([subscriptionId, startedAt])
+  @@index([eventId])
+}
+
 model AgentNotification {
   id String @id @default(cuid())
 
