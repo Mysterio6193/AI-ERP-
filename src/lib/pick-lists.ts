@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient } from "@prisma/client"
+import { getSettings } from "@/lib/settings/service"
 import { nextDocumentNumber } from "@/lib/numbering"
 
 type DbClient = PrismaClient | Prisma.TransactionClient
@@ -36,6 +37,16 @@ export async function resolveDefaultWarehouseId(db: DbClient, companyId?: string
 }
 
 export async function ensurePickListForOrder(db: DbClient, orderId: string) {
+  // `autoGeneratePickList` was a setting nobody read: a pick list was always
+  // created. Gated here rather than at each caller so turning it off cannot be
+  // half-applied — there are two call sites today and a third would forget.
+  const settings = await getSettings("automation", { skipCache: true }).catch(() => null)
+
+  // Absent settings generate, which is what the code has always done.
+  if (settings?.autoGeneratePickList === false) {
+    return null
+  }
+
   const order = await db.salesOrder.findUnique({
     where: { id: orderId },
     include: {

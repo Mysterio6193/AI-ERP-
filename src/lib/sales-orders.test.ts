@@ -1,3 +1,4 @@
+import { decideOrderStatus } from "./sales-orders"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { pricingSchema, taxSchema } from "./settings/registry"
@@ -225,5 +226,51 @@ describe("priceSalesOrder — price lists", () => {
     // Source is what makes a disputed price answerable months later.
     expect(result.items[0].priceSource).toBeTruthy()
     expect(result.items[0].priceListItemId).toBeNull()
+  })
+})
+
+describe("decideOrderStatus", () => {
+  const base = { requiresApproval: false, baseTotal: 100, autoApproveUnder: 0 }
+
+  it("opens as a draft when auto-approval is off", () => {
+    // Zero is the default and the behaviour up to now, so wiring the setting
+    // changes nothing until someone sets a figure.
+    expect(decideOrderStatus(base)).toBe("draft")
+  })
+
+  it("approves an order under the threshold", () => {
+    expect(decideOrderStatus({ ...base, autoApproveUnder: 500 })).toBe("approved")
+  })
+
+  it("leaves an order over the threshold as a draft", () => {
+    expect(decideOrderStatus({ ...base, baseTotal: 900, autoApproveUnder: 500 })).toBe("draft")
+  })
+
+  it("treats the threshold as inclusive", () => {
+    expect(decideOrderStatus({ ...base, baseTotal: 500, autoApproveUnder: 500 })).toBe("approved")
+  })
+
+  it("never auto-approves an order a discount rule wants signed off", () => {
+    // Otherwise a small discounted order becomes a way around the rule.
+    expect(
+      decideOrderStatus({ ...base, requiresApproval: true, autoApproveUnder: 500 })
+    ).toBe("pending_approval")
+  })
+
+  it("lets an explicit status win over every rule", () => {
+    // An importer or a migration says what it means.
+    expect(
+      decideOrderStatus({ ...base, requestedStatus: "delivered", requiresApproval: true })
+    ).toBe("delivered")
+  })
+
+  it("does not auto-approve a zero or negative total", () => {
+    // A zero-value order is a data problem, not a small order.
+    expect(decideOrderStatus({ ...base, baseTotal: 0, autoApproveUnder: 500 })).toBe("draft")
+    expect(decideOrderStatus({ ...base, baseTotal: -5, autoApproveUnder: 500 })).toBe("draft")
+  })
+
+  it("does not auto-approve on a total that is not a number", () => {
+    expect(decideOrderStatus({ ...base, baseTotal: NaN, autoApproveUnder: 500 })).toBe("draft")
   })
 })

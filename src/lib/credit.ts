@@ -1,4 +1,5 @@
 import { db } from "@/lib/db"
+import { getSettings } from "@/lib/settings/service"
 
 /**
  * What a customer actually owes us, including work in progress.
@@ -103,10 +104,20 @@ export async function checkCreditForOrder(
   }
 
   if (exposure.status === "on_hold") {
-    return {
-      ok: false,
-      reason: "This account is on credit hold until the outstanding balance is settled.",
-      exposure,
+    // `blockOrdersOnCreditHold` was a setting nobody read: the block was
+    // unconditional however it was configured. Read uncached, because this
+    // decides whether an order is refused — the few seconds of cache that
+    // suit rendering are wrong for a gate.
+    const settings = await getSettings("automation", { skipCache: true }).catch(() => null)
+
+    // Absent settings block, which is what the code has always done. A
+    // settings table that cannot be read must not quietly open the gate.
+    if (settings?.blockOrdersOnCreditHold !== false) {
+      return {
+        ok: false,
+        reason: "This account is on credit hold until the outstanding balance is settled.",
+        exposure,
+      }
     }
   }
 

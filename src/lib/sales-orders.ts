@@ -236,6 +236,47 @@ export async function priceSalesOrder(
   }
 }
 
+/**
+ * What status a new order opens in.
+ *
+ * `autoApproveOrdersUnder` was a setting nobody read — orders always opened as
+ * a draft unless a discount rule demanded sign-off. Zero means off, which is
+ * the default and the behaviour up to now, so wiring it changes nothing until
+ * someone sets a figure.
+ *
+ * Pure, because the interesting part is which rule wins, and it is easier to
+ * be wrong about that than it looks.
+ */
+export function decideOrderStatus(input: {
+  requestedStatus?: string | null
+  requiresApproval: boolean
+  /** Order total in the entity's own currency, which the threshold is in. */
+  baseTotal: number
+  autoApproveUnder: number
+}): string {
+  // An explicit status from the caller wins over every rule below it: an
+  // importer or a migration says what it means.
+  if (input.requestedStatus) return input.requestedStatus
+
+  // A discount that demands sign-off is never auto-approved. The threshold is
+  // about order size, and letting it override an explicit approval rule would
+  // make a small discounted order a way around that rule.
+  if (input.requiresApproval) return "pending_approval"
+
+  const under = input.autoApproveUnder
+
+  if (
+    under > 0 &&
+    Number.isFinite(input.baseTotal) &&
+    input.baseTotal > 0 &&
+    input.baseTotal <= under
+  ) {
+    return "approved"
+  }
+
+  return "draft"
+}
+
 export async function createSalesOrder(input: CreateSalesOrderInput): Promise<CreateSalesOrderResult> {
   if (!input.items || input.items.length === 0) {
     return { ok: false, error: "An order needs at least one line item", code: "no_items" }
@@ -311,8 +352,16 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Cr
   })
   const resolvedWarehouseId =
     input.warehouseId || (await resolveDefaultWarehouseId(db, customer.companyId))
-  const status =
-    input.status || (discount.requiresApproval ? "pending_approval" : "draft")
+  // Read uncached: this decides whether an order skips a human, and the few
+  // seconds of cache that suit rendering are wrong for a gate.
+  const automation = await getSettings("automation", { skipCache: true }).catch(() => null)
+
+  const status = decideOrderStatus({
+    requestedStatus: input.status,
+    requiresApproval: discount.requiresApproval,
+    baseTotal: priceInCurrency.baseTotal,
+    autoApproveUnder: automation?.autoApproveOrdersUnder ?? 0,
+  })
 
   const order = await createOrderRecord({
     orderNumber,
