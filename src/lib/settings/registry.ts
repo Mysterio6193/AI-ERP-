@@ -317,13 +317,26 @@ export const warehouseSchema = z.object({
 })
 
 export const brandingSchema = z.object({
+  // NOT YET APPLIED. There is one document layout, and the accent colour is
+  // not read when rendering it. Kept rather than deleted because the intent is
+  // real, but it changes nothing today.
   primaryColor: z.enum(["slate", "sky", "emerald", "indigo", "violet", "rose", "amber"]).default("sky"),
   invoiceTheme: z.enum(["modern", "classic", "compact", "minimalist"]).default("modern"),
+
+  /** Print the company logo on documents. Uses `Company.logoUrl`. */
   showLogoOnDocuments: z.boolean().default(true),
+
+  // NOT YET APPLIED. No payment QR is generated, so this toggles nothing.
   showPaymentQrOnInvoice: z.boolean().default(true),
+
+  /** Print bank and remittance details on the invoice. */
   showBankDetailsOnInvoice: z.boolean().default(true),
-  documentFooter: z.string().default("Thank you for your business. Please quote invoice number on remittance."),
-  defaultTermsAndConditions: z.string().default("Goods remain the property of the seller until paid in full. Claims must be made within 7 days of delivery."),
+  // The document footer and the default terms deliberately do not live here.
+  // `Company.invoiceFooter` and `Company.defaultTerms` already hold them, are
+  // what Settings edits, and are what the invoice and sales order PDFs
+  // actually print. A second copy would let this page disagree with the
+  // document the customer receives.
+  // NOT YET APPLIED. Documents format dates with a fixed pattern.
   dateFormat: z.enum(["DD/MM/YYYY", "MM/DD/YYYY", "YYYY-MM-DD"]).default("DD/MM/YYYY"),
 })
 
@@ -341,8 +354,11 @@ export const automationSchema = z.object({
   autoApproveOrdersUnder: z.number().min(0).default(0),
   blockOrdersOnCreditHold: z.boolean().default(true),
   autoGeneratePickList: z.boolean().default(true),
+  // NOT YET APPLIED. Dispatch raises an invoice but never emails one.
   autoSendInvoiceOnDispatch: z.boolean().default(false),
+  // NOT YET APPLIED. Low stock is judged per product only.
   lowStockThresholdMode: z.enum(["product", "category", "global"]).default("global"),
+  // NOT YET APPLIED. Needs a scheduled sweep, which does not exist.
   notifyOverdueInvoices: z.boolean().default(true),
   telegramAlertsEnabled: z.boolean().default(true),
 })

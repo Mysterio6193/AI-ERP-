@@ -2,6 +2,7 @@ import React from "react"
 import { pdf } from "@react-pdf/renderer"
 
 import { db } from "@/lib/db"
+import { getSettings } from "@/lib/settings/service"
 import InvoicePDF from "@/components/documents/InvoicePDF"
 import SalesOrderPDF from "@/components/documents/SalesOrderPDF"
 import CustomerStatementPDF from "@/components/documents/CustomerStatementPDF"
@@ -49,9 +50,19 @@ export async function renderInvoicePdfBuffer(invoiceIdOrNumber: string): Promise
     })),
   }
 
+  // Branding choices were stored and read by nothing, so the document looked
+  // the same however they were set.
+  const branding = await getSettings("branding").catch(() => null)
+
   const docElement = React.createElement(InvoicePDF, {
     invoice: populatedInvoice,
     company: company || {},
+    display: branding
+      ? {
+          showLogoOnDocuments: branding.showLogoOnDocuments,
+          showBankDetailsOnInvoice: branding.showBankDetailsOnInvoice,
+        }
+      : null,
   })
 
   const blob = await pdf(docElement as any).toBlob()

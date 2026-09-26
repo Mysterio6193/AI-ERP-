@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer"
+import { Document, Image, Page, Text, View, StyleSheet } from "@react-pdf/renderer"
 import { format } from "date-fns"
 
 import {
@@ -27,6 +27,14 @@ const styles = StyleSheet.create({
   },
   companyBlock: {
     width: "56%",
+  },
+  logo: {
+    // Height-constrained rather than width, so a wide or a square logo both
+    // sit on one line with the company name beneath.
+    height: 36,
+    maxWidth: 160,
+    objectFit: "contain",
+    marginBottom: 6,
   },
   companyName: {
     fontSize: 20,
@@ -223,12 +231,25 @@ function getStatusStyle(status?: string) {
   return { backgroundColor: "#eef4ff", color: "#175cd3" }
 }
 
+/**
+ * Document display choices, from the Branding settings.
+ *
+ * Optional, and every default matches what the document printed before these
+ * settings were read by anything: a PDF rendered from a path that has not been
+ * updated must not change appearance.
+ */
+export interface InvoiceDisplayOptions {
+  showLogoOnDocuments?: boolean
+  showBankDetailsOnInvoice?: boolean
+}
+
 interface InvoicePDFProps {
   invoice: any
   company: any
+  display?: InvoiceDisplayOptions | null
 }
 
-const InvoicePDF = ({ invoice, company }: InvoicePDFProps) => {
+const InvoicePDF = ({ invoice, company, display }: InvoicePDFProps) => {
   const order = invoice.order || {}
   const customer = invoice.customer || {}
   const branding = sanitizeCompanyBranding(company)
@@ -249,13 +270,25 @@ const InvoicePDF = ({ invoice, company }: InvoicePDFProps) => {
   const companyCurrency = branding?.baseCurrency || "AUD"
   // Any one of these makes the invoice payable; none of them makes it a
   // request for money with no destination.
-  const hasPaymentDetails = Boolean(
-    branding?.bankName ||
-      branding?.bsb ||
-      branding?.accountNumber ||
-      branding?.upiId ||
-      branding?.ifscCode
-  )
+  //
+  // `showBankDetailsOnInvoice` was a setting nobody read: bank details were
+  // printed on every invoice however it was configured. Undefined means print,
+  // which is what the document has always done.
+  const showBankDetails = display?.showBankDetailsOnInvoice !== false
+
+  const hasPaymentDetails =
+    showBankDetails &&
+    Boolean(
+      branding?.bankName ||
+        branding?.bsb ||
+        branding?.accountNumber ||
+        branding?.upiId ||
+        branding?.ifscCode
+    )
+
+  // The company's logo was never put on the document at all, so
+  // `showLogoOnDocuments` was a toggle for something that did not exist.
+  const logoUrl = display?.showLogoOnDocuments === false ? null : branding?.logoUrl || null
 
   const documentNotes = [invoice.notes, order.customerNotes, order.internalNotes].filter(Boolean)
   const paymentRows = Array.isArray(invoice.payments) ? invoice.payments.slice(0, 4) : []
@@ -265,6 +298,10 @@ const InvoicePDF = ({ invoice, company }: InvoicePDFProps) => {
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
           <View style={styles.companyBlock}>
+            {/* This is @react-pdf's Image, not an HTML img: it renders into a
+                PDF and takes no alt prop, so the web a11y rule misfires. */}
+            {/* eslint-disable-next-line jsx-a11y/alt-text */}
+            {logoUrl ? <Image src={logoUrl} style={styles.logo} /> : null}
             <Text style={styles.companyName}>{brandName}</Text>
             {branding?.address ? <Text>{branding.address}</Text> : null}
             {companyAddressLine ? <Text>{companyAddressLine}</Text> : null}
@@ -389,12 +426,12 @@ const InvoicePDF = ({ invoice, company }: InvoicePDFProps) => {
                 Payment details are not set up yet — please contact us for remittance instructions.
               </Text>
             )}
-            {branding?.bankName ? <Text style={styles.sectionValue}>Bank: {branding.bankName}</Text> : null}
-            {branding?.bsb ? <Text style={styles.sectionValue}>BSB: {branding.bsb}</Text> : null}
-            {branding?.accountNumber ? <Text style={styles.sectionValue}>Account: {branding.accountNumber}</Text> : null}
-            {branding?.accountName ? <Text style={styles.sectionValue}>Account name: {branding.accountName}</Text> : null}
-            {branding?.upiId ? <Text style={styles.sectionValue}>UPI: {branding.upiId}</Text> : null}
-            {branding?.ifscCode ? <Text style={styles.sectionValue}>IFSC: {branding.ifscCode}</Text> : null}
+            {showBankDetails && branding?.bankName ? <Text style={styles.sectionValue}>Bank: {branding.bankName}</Text> : null}
+            {showBankDetails && branding?.bsb ? <Text style={styles.sectionValue}>BSB: {branding.bsb}</Text> : null}
+            {showBankDetails && branding?.accountNumber ? <Text style={styles.sectionValue}>Account: {branding.accountNumber}</Text> : null}
+            {showBankDetails && branding?.accountName ? <Text style={styles.sectionValue}>Account name: {branding.accountName}</Text> : null}
+            {showBankDetails && branding?.upiId ? <Text style={styles.sectionValue}>UPI: {branding.upiId}</Text> : null}
+            {showBankDetails && branding?.ifscCode ? <Text style={styles.sectionValue}>IFSC: {branding.ifscCode}</Text> : null}
           </View>
 
           <View style={styles.totalsCard}>
