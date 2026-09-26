@@ -6,6 +6,7 @@ import {
 } from "ai"
 
 import { db } from "@/lib/db"
+import { getSettings } from "@/lib/settings/service"
 
 import { buildPrincipalContext, type AgentPrincipal } from "./context"
 import {
@@ -16,6 +17,8 @@ import {
 } from "./definitions"
 import { formatMemories, recall } from "./memory"
 import { resolveAgentModel } from "./model"
+import { formatPersona } from "@/lib/agent/persona"
+import { settingsOverrides } from "@/lib/agent/model-config"
 import { availableSkills, formatSkillCatalogue } from "./skills"
 import { decide, getThresholds, type AgentThresholds } from "./policy"
 import { buildTools, TOOL_POLICY } from "./tools"
@@ -122,14 +125,28 @@ export async function buildAgent(
   const learned = formatMemories(memories)
   const procedures = formatSkillCatalogue(skills)
 
+  // The persona settings were editable and read by nothing, so an admin could
+  // set a tone and write standing instructions and change how the agent
+  // behaved not at all.
+  const persona = await getSettings("agentPersona").catch(() => null)
+
   // The definition's own thresholds win when it carries overrides; the caller's
   // are the global set the definition was already layered over.
-  const effective = definition ? definition.thresholds : thresholds
+  const effective = {
+    ...(definition ? definition.thresholds : thresholds),
+    // Narrows only: see the note on `autoConfirmLowRisk`.
+    ...(persona ? { autoConfirmLowRisk: persona.autoConfirmLowRiskActions } : {}),
+  }
+
+  const modelPurpose = channel === "telegram" ? "telegram" : resolved.slug
 
   const agentModel = resolveAgentModel({
     model: resolved.model,
-    purpose: channel === "telegram" ? "telegram" : resolved.slug,
+    purpose: modelPurpose,
     tier: "chat",
+    // Settings layer over the environment; an unset setting contributes
+    // nothing, so a deployment configured by environment is unaffected.
+    ...(await settingsOverrides(modelPurpose, "chat")),
   })
 
   return new ToolLoopAgent({
@@ -137,6 +154,7 @@ export async function buildAgent(
     instructions: [
       // First, so the agent knows who it is before it knows what it does.
       formatIdentity(identity),
+      formatPersona(persona),
       resolved.instructions,
       learned,
       procedures,

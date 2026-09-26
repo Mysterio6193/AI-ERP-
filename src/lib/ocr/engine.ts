@@ -1,6 +1,7 @@
 import { generateText } from "ai"
 import { db } from "@/lib/db"
 import { resolveAgentModel } from "@/lib/agent/model"
+import { settingsOverrides } from "@/lib/agent/model-config"
 
 export interface ExtractedLineItem {
   description: string
@@ -88,6 +89,7 @@ export async function processDocumentOcr(input: {
     model: input.modelOverride,
     purpose: "ocr",
     tier: "chat",
+    ...(await settingsOverrides("ocr", "chat")),
   })
 
   let promptContent: any

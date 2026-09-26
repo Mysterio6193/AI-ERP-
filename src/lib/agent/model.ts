@@ -31,7 +31,11 @@ function env(name: string) {
   return value && value.trim() ? value.trim() : undefined
 }
 
-export function getProviderMode(): AgentProviderMode {
+export function getProviderMode(override?: AgentProviderMode): AgentProviderMode {
+  // Settings win over the environment when they name a provider; an unset
+  // setting arrives here as undefined and changes nothing.
+  if (override) return override
+
   const explicit = env("AGENT_PROVIDER")?.toLowerCase()
   if (explicit === "google" || explicit === "gateway" || explicit === "local" || explicit === "openrouter") {
     return explicit
@@ -63,10 +67,10 @@ export function getLocalBaseUrl() {
   return env("AGENT_LOCAL_BASE_URL") || DEFAULT_LOCAL_BASE_URL
 }
 
-function localProvider() {
+function localProvider(baseUrl?: string) {
   return createOpenAICompatible({
     name: "local",
-    baseURL: getLocalBaseUrl(),
+    baseURL: baseUrl?.trim() || getLocalBaseUrl(),
     // Ollama ignores the key; LM Studio and vLLM accept anything.
     apiKey: env("AGENT_LOCAL_API_KEY") || "local",
   })
@@ -152,6 +156,15 @@ export interface ResolveModelOptions {
   model?: string | null
   purpose?: AgentPurpose | string
   tier?: ModelTier
+  /**
+   * Provider chosen in settings, overriding what the environment infers.
+   *
+   * Undefined means "the environment decides", which is what an unset setting
+   * resolves to — see `model-config.ts` for why that distinction matters.
+   */
+  provider?: AgentProviderMode
+  /** Base URL for a self-hosted server, when settings name one. */
+  localBaseUrl?: string
 }
 
 export const HERMES_MODEL_ALIASES: Record<string, string> = {
@@ -179,7 +192,7 @@ export function getModelId(target?: ModelTier | string | ResolveModelOptions): s
         : { purpose: target }
       : target || { tier: "chat" }
 
-  const mode = getProviderMode()
+  const mode = getProviderMode(options.provider)
 
   // 1. Explicit model override (per agent definition or call site)
   if (options.model && options.model.trim()) {
@@ -279,8 +292,9 @@ export function modelSuitsProvider(modelId: string, mode: AgentProviderMode): bo
 }
 
 export function resolveAgentModel(target?: ModelTier | string | ResolveModelOptions): LanguageModel {
+  const options = typeof target === "object" && target !== null ? target : {}
   const modelId = getModelId(target)
-  const mode = getProviderMode()
+  const mode = getProviderMode(options.provider)
 
   if (mode === "google" && !modelSuitsProvider(modelId, mode)) {
     // A gateway-style id was asked for while Google is configured. If there is
@@ -307,7 +321,7 @@ export function resolveAgentModel(target?: ModelTier | string | ResolveModelOpti
   }
 
   if (mode === "local") {
-    return localProvider()(modelId)
+    return localProvider(options.localBaseUrl)(modelId)
   }
 
   return gateway(modelId)

@@ -348,22 +348,69 @@ export const automationSchema = z.object({
 })
 
 export const agentPersonaSchema = z.object({
-  personaName: z.string().default("SupplySure Autonomous Assistant"),
+  // The agent's name deliberately does not live here. It belongs to the agent's
+  // identity record, which also owns its email, phone and customer-facing
+  // signature, and gives autonomous work a real User row to attribute to. A
+  // second copy would let Settings disagree with the name the agent signs
+  // emails with.
+
+  /** Shapes how the agent writes. Fed into its instructions. */
   tone: z.enum(["professional", "concise", "friendly", "technical"]).default("professional"),
-  autoConfirmLowRiskActions: z.boolean().default(false),
-  customSystemInstructions: z.string().default("Prioritize customer satisfaction and verify stock levels before confirming delivery commitments."),
+
+  /**
+   * Let the agent carry out low-risk writes without asking.
+   *
+   * Defaults to true because that is what the agent has always done — low-risk
+   * writes were auto-allowed unconditionally. Wiring this up with the `false`
+   * default it used to carry would have made every existing install start
+   * queuing approvals for work it used to simply do.
+   *
+   * It only ever narrows: medium and high risk, anything over a value
+   * threshold, and anything marked as always needing a decision still go to a
+   * human regardless.
+   */
+  autoConfirmLowRiskActions: z.boolean().default(true),
+
+  /** Appended to the agent's instructions, verbatim. Blank means nothing extra. */
+  customSystemInstructions: z.string().default(""),
 })
 
 export const aiModelsSchema = z.object({
-  provider: z.enum(["openrouter", "gateway", "local"]).default("openrouter"),
-  chatModel: z.string().default("deepseek/deepseek-chat"),
-  telegramModel: z.string().default("deepseek/deepseek-chat"),
-  ocrModel: z.string().default("google/gemini-2.5-flash"),
-  voiceModel: z.string().default("openai/whisper-large-v3"),
-  replenishmentModel: z.string().default("deepseek/deepseek-chat"),
-  emailModel: z.string().default("meta-llama/llama-3.3-70b-instruct"),
-  financeModel: z.string().default("deepseek/deepseek-chat"),
-  fastModel: z.string().default("meta-llama/llama-3.3-70b-instruct"),
+  /**
+   * Which provider serves model calls.
+   *
+   * "environment" means whatever the deployment's own variables say, and is
+   * the default so a fresh install behaves exactly as it did before these
+   * settings were wired up — and so a deployment that sets AGENT_PROVIDER is
+   * not silently overridden by a settings row nobody looked at.
+   *
+   * "google" was missing from this list entirely while the code has supported
+   * Gemini all along, so the one provider a Gemini deployment needs could not
+   * be chosen here.
+   */
+  provider: z
+    .enum(["environment", "google", "openrouter", "gateway", "local"])
+    .default("environment"),
+
+  /**
+   * Model ids per purpose. Empty means "use the environment's value", for the
+   * same reason as the provider: an unset field must not become an opinion.
+   *
+   * No ids are baked in as defaults. A hardcoded id goes stale the moment a
+   * provider renames a model, and a stale id is a call that 404s rather than a
+   * setting that reads as unset.
+   */
+  chatModel: z.string().default(""),
+  telegramModel: z.string().default(""),
+  ocrModel: z.string().default(""),
+  voiceModel: z.string().default(""),
+  replenishmentModel: z.string().default(""),
+  emailModel: z.string().default(""),
+  financeModel: z.string().default(""),
+  fastModel: z.string().default(""),
+
+  /** Base URL for a self-hosted, OpenAI-compatible server. */
+  localBaseUrl: z.string().default(""),
 })
 
 export interface NamespaceDefinition {

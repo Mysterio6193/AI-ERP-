@@ -35,9 +35,19 @@ export interface AgentThresholds {
   maxInventoryAdjustment: number
   allowOutboundMessages: boolean
   readOnly: boolean
+  /**
+   * Carry out low-risk writes without asking.
+   *
+   * Only ever narrows: everything medium or high risk, over a value threshold,
+   * or marked as always needing a decision still goes to a human. Optional and
+   * treated as true when absent, so a caller that predates this flag keeps the
+   * behaviour the agent has always had.
+   */
+  autoConfirmLowRisk?: boolean
 }
 
 export const DEFAULT_THRESHOLDS: AgentThresholds = {
+  autoConfirmLowRisk: true,
   maxOrderValue: 500,
   maxPurchaseOrderValue: 1000,
   maxPaymentValue: 0,
@@ -124,6 +134,10 @@ export function clampThresholds(
         ? current.allowOutboundMessages
         : Boolean(patch.allowOutboundMessages),
     readOnly: patch.readOnly === undefined ? current.readOnly : Boolean(patch.readOnly),
+    autoConfirmLowRisk:
+      patch.autoConfirmLowRisk === undefined
+        ? current.autoConfirmLowRisk
+        : Boolean(patch.autoConfirmLowRisk),
   }
 }
 
@@ -274,5 +288,12 @@ export function decide(input: {
   }
 
   // Writes with no monetary dimension: low risk runs, medium asks.
-  return meta.risk === "low" ? { type: "allow" } : { type: "approve", reason: "Needs confirmation." }
+  if (meta.risk === "low") {
+    // Absent means yes, so a caller that predates this flag is unaffected.
+    return thresholds.autoConfirmLowRisk === false
+      ? { type: "approve", reason: "Every change needs confirmation on this configuration." }
+      : { type: "allow" }
+  }
+
+  return { type: "approve", reason: "Needs confirmation." }
 }

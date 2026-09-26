@@ -1,5 +1,6 @@
 import { generateText } from "ai"
 import { resolveAgentModel, getModelId } from "@/lib/agent/model"
+import { settingsOverrides } from "@/lib/agent/model-config"
 import { TRANSCRIPTION_PROMPT } from "@/lib/voice/language"
 
 export interface TranscriptionResult {
@@ -101,6 +102,7 @@ export async function transcribeAudio(input: {
     model: input.modelOverride,
     purpose: "voice",
     tier: "fast",
+    ...(await settingsOverrides("voice", "fast")),
   })
 
   const result = await generateText({

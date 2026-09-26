@@ -4,6 +4,7 @@ import { db } from "@/lib/db"
 
 import { saveThreadSummary, threadsNeedingSummary } from "./history"
 import { resolveAgentModel } from "./model"
+import { settingsOverrides } from "@/lib/agent/model-config"
 
 /**
  * Conversation summarising.
@@ -52,7 +53,7 @@ export async function summariseThread(threadId: string) {
   try {
     const result = await generateText({
       // Summarising is cheap, high-volume work; it does not need the chat model.
-      model: resolveAgentModel("fast"),
+      model: resolveAgentModel({ tier: "fast", ...(await settingsOverrides(null, "fast")) }),
       system: INSTRUCTIONS,
       prompt: transcript.slice(0, 24_000),
     })

@@ -40,7 +40,7 @@ async function main() {
   assert("Default automation schema valid", automationSettings.blockOrdersOnCreditHold === true, `credit hold blocking: ON`)
 
   const agentPersonaSettings = defaultsFor("agentPersona")
-  assert("Default agent persona schema valid", agentPersonaSettings.tone === "professional", `persona: "${agentPersonaSettings.personaName}"`)
+  assert("Default agent persona schema valid", agentPersonaSettings.tone === "professional", `tone: ${agentPersonaSettings.tone}`)
 
   const taxSettings = defaultsFor("tax")
   assert("Default tax settings schema valid", taxSettings.roundingMode === "line", `rounding: ${taxSettings.roundingMode}`)

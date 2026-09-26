@@ -158,3 +158,53 @@ describe("a patch must not erase saved values", () => {
     expect(result.readOnly).toBe(true)
   })
 })
+
+describe("low-risk confirmation", () => {
+  const lowRiskWrite = {
+    toolName: "logNote",
+    meta: { risk: "low" as const },
+    value: undefined,
+    principal: {
+      kind: "staff" as const,
+      userId: "u1",
+      role: "admin" as const,
+      name: "A",
+      email: "a@example.test",
+    },
+  }
+
+  it("runs a low-risk write without asking, as it always has", () => {
+    // The flag was wired up from a previously dead setting whose default was
+    // false. If absent meant "no", every existing install would suddenly start
+    // queuing approvals for work the agent used to just do.
+    expect(decide({ ...lowRiskWrite, thresholds: DEFAULT_THRESHOLDS })).toEqual({ type: "allow" })
+    expect(
+      decide({
+        ...lowRiskWrite,
+        thresholds: { ...DEFAULT_THRESHOLDS, autoConfirmLowRisk: undefined },
+      })
+    ).toEqual({ type: "allow" })
+  })
+
+  it("asks for a low-risk write when a business turns confirmation on", () => {
+    expect(
+      decide({ ...lowRiskWrite, thresholds: { ...DEFAULT_THRESHOLDS, autoConfirmLowRisk: false } })
+        .type
+    ).toBe("approve")
+  })
+
+  it("never widens anything", () => {
+    const high = { ...lowRiskWrite, meta: { risk: "high" as const } }
+
+    expect(
+      decide({ ...high, thresholds: { ...DEFAULT_THRESHOLDS, autoConfirmLowRisk: true } }).type
+    ).toBe("approve")
+
+    expect(
+      decide({
+        ...lowRiskWrite,
+        thresholds: { ...DEFAULT_THRESHOLDS, autoConfirmLowRisk: true, readOnly: true },
+      }).type
+    ).toBe("deny")
+  })
+})
